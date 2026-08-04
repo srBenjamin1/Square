@@ -1,72 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-  A pane of the app's glass, with the level meter that marks the playing row.
+  A square wave, which is what the app is named after.
 
-  Not a note and not a vinyl: both are what a music app's icon is expected to be,
-  and neither says anything about this one. What the app looks like is a
-  translucent capsule with a bright edge over something dark and lit — the tab
-  bar, the buttons and the player's panes are all that shape — so the icon is one
-  of those panes seen close up.
+  Drawn as a stroked path rather than as an outline shape: the corners have to
+  stay square and the two open ends round, and a stroke with a round cap and a
+  mitre join is exactly that, at any size, with no hinting.
 
-  Everything sits inside the 66dp safe zone: an adaptive icon is masked to
-  whatever shape the launcher wants, and the corners are the first thing to go.
+  Three strokes, back to front: a light one offset down for the lip the plate
+  catches, then the black wave over it. That is the whole of the depth in the
+  original — there is no bevel to reproduce, only an edge.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- The pane itself: a top-lit film, the way glass catches a window.
-         Lighter at the top left, almost clear at the bottom right. -->
-    <path
-        android:pathData="M32,29h44a11,11 0,0 1,11 11v28a11,11 0,0 1,-11 11h-44a11,11 0,0 1,-11 -11v-28a11,11 0,0 1,11 -11z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:endX="82"
-                android:endY="76"
-                android:startX="26"
-                android:startY="32"
-                android:type="linear">
-                <item android:color="#4DFFFFFF" android:offset="0" />
-                <item android:color="#26FFFFFF" android:offset="0.5" />
-                <item android:color="#14FFFFFF" android:offset="1" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- The hairline. It is what makes the shape read as a solid piece of glass
-         rather than as a translucent rectangle, and it is on every surface in
-         the app for the same reason. -->
+    <!-- The lip: the same path, a shade lighter and a pixel lower. -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M32,29h44a11,11 0,0 1,11 11v28a11,11 0,0 1,-11 11h-44a11,11 0,0 1,-11 -11v-28a11,11 0,0 1,11 -11z"
-        android:strokeWidth="1.6">
-        <aapt:attr name="android:strokeColor">
-            <gradient
-                android:endX="80"
-                android:endY="78"
-                android:startX="28"
-                android:startY="30"
-                android:type="linear">
-                <item android:color="#B3FFFFFF" android:offset="0" />
-                <item android:color="#33FFFFFF" android:offset="0.55" />
-                <item android:color="#80FFFFFF" android:offset="1" />
-            </gradient>
-        </aapt:attr>
-    </path>
+        android:pathData="M22,59 L22,37 L56,37 L56,73 L86,73 L86,53"
+        android:strokeColor="#4DFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="miter"
+        android:strokeWidth="11" />
 
-    <!-- Four bars, rising and falling: the level meter drawn on the playing row. -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M36,50h5a2.5,2.5 0,0 1,2.5 2.5v3a2.5,2.5 0,0 1,-2.5 2.5h-5a2.5,2.5 0,0 1,-2.5 -2.5v-3a2.5,2.5 0,0 1,2.5 -2.5z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M48,41h5a2.5,2.5 0,0 1,2.5 2.5v21a2.5,2.5 0,0 1,-2.5 2.5h-5a2.5,2.5 0,0 1,-2.5 -2.5v-21a2.5,2.5 0,0 1,2.5 -2.5z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M60,46h5a2.5,2.5 0,0 1,2.5 2.5v11a2.5,2.5 0,0 1,-2.5 2.5h-5a2.5,2.5 0,0 1,-2.5 -2.5v-11a2.5,2.5 0,0 1,2.5 -2.5z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M72,49h5a2.5,2.5 0,0 1,2.5 2.5v5a2.5,2.5 0,0 1,-2.5 2.5h-5a2.5,2.5 0,0 1,-2.5 -2.5v-5a2.5,2.5 0,0 1,2.5 -2.5z" />
+        android:fillColor="#00000000"
+        android:pathData="M22,58 L22,36 L56,36 L56,72 L86,72 L86,52"
+        android:strokeColor="#FF1B1B1F"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="miter"
+        android:strokeWidth="11" />
 </vector>
