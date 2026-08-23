@@ -50,8 +50,8 @@ android {
         // cpal's Android host is AAudio, which the ndk crate gates at API 26.
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "1.7.1"
+        versionCode = 20
+        versionName = "1.8.0"
 
         ndk {
             abiFilters += nativeAbis
