@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -114,6 +115,15 @@ fun PlayerPanelSection(
         // The queue is deliberately not in here — it is a sheet that opens over
         // the player rather than a view of it, and it has its own button beside
         // the title.
+        // Whether anything is being done to the sound right now.
+        val speed by dev.lelonio.square.playback.AudioEffects.speed
+            .collectAsStateWithLifecycle()
+        val pitch by dev.lelonio.square.playback.AudioEffects.pitch
+            .collectAsStateWithLifecycle()
+        val reverb by dev.lelonio.square.playback.AudioEffects.reverb
+            .collectAsStateWithLifecycle()
+        val effectsOn = speed != 1f || pitch != 1f || reverb > 0f
+
         val views = remember { listOf(PlayerPanel.NONE, PlayerPanel.LYRICS, PlayerPanel.EFFECTS) }
         val selected = views.indexOf(panel).coerceAtLeast(0)
         // Stable, or LiquidBottomTabs throws away the state it keys on this and
@@ -156,6 +166,7 @@ fun PlayerPanelSection(
                 activeIcon = PhosphorIcons.Fill.SlidersHorizontal,
                 label = stringResource(R.string.effects),
                 selected = selected == 2,
+                marked = effectsOn,
             ) { onSelect(PlayerPanel.EFFECTS) }
         }
 
@@ -169,9 +180,33 @@ private fun RowScope.PanelTab(
     activeIcon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     selected: Boolean,
+    /**
+     * A light on the tab: what is behind it is doing something right now.
+     *
+     * Used by the effects, which are the one view whose settings go on working
+     * after it is closed — a song playing a third slower with the panel shut
+     * looks, from this row, exactly like a song playing normally.
+     */
+    marked: Boolean = false,
     onClick: () -> Unit,
 ) {
     LiquidBottomTab(onClick = onClick) {
+        androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
+        if (marked) {
+            // A halo rather than a badge stuck to the corner: the tabs are
+            // small and round-ended, and a dot on the edge of one reads as
+            // damage to the capsule.
+            androidx.compose.foundation.layout.Box(
+                Modifier
+                    .size(30.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            listOf(GlassInk.copy(alpha = 0.28f), androidx.compose.ui.graphics.Color.Transparent),
+                        ),
+                        androidx.compose.foundation.shape.CircleShape,
+                    ),
+            )
+        }
         Icon(
             // Filled rather than only brighter. The indicator behind the icon
             // moves, so at a glance the two states differed by a shade of grey
@@ -179,9 +214,14 @@ private fun RowScope.PanelTab(
             // being read against its neighbours.
             imageVector = if (selected) activeIcon else icon,
             contentDescription = label,
-            tint = if (selected) GlassInk else GlassInkDim,
+            tint = when {
+                selected -> GlassInk
+                marked -> GlassInk.copy(alpha = 0.85f)
+                else -> GlassInkDim
+            },
             modifier = Modifier.size(19.dp),
         )
+        }
     }
 }
 
