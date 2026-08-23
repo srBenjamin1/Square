@@ -799,6 +799,22 @@ enum PlayerState {
 }
 
 impl PlayerState {
+    /// LOCAL PATCH: where the track had got to, for reloading it after a
+    /// failure. Zero when nothing is loaded, which is the right answer for a
+    /// reload that will start from the beginning anyway.
+    fn stream_position_ms(&self) -> u32 {
+        use self::PlayerState::*;
+        match *self {
+            Playing {
+                stream_position_ms, ..
+            }
+            | Paused {
+                stream_position_ms, ..
+            } => stream_position_ms,
+            _ => 0,
+        }
+    }
+
     fn is_playing(&self) -> bool {
         use self::PlayerState::*;
         match *self {
@@ -1664,13 +1680,16 @@ impl Future for PlayerInternal {
                                             }
                                         }
                                         Err(e) => {
+                                            // LOCAL PATCH: a failure is not the
+                                            // end of the song; see reload_track.
                                             error!(
-                                                "Skipping to next track, unable to decode samples for track <{track_id:?}>: {e:?}"
+                                                "unable to decode samples for track <{track_id:?}>: {e:?}"
                                             );
-                                            self.send_event(PlayerEvent::EndOfTrack {
+                                            self.reload_track(
                                                 track_id,
                                                 play_request_id,
-                                            })
+                                                new_stream_position_ms,
+                                            );
                                         }
                                     }
                                 }
@@ -1679,13 +1698,11 @@ impl Future for PlayerInternal {
                             self.handle_packet(result, normalisation_factor);
                         }
                         Err(e) => {
-                            error!(
-                                "Skipping to next track, unable to get next packet for track <{track_id:?}>: {e:?}"
-                            );
-                            self.send_event(PlayerEvent::EndOfTrack {
-                                track_id,
-                                play_request_id,
-                            })
+                            // LOCAL PATCH: a failure is not the end of the
+                            // song; see reload_track.
+                            error!("unable to get next packet for track <{track_id:?}>: {e:?}");
+                            let position_ms = self.state.stream_position_ms();
+                            self.reload_track(track_id, play_request_id, position_ms);
                         }
                     }
                 } else {
@@ -2699,6 +2716,43 @@ impl PlayerInternal {
     fn send_event(&mut self, event: PlayerEvent) {
         self.event_senders
             .retain(|sender| sender.send(event.clone()).is_ok());
+    }
+
+    /// LOCAL PATCH: puts a failed track back on, from where it stopped.
+    ///
+    /// Upstream answers a read or decode failure with `EndOfTrack`, and Spirc
+    /// answers *that* by playing the next song — so a stumble on the network
+    /// looks exactly like a song reaching its end, and the queue walks forward
+    /// on its own. Two failures in a row and the listener is two songs along
+    /// from what they chose, which is what this is here to stop.
+    ///
+    /// The difference that matters is between a track that cannot be played and
+    /// one that did not load: the first is answered with `Unavailable` further
+    /// up, and skipping it is right. This is the second, and the only correct
+    /// answer to it is to try again — the song is there, and the listener asked
+    /// for it.
+    fn reload_track(&mut self, track_id: SpotifyUri, play_request_id: u64, position_ms: u32) {
+        let start_playback = self.state.is_playing();
+        self.send_event(PlayerEvent::Loading {
+            track_id: track_id.clone(),
+            play_request_id,
+            position_ms,
+        });
+
+        let loader = self.load_track(track_id.clone(), position_ms);
+        let loader = Box::pin(
+            async move {
+                tokio::time::sleep(LOAD_RETRY_BACKOFF).await;
+                loader.await
+            }
+            .fuse(),
+        );
+        self.state = PlayerState::Loading {
+            track_id,
+            play_request_id,
+            start_playback,
+            loader,
+        };
     }
 
     fn load_track(

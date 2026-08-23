@@ -233,7 +233,22 @@ class PlayQueue {
         contextLabel = mediaItems.firstNotNullOfOrNull {
             it.mediaMetadata.extras?.getString(EXTRA_CONTEXT_LABEL)
         }.orEmpty()
-        replace(mediaItems.mapNotNull(::toTrack), startIndex)
+        // The index has to be carried across the filter, not handed over as
+        // it arrived.
+        //
+        // Items without a Spotify uri are dropped — a local file, an advert,
+        // anything the engine cannot be asked to play — and every drop above
+        // the chosen track pulls it one place further down a list that has not
+        // moved on screen. Tapping the third song and hearing the fifth is
+        // that, and it is consistent per playlist because the same rows are
+        // dropped every time.
+        val tracks = ArrayList<Track>(mediaItems.size)
+        var chosen = 0
+        mediaItems.forEachIndexed { position, item ->
+            if (position == startIndex) chosen = tracks.size
+            toTrack(item)?.let(tracks::add)
+        }
+        replace(tracks, chosen)
     }
 
     /**
@@ -296,6 +311,32 @@ class PlayQueue {
         val uris = extras?.getStringArrayList(dev.lelonio.square.ui.EXTRA_ARTIST_URIS)
         if (names == null || uris == null) return emptyList()
         return names.zip(uris) { name, uri -> dev.lelonio.square.data.CatalogArtist(name, uri) }
+    }
+
+    /**
+     * Where a uri is in this queue, counted from where the queue already is.
+     *
+     * A song can be in a playlist twice, and albums repeat across a queue built
+     * from several of them. Asked for the first match, a queue told "the engine
+     * is playing X" would jump to whichever X came first — which is what made
+     * the screen walk backwards to a song played twenty minutes ago while the
+     * speaker carried on. The nearest one is the one it means.
+     *
+     * Returns -1 when the uri is not here at all, which is a real answer: it
+     * means another device chose something outside this queue.
+     */
+    fun nearestIndexOf(uri: String, from: Int): Int {
+        var best = -1
+        var bestDistance = Int.MAX_VALUE
+        items.forEachIndexed { index, track ->
+            if (track.uri != uri) return@forEachIndexed
+            val distance = kotlin.math.abs(index - from)
+            if (distance < bestDistance) {
+                best = index
+                bestDistance = distance
+            }
+        }
+        return best
     }
 
     private fun toTrack(item: MediaItem): Track? {

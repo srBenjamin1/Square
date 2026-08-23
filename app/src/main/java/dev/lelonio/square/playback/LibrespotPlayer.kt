@@ -476,6 +476,21 @@ class LibrespotPlayer(
     private var engineIndex = -1
 
     /**
+     * Whether the track the queue is on has actually started.
+     *
+     * A load is not a change of track. The engine fetches what is coming while
+     * the current song plays, and each of those arrives here as a load: taken
+     * as "the engine has moved on", the screen ran forward a song or two and
+     * the one just started vanished from under the listener.
+     *
+     * A load still counts while nothing is sounding, and that case is the one
+     * loads were followed for: a run of tracks the account cannot play is
+     * loaded one after another with no play in between, and ignoring those
+     * left the app behind the speaker.
+     */
+    private var sounding = false
+
+    /**
      * True when the list the engine was given no longer matches ours.
      *
      * Spirc holds the track list it was loaded with and advances through it by
@@ -534,11 +549,24 @@ class LibrespotPlayer(
         skipInFlight = true
         handler.removeCallbacks(settleSkip)
         handler.postDelayed(settleSkip, delay)
+        // Held until the engine says it is on the track that was asked for.
+        //
+        // Cleared as soon as the command went out, the events still coming in
+        // about the track being left were taken as the truth, and the screen
+        // walked backwards to the song the listener had just skipped. The
+        // timeout is the way out of a command that never lands.
+        handler.removeCallbacks(skipGaveUp)
+        handler.postDelayed(skipGaveUp, SKIP_CONFIRM_MS)
+    }
+
+    /** The engine never confirmed the skip; stop ignoring what it says. */
+    private val skipGaveUp = Runnable {
+        skipPending = false
+        skipInFlight = false
     }
 
     private val settleSkip = Runnable {
         if (released) return@Runnable
-        skipPending = false
         val target = queue.currentIndex
         val from = engineIndex
 
@@ -551,7 +579,9 @@ class LibrespotPlayer(
             // accepted by a dead device and discarded, and the old track would
             // play on. The queue is pushed instead, which rebuilds the device
             // first and then loads the track that was asked for.
-            deviceGone -> pushQueue(startPlaying = playWhenReady, positionMs = 0)
+            deviceGone -> {
+                pushQueue(startPlaying = playWhenReady, positionMs = 0)
+            }
 
             // A step either way is a skip, and Spirc has to be the one making
             // it: reloading the queue for a skip would restart the context and
@@ -572,7 +602,9 @@ class LibrespotPlayer(
                 }
             }
 
-            else -> pushQueue(startPlaying = playWhenReady, positionMs = positionMs.toInt())
+            else -> {
+                pushQueue(startPlaying = playWhenReady, positionMs = positionMs.toInt())
+            }
         }
     }
 
@@ -729,6 +761,7 @@ class LibrespotPlayer(
         // A new queue: whatever the engine was playing is no longer at any
         // index of this one.
         engineIndex = -1
+        sounding = false
         // Shuffle before picking the track to load: with the mode on, the tapped
         // track moves to the front and the rest are reordered behind it.
         reapplyShuffle()
@@ -828,6 +861,7 @@ class LibrespotPlayer(
         if (released || queue.items.isEmpty()) return
         engineQueueStale = true
         engineIndex = -1
+        sounding = false
         this.positionMs = positionMs
         wantPlay = playing
         pushQueue(startPlaying = playing, positionMs = positionMs.toInt())
@@ -838,6 +872,7 @@ class LibrespotPlayer(
         queue.replace(emptyList(), 0)
         wantPlay = false
         engineIndex = -1
+        sounding = false
         engineQueueStale = false
         skipPending = false
         skipInFlight = false
@@ -890,6 +925,7 @@ class LibrespotPlayer(
 
         queue.replace(tracks, 0)
         engineIndex = -1
+        sounding = false
         shuffleOrder?.let(queue::applyShuffleOrder)
         queue.currentIndex = index.coerceIn(0, queue.items.lastIndex)
 
@@ -1071,11 +1107,17 @@ class LibrespotPlayer(
     private fun applyEvent(type: String, uri: String, eventPositionMs: Long) {
         if (released) return
 
+        // Nothing is coming out of the speaker any more, so the next load is a
+        // real move rather than a head start on what is coming.
+        if (type == "stopped" || type == "end_of_track" || type == "unavailable") {
+            sounding = false
+        }
+
         // The engine decides what plays next now, so the current index is
         // followed rather than set: an advance, a remote skip from another
         // device and a local one all arrive here the same way.
         if (uri.isNotEmpty()) {
-            val index = queue.items.indexOfFirst { it.uri == uri }
+            val index = queue.nearestIndexOf(uri, engineIndex.takeIf { it >= 0 } ?: queue.currentIndex)
             if (index < 0 && (type == "playing" || type == "loading") && unknownAsked != uri) {
                 // Not ours: somebody else chose it. Asked for once per track,
                 // and only on a track that is actually starting, so a position
@@ -1087,26 +1129,29 @@ class LibrespotPlayer(
                 unknownAsked = null
                 engineIndex = index
                 if (index == queue.currentIndex) {
+                    // The engine is where it was asked to be.
+                    skipPending = false
+                    handler.removeCallbacks(skipGaveUp)
                     skipInFlight = false
+                    if (type == "playing") sounding = true
                     if (type == "playing" || type == "loading") positionMs = 0
-                } else if (
-                    !skipPending &&
-                    (type == "playing" || (!skipInFlight && type == "loading"))
-                ) {
+                } else if (!skipPending && type == "playing") {
                     // The engine is the truth about what is coming out of the
                     // speaker. While a skip is on its way its events are about
                     // the track being left, and following them dragged the
                     // screen backwards — but once nothing is outstanding, the
                     // screen was simply wrong to disagree.
                     //
-                    // Loading counts, not only playing: a run of tracks the
-                    // account cannot play — region-locked, delisted — is
-                    // skipped by the engine one after another, and each of
-                    // those is a load with no play. Following only plays left
-                    // the app three songs behind what was in the speaker,
-                    // which is exactly how the two came apart.
+                    // Only what is playing. A load is not a track change:
+                    // the engine fetches what is coming next while the current
+                    // song plays, and following those walked the screen one or
+                    // two songs ahead of the speaker. A run of tracks the
+                    // account cannot play still lands here, because each of
+                    // those ends in the engine playing something and that is
+                    // the event this follows.
                     queue.currentIndex = index
                     skipInFlight = false
+                    sounding = type == "playing"
                     positionMs = 0
                 }
             }
@@ -1281,6 +1326,15 @@ class LibrespotPlayer(
          * that a single skip does not feel delayed.
          */
         const val SKIP_SETTLE_MS = 220L
+
+        /**
+         * How long a skip is given to land before its events count again.
+         *
+         * Long enough for a slow load — the network is the reason this exists —
+         * and short enough that a command lost on the way does not leave the
+         * screen ignoring the engine for ever.
+         */
+        const val SKIP_CONFIRM_MS = 8_000L
 
 
         /** Ducked volume, as a fraction of the current one. */
