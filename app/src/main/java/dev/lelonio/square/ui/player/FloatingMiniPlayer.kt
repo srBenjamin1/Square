@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -227,14 +228,27 @@ fun FloatingMiniPlayer(
                 onClick = onTogglePlay,
                 modifier = Modifier.size(if (inline) 36.dp else ControlSize),
             ) {
-                Icon(
-                    if (state.isPlaying) PhosphorIcons.Fill.Pause else PhosphorIcons.Fill.Play,
-                    contentDescription = stringResource(
-                        if (state.isPlaying) R.string.pause else R.string.play,
-                    ),
-                    tint = contentColor,
-                    modifier = Modifier.size(if (inline) 20.dp else 24.dp),
-                )
+                // The same ring the full player draws, for the same reason: a
+                // track being fetched can take long enough that a tap on play
+                // looks like nothing happened. Around the icon rather than in
+                // its place, so the button stays where it is and stays pressable.
+                Box(contentAlignment = Alignment.Center) {
+                    if (state.isBuffering) {
+                        CircularProgressIndicator(
+                            color = contentColor.copy(alpha = 0.5f),
+                            strokeWidth = 1.5.dp,
+                            modifier = Modifier.size(if (inline) 30.dp else 34.dp),
+                        )
+                    }
+                    Icon(
+                        if (state.wantsPlay) PhosphorIcons.Fill.Pause else PhosphorIcons.Fill.Play,
+                        contentDescription = stringResource(
+                            if (state.wantsPlay) R.string.pause else R.string.play,
+                        ),
+                        tint = contentColor,
+                        modifier = Modifier.size(if (inline) 20.dp else 24.dp),
+                    )
+                }
             }
         }
 

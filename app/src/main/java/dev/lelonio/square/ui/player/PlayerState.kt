@@ -27,6 +27,16 @@ data class PlaybackState(
     val artist: String = "",
     val artworkUrl: String? = null,
     val isPlaying: Boolean = false,
+    /**
+     * What the listener asked for, which is not always what is happening.
+     *
+     * A track being fetched is not playing yet, and the play button read that
+     * as "still paused": every tap during a load meant play again, so the load
+     * could not be called off and the button that says pause never appeared.
+     * The glyph and the tap both follow this; [isPlaying] stays the fact, for
+     * the things that follow the sound rather than the intent.
+     */
+    val wantsPlay: Boolean = false,
     val isBuffering: Boolean = false,
     val durationMs: Long = 0,
     val hasNext: Boolean = false,
@@ -171,6 +181,7 @@ fun rememberPlaybackState(
                 artist = metadata.artist?.toString().orEmpty(),
                 artworkUrl = metadata.artworkUri?.toString(),
                 isPlaying = player.isPlaying,
+                wantsPlay = player.playWhenReady,
                 isBuffering = player.playbackState == Player.STATE_BUFFERING,
                 durationMs = metadata.durationMs ?: player.duration.coerceAtLeast(0),
                 hasNext = player.hasNextMediaItem(),

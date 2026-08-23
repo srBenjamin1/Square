@@ -2226,7 +2226,11 @@ private fun NavHostController.switchTab(route: String) {
 }
 
 private fun Player.togglePlay() {
-    if (isPlaying) pause() else play()
+    // playWhenReady, not isPlaying: a track that is still being fetched is not
+    // playing, so asking isPlaying made every tap during a load another play —
+    // the listener could tap five times and never stop it. This alternates from
+    // the first tap, and the last one wins.
+    if (playWhenReady) pause() else play()
 }
 
 /** off → all → one → off, the order every player uses. */

@@ -1446,7 +1446,7 @@ internal fun Controls(
                     )
                 }
                 Crossfade(
-                    state.isPlaying,
+                    state.wantsPlay,
                     animationSpec = tween(180),
                     label = "playPause",
                 ) { playing ->
