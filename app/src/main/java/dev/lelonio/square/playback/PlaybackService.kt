@@ -8,6 +8,8 @@ import dev.lelonio.square.auth.SpotifyOAuth
 import dev.lelonio.square.auth.TokenStore
 import dev.lelonio.square.data.CatalogTrack
 import dev.lelonio.square.data.PlaybackStore
+import dev.lelonio.square.backend.spotify.licenseUrl
+import dev.lelonio.square.backend.spotify.toMpd
 import dev.lelonio.square.data.SavedPlayback
 import dev.lelonio.square.nativecore.NativeBridge
 import kotlinx.coroutines.CoroutineScope
@@ -56,7 +58,16 @@ class PlaybackService : MediaLibraryService() {
      */
     private var librespot: LibrespotPlayer? = null
 
-    private val queue: PlayQueue? get() = librespot?.let { container.spotifyBackend.queue }
+    /**
+     * The Spotify queue, including while something else is in front of it.
+     *
+     * A local file or a video is a player with one item in it, and saving
+     * *that* as the queue is how the app came back from a video with the song
+     * on screen and nothing behind it. The engine parked behind still holds the
+     * real list; see [parkedSpotify].
+     */
+    private val queue: PlayQueue?
+        get() = (librespot ?: parkedSpotify)?.let { container.spotifyBackend.queue }
 
     /** Owns the AudioTrack the native sink writes into; Spotify's alone. */
     private val audioOutput get() = container.spotifyBackend.audioOutput
@@ -173,6 +184,32 @@ class PlaybackService : MediaLibraryService() {
         // network was a second of silence for an answer that is often wrong,
         // and the engine can now be told a new bitrate without one.
 
+        // Watching, and going back to listening. The video replaces what the
+        // session plays rather than running beside it, so this is a swap of the
+        // player like changing source — see SpotifyVideoMode.
+        scope.launch {
+            dev.lelonio.square.backend.spotify.SpotifyVideoMode.requests.collect { request ->
+                runCatching { playVideoRequest(request) }
+                    .onFailure { android.util.Log.w(TAG, "video: $it") }
+            }
+        }
+
+        // Speed and pitch follow the sliders on whichever player is in front.
+        //
+        // The engine reads them from its own output, live. Everything else is
+        // an ExoPlayer, which was given them once when it was built — so moving
+        // a slider during a local file or a video did nothing at all until the
+        // next track.
+        scope.launch {
+            kotlinx.coroutines.flow.combine(
+                AudioEffects.speed,
+                AudioEffects.pitch,
+            ) { speed, pitch -> speed to pitch }.collect { (speed, pitch) ->
+                (player as? androidx.media3.exoplayer.ExoPlayer)?.playbackParameters =
+                    androidx.media3.common.PlaybackParameters(speed, pitch)
+            }
+        }
+
         // The room follows the slider on whichever player is in front. The
         // Spotify path takes it below, in its own output; this is for the rest.
         scope.launch {
@@ -243,7 +280,7 @@ class PlaybackService : MediaLibraryService() {
      * neither backend's player can open them. So what decides this is not only
      * the setting but what is being played; see [ensurePlayerFor].
      */
-    private enum class PlayerKind { SPOTIFY, YOUTUBE, LOCAL }
+    private enum class PlayerKind { SPOTIFY, YOUTUBE, LOCAL, VIDEO }
 
     private var playerKind = PlayerKind.SPOTIFY
 
@@ -265,6 +302,79 @@ class PlaybackService : MediaLibraryService() {
      * [PlayerReverb].
      */
     private val exoReverb = PlayerReverb()
+
+
+    /**
+     * Swaps between the song and its video, keeping the position.
+     *
+     * The manifest and the licence both come from the engine's own token: the
+     * app's sign-in lapses while playback goes on working, and a video that
+     * stops working on those days would be a video nobody trusts.
+     */
+    private suspend fun playVideoRequest(
+        request: dev.lelonio.square.backend.spotify.SpotifyVideoMode.Request,
+    ) {
+        when (request) {
+            is dev.lelonio.square.backend.spotify.SpotifyVideoMode.Request.Watch -> {
+                val token = withContext(Dispatchers.IO) { NativeBridge.accessToken() }
+                    ?: error("the engine has no token")
+                val manifest = dev.lelonio.square.backend.spotify.SpotifyVideo
+                    .manifest(request.fileId, token)
+                val file = withContext(Dispatchers.IO) {
+                    cacheDir.resolve("video-${request.fileId}.mpd")
+                        .apply { writeText(manifest.toMpd()) }
+                }
+
+                // The song's own name, artist and cover, carried over.
+                //
+                // Without them the video is a media item with nothing on it,
+                // and everything that reads the session — this app's own
+                // player, the notification, the lock screen, the car — shows a
+                // blank where the song was. It is the same song; only the
+                // source changed.
+                val playing = player.currentMediaItem
+                val identity = playing?.mediaId
+                val metadata = playing?.mediaMetadata
+
+                swapPlayer(PlayerKind.VIDEO, restore = false)
+                val item = androidx.media3.common.MediaItem.Builder()
+                    .setUri(android.net.Uri.fromFile(file))
+                    .setMediaId(identity ?: request.fileId)
+                    .apply { metadata?.let(::setMediaMetadata) }
+                    .setMimeType(androidx.media3.common.MimeTypes.APPLICATION_MPD)
+                    .setDrmConfiguration(
+                        androidx.media3.common.MediaItem.DrmConfiguration
+                            .Builder(androidx.media3.common.C.WIDEVINE_UUID)
+                            .setLicenseUri(manifest.licenseUrl())
+                            .setLicenseRequestHeaders(mapOf("authorization" to "Bearer $token"))
+                            .build(),
+                    )
+                    .build()
+                player.setMediaItem(item)
+                player.prepare()
+                player.seekTo(request.positionMs)
+                player.play()
+                dev.lelonio.square.backend.spotify.SpotifyVideoMode.setManifest(manifest)
+                dev.lelonio.square.backend.spotify.SpotifyVideoMode.setEnabled(true)
+            }
+
+            is dev.lelonio.square.backend.spotify.SpotifyVideoMode.Request.Skip -> {
+                dev.lelonio.square.backend.spotify.SpotifyVideoMode.setEnabled(false)
+                dev.lelonio.square.backend.spotify.SpotifyVideoMode.setManifest(null)
+                swapPlayer(kindFor(container.preferences.backend.value), restore = true)
+                if (request.forward) player.seekToNext() else player.seekToPrevious()
+                player.play()
+            }
+
+            is dev.lelonio.square.backend.spotify.SpotifyVideoMode.Request.Listen -> {
+                dev.lelonio.square.backend.spotify.SpotifyVideoMode.setEnabled(false)
+                dev.lelonio.square.backend.spotify.SpotifyVideoMode.setManifest(null)
+                swapPlayer(kindFor(container.preferences.backend.value), restore = true)
+                player.seekTo(request.positionMs)
+                player.play()
+            }
+        }
+    }
 
     /** Puts the room on the player in front, or takes it off the one leaving. */
     private fun followReverb() {
@@ -323,6 +433,35 @@ class PlaybackService : MediaLibraryService() {
                     AudioEffects.pitch.value,
                 )
             }
+        }
+
+        // The video is an ordinary ExoPlayer: what makes it a video is the
+        // media item it is given, which carries the DASH manifest and the
+        // licence to decrypt it. See SpotifyVideo.
+        PlayerKind.VIDEO -> {
+            librespot = null
+            playerKind = kind
+            // The same sink as everything else that is not the engine, which is
+            // where the app's own speed and pitch live: built plain, a video
+            // played at one and dry while the listener had the sliders set, and
+            // the effects came back only when the song did.
+            androidx.media3.exoplayer.ExoPlayer.Builder(this, LocalPlayerFactory.renderers(playbackHost))
+                .setLooper(playbackHost.looper)
+                .setHandleAudioBecomingNoisy(true)
+                .setAudioAttributes(
+                    androidx.media3.common.AudioAttributes.Builder()
+                        .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                        .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                        .build(),
+                    /* handleAudioFocus = */ true,
+                )
+                .build()
+                .also { built ->
+                    built.playbackParameters = androidx.media3.common.PlaybackParameters(
+                        AudioEffects.speed.value,
+                        AudioEffects.pitch.value,
+                    )
+                }
         }
 
         PlayerKind.SPOTIFY -> buildBackendPlayer(dev.lelonio.square.backend.BackendId.SPOTIFY)
@@ -417,18 +556,18 @@ class PlaybackService : MediaLibraryService() {
         // already configured.
         (player as? androidx.media3.exoplayer.ExoPlayer)?.let(exoReverb::release)
 
-        val parking = librespot != null && kind == PlayerKind.LOCAL
+        // The video is the same case as a local file: the session plays
+        // something else for a while, and the engine has to be there when the
+        // song comes back — it is also what the whole catalogue is read
+        // through while the video plays.
+        val parking = librespot != null &&
+            (kind == PlayerKind.LOCAL || kind == PlayerKind.VIDEO)
         if (parking) {
             runCatching { player.playWhenReady = false }
             parkedSpotify = librespot
             librespot = null
             playerKind = kind
-            player = LocalPlayerFactory.create(playbackHost).also { built ->
-                built.playbackParameters = androidx.media3.common.PlaybackParameters(
-                    AudioEffects.speed.value,
-                    AudioEffects.pitch.value,
-                )
-            }
+            player = buildPlayer(kind)
             session?.player = player
             // The queue on disk belongs to this player when it is the one being
             // restored into — leaving it out is what made a local song paused

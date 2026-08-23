@@ -532,6 +532,150 @@ fn parse_canvas(bytes: &[u8]) -> Option<String> {
 
 // --- Minimal protobuf wire helpers -----------------------------------------
 
+/// An access token minted by the engine's own session.
+///
+/// The app has one of its own from signing in, but that one lapses while the
+/// engine goes on working: playback holds the credential the access point
+/// issued and never needs the OAuth half. Anything that talks to spclient
+/// outside the engine — the video manifest, the licence — should ask here
+/// instead, or it stops working on exactly the days playback does not.
+pub fn access_token() -> EngineResult<String> {
+    let session = with_session(|s| s.clone())?;
+    block_on(async move {
+        session
+            .login5()
+            .auth_token()
+            .await
+            .map(|token| token.access_token)
+            .map_err(|e| format!("no access token: {e}"))
+    })
+}
+
+/// The music video a track has, or `null`.
+///
+/// Two questions to the catalogue, because the answer lives in two places.
+/// `VIDEO_ASSOCIATIONS` on an ordinary track names the *other* track — the
+/// variant of the same song that is the video — and `ORIGINAL_VIDEO` on that
+/// one carries the file id the video manifest is addressed by.
+///
+/// Asked here rather than read from the player state, which is where the
+/// official client takes it from: the account only attaches it for a device it
+/// believes can show video, and it does not believe that of this one whatever
+/// it declares about itself. The catalogue answers anybody who asks.
+///
+/// Hand-encoded like the canvas request below, and read the same way: the
+/// request is three fields deep and the answer is one field inside an `Any`,
+/// so writing the bytes out keeps both shapes visible.
+///
+///   BatchedEntityRequest { repeated EntityRequest entity_request = 2 }
+///   EntityRequest       { string entity_uri = 1, repeated ExtensionQuery query = 2 }
+///   ExtensionQuery      { ExtensionKind extension_kind = 1 }
+pub fn track_video(track_uri: &str) -> EngineResult<String> {
+    let session = with_session(|s| s.clone())?;
+    let uri = track_uri.to_string();
+
+    block_on(async move {
+        let associated = match extension(&session, &uri, VIDEO_ASSOCIATIONS).await? {
+            Some(bytes) => uris_in(&bytes)
+                .into_iter()
+                .find(|found| found != &uri)
+                .ok_or_else(|| String::new()),
+            None => Err(String::new()),
+        };
+
+        // No association is the ordinary answer: almost no track has a video.
+        let Ok(video_uri) = associated else {
+            return Ok("null".to_string());
+        };
+
+        let Some(bytes) = extension(&session, &video_uri, ORIGINAL_VIDEO).await? else {
+            return Ok("null".to_string());
+        };
+
+        match file_id_in(&bytes) {
+            Some(file_id) => Ok(json!({ "trackUri": video_uri, "fileId": file_id }).to_string()),
+            None => Ok("null".to_string()),
+        }
+    })
+}
+
+/// `VIDEO_ASSOCIATIONS`, which names a song's video as another track.
+const VIDEO_ASSOCIATIONS: u64 = 99;
+
+/// `ORIGINAL_VIDEO`, which carries the file id that addresses the video itself.
+const ORIGINAL_VIDEO: u64 = 85;
+
+/// One extended-metadata question about one entity.
+async fn extension(
+    session: &Session,
+    entity_uri: &str,
+    kind: u64,
+) -> Result<Option<Vec<u8>>, String> {
+    let mut query = Vec::new();
+    write_varint(&mut query, 1 << 3);
+    write_varint(&mut query, kind);
+
+    let mut entity = Vec::new();
+    write_string_field(&mut entity, 1, entity_uri);
+    write_len_delimited(&mut entity, 2, &query);
+
+    let mut body = Vec::new();
+    write_len_delimited(&mut body, 2, &entity);
+
+    let bytes = session
+        .spclient()
+        .request(
+            &Method::POST,
+            "/extended-metadata/v0/extended-metadata",
+            None,
+            Some(&body),
+        )
+        .await
+        .map_err(|e| format!("extended metadata failed: {e}"))?;
+
+    Ok(Some(bytes.to_vec()).filter(|bytes| !bytes.is_empty()))
+}
+
+/// Every `spotify:track:` uri in a response, whatever it is nested inside.
+///
+/// Scanned rather than parsed: the reply wraps the extension's own message in
+/// an `Any`, and the uri appears at a depth that changes with the extension.
+/// What is being looked for is unmistakable on sight.
+fn uris_in(bytes: &[u8]) -> Vec<String> {
+    let needle = b"spotify:track:";
+    let mut found = Vec::new();
+    for start in 0..bytes.len() {
+        if bytes[start..].starts_with(needle) {
+            let end = bytes[start..]
+                .iter()
+                .position(|byte| !(0x20..0x7f).contains(byte))
+                .map(|offset| start + offset)
+                .unwrap_or(bytes.len());
+            if let Ok(uri) = std::str::from_utf8(&bytes[start..end]) {
+                found.push(uri.to_string());
+            }
+        }
+    }
+    found
+}
+
+/// The sixteen bytes of a file id, hex encoded.
+///
+/// `OriginalVideo { bytes file_id = 1 }`, inside the `Any` the extension
+/// replies with: the tail of the message is `0a 10` and then the id, which is
+/// the one length-delimited sixteen-byte field in the whole answer.
+fn file_id_in(bytes: &[u8]) -> Option<String> {
+    let position = bytes
+        .windows(2)
+        .rposition(|window| window == [0x0a, 0x10])?;
+    let start = position + 2;
+    let end = start + 16;
+    if end > bytes.len() {
+        return None;
+    }
+    Some(bytes[start..end].iter().map(|b| format!("{b:02x}")).collect())
+}
+
 fn write_varint(out: &mut Vec<u8>, mut value: u64) {
     loop {
         let byte = (value & 0x7f) as u8;

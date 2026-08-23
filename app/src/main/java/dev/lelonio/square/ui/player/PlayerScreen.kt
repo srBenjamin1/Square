@@ -73,6 +73,11 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.withContext
+import dev.lelonio.square.backend.spotify.panelAt
+import androidx.core.graphics.scale
+import dev.lelonio.square.ui.glass.pressable
 import dev.lelonio.square.ui.glass.backdrop.Backdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.layerBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberCombinedBackdrop
@@ -83,6 +88,8 @@ import dev.lelonio.square.ui.components.Artwork
 import dev.lelonio.square.ui.glass.LiquidButton
 import dev.lelonio.square.ui.library.formatDuration
 import dev.lelonio.square.ui.theme.softShadow
+import com.adamglin.phosphoricons.regular.MonitorPlay
+import com.adamglin.phosphoricons.regular.MusicNotes
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.Regular
@@ -150,6 +157,11 @@ fun PlayerScreen(
     lyrics: dev.lelonio.square.data.Lyrics?,
     lyricsLoading: Boolean,
     onPlayQueueItem: (Int) -> Unit,
+    /** The music video for this track, when the catalogue has one. */
+    videoFileId: String? = null,
+    /** Whether the listener has asked to watch rather than listen. */
+    videoMode: Boolean = false,
+    onToggleVideo: () -> Unit = {},
     reverb: Float,
     onSpeed: (Float) -> Unit,
     onPitch: (Float) -> Unit,
@@ -225,6 +237,8 @@ fun PlayerScreen(
     videoOn: Boolean = false,
     /** The player to hang the video surface off; null when there is no video. */
     videoPlayer: Player? = null,
+    /** Changes when the session starts playing a new video; see VideoStage. */
+    videoAttachKey: Any? = null,
     /**
      * False when the source is not Spotify.
      *
@@ -242,6 +256,14 @@ fun PlayerScreen(
     // for the cover. Written from the gesture and read only inside a
     // graphicsLayer, so following the finger costs a redraw of one layer rather
     // than a recomposition of the player.
+    // No Canvas behind a video.
+    //
+    // The Canvas is the loop that stands in for a picture when there is none;
+    // with the video playing there is one, and two moving images arguing over
+    // the same screen is what the official client does not do either.
+    @Suppress("NAME_SHADOWING")
+    val canvas = canvas?.takeIf { !videoOn }
+
     val canvasShift = remember { mutableFloatStateOf(0f) }
 
     // Whether the clip has put a frame on screen yet.
@@ -316,7 +338,11 @@ fun PlayerScreen(
             // The stand-in for a Canvas, for the tracks that have none, and
             // only when it has been asked for. In the same layer as the light
             // above and for the same reason.
-            if (canvas == null) {
+            // The stand-in is for a screen with nothing moving on it. With a
+            // video playing there is something, and the glow above is taken
+            // from its own frames: drawing the cover's aura over that would
+            // paint the song's colours on top of the video's.
+            if (canvas == null && !videoOn) {
                 CoverAura(colors = auraColors, playing = state.isPlaying)
             }
 
@@ -533,7 +559,11 @@ fun PlayerScreen(
                                     // the controller it holds is gone the moment
                                     // the activity stops.
                                     videoPlayer?.let {
-                                        VideoStage(it) { ambient = it }
+                                        VideoStage(
+                                            it,
+                                            videoAttachKey,
+                                            protectedContent = videoMode,
+                                        ) { ambient = it }
                                     }
                                 }
 
@@ -620,6 +650,46 @@ fun PlayerScreen(
                         }
 
                         Spacer(Modifier.height(20.dp))
+
+                        // Only for the few tracks that have a video, and above
+                        // the title because that is where the official client
+                        // puts it: it is a choice about this song, not about
+                        // the app.
+                        if (videoFileId != null) {
+                            GlassSurface(
+                                backdrop = glassBackdrop,
+                                surfaceColor = GlassFilm,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier
+                                    .align(Alignment.CenterHorizontally)
+                                    .pressable(onClick = onToggleVideo),
+                            ) {
+                                Row(
+                                    Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    // The icon says what the button leads to,
+                                    // like the words beside it: a screen while
+                                    // listening, a note while watching.
+                                    Icon(
+                                        if (videoMode) PhosphorIcons.Regular.MusicNotes
+                                        else PhosphorIcons.Regular.MonitorPlay,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .padding(end = 8.dp)
+                                            .size(18.dp),
+                                    )
+                                    Text(
+                                        stringResource(
+                                            if (videoMode) R.string.switch_to_audio
+                                            else R.string.switch_to_video,
+                                        ),
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(14.dp))
+                        }
 
                         // Title and artist on their own capsule, with the two
                         // per-track actions on the right.
@@ -791,14 +861,46 @@ fun PlayerScreen(
  * back on the way out, or the player would go on rendering into a dead one.
  */
 @Composable
-private fun VideoStage(player: Player, onAmbient: (AmbientEdges) -> Unit) {
+private fun VideoStage(
+    player: Player,
+    attachKey: Any?,
+    /**
+     * True for content the device decrypts in a protected buffer.
+     *
+     * Which decides the surface, and takes the ambient glow away with it: a
+     * texture is the only surface whose pixels can be read back, and pixels
+     * that can be read back are exactly what protected playback does not
+     * allow. Drawn into one, a Widevine video shows nothing at all — the
+     * decoder refuses the surface rather than the licence. So this gets the
+     * plain surface the floating window uses, and the glow falls back to the
+     * cover's colours, which is the honest best available.
+     */
+    protectedContent: Boolean,
+    onAmbient: (AmbientEdges) -> Unit,
+) {
+    if (protectedContent) {
+        VideoSurface(
+            player,
+            attachKey,
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(18.dp)),
+        )
+        PanelAmbient(player, onAmbient)
+        return
+    }
+
     val context = androidx.compose.ui.platform.LocalContext.current
     // A TextureView rather than the SurfaceView the floating window uses: only
     // a texture can be read back, and reading the picture back is the whole
     // ambient effect — the glow is the video's own colour, not a guess made
     // from the cover.
     val texture = remember(context) { android.view.TextureView(context) }
-    DisposableEffect(player, texture) {
+    // `attachKey` as well as the player: the session can change what it is
+    // playing on without changing the handle this screen holds, and the
+    // picture goes to whoever the surface was last given to.
+    DisposableEffect(player, texture, attachKey) {
         player.setVideoTextureView(texture)
         onDispose { player.clearVideoTextureView(texture) }
     }
@@ -926,12 +1028,73 @@ private const val AMBIENT_FADE_MS = 2500
 /** Side of the thumbnail each sample is taken from. */
 private const val AMBIENT_SAMPLE = 16
 
+/**
+ * The glow for a video whose own pixels cannot be read.
+ *
+ * Sampled from the thumbnail sheets the scrubber uses — ordinary JPEGs, one
+ * frame a second — because protected playback decrypts into a buffer nothing
+ * can read back. Same effect, same pictures, arrived at from the outside.
+ *
+ * One small fetch every couple of seconds, and the sheet holds thirty-six
+ * frames, so most of those are already in the cache the loader keeps.
+ */
+@Composable
+private fun PanelAmbient(player: Player, onAmbient: (AmbientEdges) -> Unit) {
+    val manifest by dev.lelonio.square.backend.spotify.SpotifyVideoMode.manifest
+        .collectAsStateWithLifecycle()
+    val report by rememberUpdatedState(onAmbient)
+    val http = remember { okhttp3.OkHttpClient() }
+
+    LaunchedEffect(manifest) {
+        val current = manifest ?: return@LaunchedEffect
+        var lastUrl: String? = null
+        var sheet: android.graphics.Bitmap? = null
+        while (true) {
+            val at = withContext(kotlinx.coroutines.Dispatchers.Main) { player.currentPosition }
+            val panel = current.panelAt(at)
+            if (panel == null) {
+                kotlinx.coroutines.delay(AMBIENT_INTERVAL_MS)
+                continue
+            }
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    if (panel.url != lastUrl) {
+                        val request = okhttp3.Request.Builder().url(panel.url).build()
+                        val bytes = http.newCall(request).execute().use { it.body?.bytes() }
+                        sheet?.recycle()
+                        sheet = bytes?.let {
+                            android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size)
+                        }
+                        lastUrl = panel.url
+                    }
+                    val whole = sheet ?: return@runCatching
+                    // The one frame out of the sheet, small: the glow is four
+                    // averaged edges, and averaging is cheaper on few pixels.
+                    val frame = android.graphics.Bitmap.createBitmap(
+                        whole,
+                        panel.left.coerceIn(0, (whole.width - 1).coerceAtLeast(0)),
+                        panel.top.coerceIn(0, (whole.height - 1).coerceAtLeast(0)),
+                        panel.width.coerceAtMost(whole.width - panel.left),
+                        panel.height.coerceAtMost(whole.height - panel.top),
+                    )
+                    val small = frame.scale(AMBIENT_SAMPLE, AMBIENT_SAMPLE)
+                    frame.recycle()
+                    val edges = small.edges()
+                    small.recycle()
+                    withContext(kotlinx.coroutines.Dispatchers.Main) { report(edges) }
+                }
+            }
+            kotlinx.coroutines.delay(AMBIENT_INTERVAL_MS)
+        }
+    }
+}
+
 /** The surface itself, shared with the floating window; see [VideoStage]. */
 @Composable
-fun VideoSurface(player: Player, modifier: Modifier = Modifier) {
+fun VideoSurface(player: Player, attachKey: Any? = null, modifier: Modifier = Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val surface = remember(context) { android.view.SurfaceView(context) }
-    DisposableEffect(player, surface) {
+    DisposableEffect(player, surface, attachKey) {
         player.setVideoSurfaceView(surface)
         onDispose { player.clearVideoSurfaceView(surface) }
     }
@@ -1210,7 +1373,7 @@ private fun Modifier.plainClickable(onClick: () -> Unit): Modifier {
 
 /** Isolated so the ticking position recomposes only these two labels. */
 @Composable
-private fun TimeRow(positionMs: State<Long>, durationMs: Long) {
+internal fun TimeRow(positionMs: State<Long>, durationMs: Long) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(
             formatDuration(positionMs.value),
@@ -1226,7 +1389,7 @@ private fun TimeRow(positionMs: State<Long>, durationMs: Long) {
 }
 
 @Composable
-private fun Controls(
+internal fun Controls(
     state: PlaybackState,
     backdrop: Backdrop,
     onTogglePlay: () -> Unit,

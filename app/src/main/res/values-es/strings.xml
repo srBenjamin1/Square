@@ -40,6 +40,8 @@
     <string name="settings">Ajustes</string>
     <string name="home">Inicio</string>
     <string name="library">Biblioteca</string>
+    <string name="switch_to_video">Cambiar a vídeo</string>
+    <string name="switch_to_audio">Cambiar a solo audio</string>
     <string name="library_all">Todo</string>
     <string name="search">Buscar</string>
     <string name="now_playing">Reproduciendo</string>

@@ -316,7 +316,7 @@ fun SquareApp(
     val localPosition = rememberPositionMs(player, local.isPlaying)
     val remotePosition = rememberRemotePositionMs(remote)
     val positionMs = if (remote != null) remotePosition else localPosition
-    val queue by rememberQueue(player)
+    val queueSource = rememberQueue(player)
     val videoOn by YouTubeVideoMode.enabled.collectAsStateWithLifecycle()
 
     // Video keeps playing when the app leaves the foreground, surface or no
@@ -355,6 +355,50 @@ fun SquareApp(
     val addFriendState by viewModel.addFriendState.collectAsStateWithLifecycle()
     val followedArtists by viewModel.followedArtists.collectAsStateWithLifecycle()
     val savedAlbums by viewModel.savedAlbums.collectAsStateWithLifecycle()
+    val videoFileId by viewModel.videoFileId.collectAsStateWithLifecycle()
+    val spotifyVideoOn by dev.lelonio.square.backend.spotify.SpotifyVideoMode.enabled
+        .collectAsStateWithLifecycle()
+    val spotifyVideoGeneration by dev.lelonio.square.backend.spotify.SpotifyVideoMode.generation
+        .collectAsStateWithLifecycle()
+
+    val liveQueue by queueSource
+
+    // What was queued before the video took over.
+    //
+    // A video is one item: the player that shows it has a timeline of one, and
+    // the queue would read as empty for as long as it plays. The songs waiting
+    // are still waiting — the engine holding them is parked, not stopped — so
+    // the list keeps showing them rather than lying about it.
+    var queuedBeforeVideo by remember {
+        mutableStateOf<List<dev.lelonio.square.ui.player.QueueEntry>>(emptyList())
+    }
+    val queue = if (spotifyVideoOn) queuedBeforeVideo else liveQueue
+    LaunchedEffect(spotifyVideoOn, liveQueue) {
+        if (!spotifyVideoOn) queuedBeforeVideo = liveQueue
+    }
+
+    // And whether there is anywhere to skip to, which is the same question.
+    //
+    // The video's own player has one item and answers no to both, so the
+    // buttons went grey over a queue that was still there. Skipping leaves the
+    // video anyway — see SpotifyVideoMode.skip — so what they should show is
+    // what the queue behind it can do.
+    var skipsBeforeVideo by remember { mutableStateOf(false to false) }
+    LaunchedEffect(spotifyVideoOn, playback.hasNext, playback.hasPrevious) {
+        if (!spotifyVideoOn) skipsBeforeVideo = playback.hasNext to playback.hasPrevious
+    }
+    val playerState = if (spotifyVideoOn) {
+        playback.copy(
+            hasNext = skipsBeforeVideo.first,
+            hasPrevious = skipsBeforeVideo.second,
+        )
+    } else {
+        playback
+    }
+
+    // Asked once per track: almost no song has a video, and the answer is two
+    // catalogue calls rather than something the account volunteers.
+    LaunchedEffect(playback.mediaId) { viewModel.lookUpVideo(playback.mediaId) }
     val devices by viewModel.devices.collectAsStateWithLifecycle()
     val addToPlaylist by viewModel.addToPlaylist.collectAsStateWithLifecycle()
     val trackSort by viewModel.trackSort.collectAsStateWithLifecycle()
@@ -580,6 +624,51 @@ fun SquareApp(
             ) {
                 player?.let { dev.lelonio.square.ui.player.VideoSurface(it) }
             }
+        }
+        return
+    }
+
+    // Turned on its side while a video plays, the phone is a screen.
+    //
+    // Nobody rotates a music player to read a queue sideways; they rotate it
+    // because they are watching something. So landscape gives the picture the
+    // whole display and nothing else, the way every video app does — and
+    // turning back brings the player exactly as it was, since none of this
+    // touches what is playing.
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    if (landscape && (videoOn || spotifyVideoOn) && player != null) {
+        SquareTheme(seed = accent) {
+            dev.lelonio.square.ui.player.FullScreenVideo(
+                player = player,
+                attachKey = spotifyVideoGeneration,
+                state = playerState,
+                positionMs = positionMs,
+                onTogglePlay = { player.togglePlay() },
+                onNext = {
+                    if (spotifyVideoOn) {
+                        dev.lelonio.square.backend.spotify.SpotifyVideoMode.skip(forward = true)
+                    } else {
+                        player.seekToNextMediaItem()
+                    }
+                },
+                onPrevious = {
+                    if (spotifyVideoOn) {
+                        dev.lelonio.square.backend.spotify.SpotifyVideoMode.skip(forward = false)
+                    } else {
+                        player.seekToPreviousMediaItem()
+                    }
+                },
+                onSeek = { player.seekTo(it) },
+                onToggleShuffle = { player.shuffleModeEnabled = !player.shuffleModeEnabled },
+                onCycleRepeat = {
+                    player.repeatMode = when (player.repeatMode) {
+                        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                        else -> Player.REPEAT_MODE_OFF
+                    }
+                },
+            )
         }
         return
     }
@@ -1364,8 +1453,25 @@ fun SquareApp(
                                       dev.lelonio.square.ui.player.LocalGlassEnabled.current),
                           ) {
                             PlayerScreen(
-                                state = playback,
+                                state = playerState,
                                 positionMs = positionMs,
+                                videoFileId = videoFileId,
+                                videoMode = spotifyVideoOn,
+                                onToggleVideo = {
+                                    // Handed to the service, which swaps what
+                                    // the session is playing: the video carries
+                                    // the song's own audio and answers the
+                                    // transport controls. See SpotifyVideoMode.
+                                    val at = player?.currentPosition ?: 0L
+                                    val id = videoFileId
+                                    if (spotifyVideoOn) {
+                                        dev.lelonio.square.backend.spotify
+                                            .SpotifyVideoMode.listen(at)
+                                    } else if (id != null) {
+                                        dev.lelonio.square.backend.spotify
+                                            .SpotifyVideoMode.watch(id, at)
+                                    }
+                                },
                                 onCollapse = { scope.launch { expand.animateTo(0f, expandSpec) } },
                                 onTogglePlay = {
                                     if (remote != null) {
@@ -1380,11 +1486,24 @@ fun SquareApp(
                                 },
                                 onNext = {
                                     if (remote != null) onRemote(RemoteConnect::next)
-                                    else player?.seekToNextMediaItem()
+                                    // Skipping is about the song: a video has
+                                    // nowhere of its own to go, and the queue
+                                    // is held by the engine parked behind it.
+                                    else if (spotifyVideoOn) {
+                                        dev.lelonio.square.backend.spotify
+                                            .SpotifyVideoMode.skip(forward = true)
+                                    } else {
+                                        player?.seekToNextMediaItem()
+                                    }
                                 },
                                 onPrevious = {
                                     if (remote != null) onRemote(RemoteConnect::previous)
-                                    else player?.seekToPreviousMediaItem()
+                                    else if (spotifyVideoOn) {
+                                        dev.lelonio.square.backend.spotify
+                                            .SpotifyVideoMode.skip(forward = false)
+                                    } else {
+                                        player?.seekToPreviousMediaItem()
+                                    }
                                 },
                                 onSeek = { target ->
                                     if (remote != null) {
@@ -1512,8 +1631,9 @@ fun SquareApp(
                                             ?.startsWith("ytmusic:track:") == true
                                     }
                                     ?.let { { YouTubeVideoMode.toggle(it) } },
-                                videoOn = videoOn,
+                                videoOn = videoOn || spotifyVideoOn,
                                 videoPlayer = player,
+                                videoAttachKey = spotifyVideoGeneration,
                             )
                           }
                         },

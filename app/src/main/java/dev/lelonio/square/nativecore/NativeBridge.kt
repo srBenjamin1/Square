@@ -318,6 +318,20 @@ object NativeBridge {
      */
     fun playingHere(): String = runCatching { nativePlayingHere() }.getOrDefault("{}")
 
+    /**
+     * The music video for a track, as `{trackUri, fileId}`, or null.
+     *
+     * Null is the ordinary answer: almost no track has one.
+     */
+    /**
+     * A token good for spclient, taken from the engine rather than the app's
+     * own sign-in, which lapses while playback goes on working.
+     */
+    fun accessToken(): String? = runCatching { nativeAccessToken() }.getOrNull()
+
+    fun trackVideo(uri: String): String? =
+        runCatching { nativeTrackVideo(uri) }.getOrNull()?.takeIf { it != "null" }
+
     /** Every device the account can see, this one included, as a JSON array. */
     fun remoteDevices(): String = nativeRemoteDevices()
 
@@ -453,6 +467,12 @@ object NativeBridge {
     private external fun nativeDeviceId(): String
     private external fun nativeSetQueueOrder(urisJson: String, index: Int)
     private external fun nativePlayingHere(): String
+
+    /** A token from the engine's own session; see catalog.rs. */
+    private external fun nativeAccessToken(): String
+
+    /** The music video a track has, as JSON, or "null"; see catalog.rs. */
+    private external fun nativeTrackVideo(uri: String): String
     private external fun nativeRemoteState(): String
     private external fun nativeRemoteDevices(): String
     private external fun nativeRemoteCommand(deviceId: String, body: String)

@@ -45,6 +45,8 @@
     <string name="settings">सेटिंग</string>
     <string name="home">होम</string>
     <string name="library">लाइब्रेरी</string>
+    <string name="switch_to_video">वीडियो पर जाएँ</string>
+    <string name="switch_to_audio">केवल ऑडियो पर जाएँ</string>
     <string name="library_all">सब कुछ</string>
     <string name="search">खोजें</string>
     <string name="now_playing">अभी चल रहा है</string>

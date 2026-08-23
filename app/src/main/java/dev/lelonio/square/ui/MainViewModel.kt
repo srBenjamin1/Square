@@ -1068,6 +1068,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return id.takeIf { it.isNotEmpty() && it.all { c -> c.isLetterOrDigit() || c in "._-" } }
     }
 
+    private val _videoFileId = MutableStateFlow<String?>(null)
+
+    /**
+     * The music video for what is playing, when there is one.
+     *
+     * Looked up in the catalogue rather than waited for: the account attaches a
+     * video's id to a track only for the devices it believes can show one, and
+     * it does not believe that of this app however it declares itself. Asking
+     * works for anybody. See `catalog.rs`.
+     */
+    val videoFileId: StateFlow<String?> = _videoFileId.asStateFlow()
+
+    private val _videoMode = MutableStateFlow(false)
+
+    /** Whether the listener has asked to watch rather than listen. */
+    val videoMode: StateFlow<Boolean> = _videoMode.asStateFlow()
+
+    private var videoLookup: kotlinx.coroutines.Job? = null
+
+    /** Asked once per track, and forgotten the moment the track changes. */
+    fun lookUpVideo(trackUri: String?) {
+        videoLookup?.cancel()
+        _videoFileId.value = null
+        _videoMode.value = false
+        if (trackUri == null || !trackUri.startsWith("spotify:track:")) return
+        videoLookup = viewModelScope.launch(Dispatchers.IO) {
+            val answer = NativeBridge.trackVideo(trackUri) ?: return@launch
+            val fileId = runCatching {
+                org.json.JSONObject(answer).optString("fileId").takeIf { it.isNotEmpty() }
+            }.getOrNull()
+            _videoFileId.value = fileId
+        }
+    }
+
+    fun toggleVideo() {
+        _videoMode.value = !_videoMode.value && _videoFileId.value != null
+    }
+
     val recent: StateFlow<List<CatalogTrack>> =
         combine(container.recentStore.tracks, container.preferences.backend) { tracks, _ ->
             tracks.filter { container.activeBackend.owns(it.uri) }

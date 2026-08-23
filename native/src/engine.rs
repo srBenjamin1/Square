@@ -1586,11 +1586,16 @@ pub fn playing_here() -> EngineResult<String> {
     let playing = with_bundle(|bundle| bundle.spirc.playing())?;
     let escape = |value: &str| serde_json::to_string(value).unwrap_or_else(|_| "\"\"".into());
     let tracks: Vec<String> = playing.tracks.iter().map(|uri| escape(uri)).collect();
+    // `videoId` rides along rather than getting a call of its own: it changes
+    // exactly when the track does, and this is already the answer to "what is
+    // this device playing". Empty for everything without a music video, which
+    // is almost everything.
     Ok(format!(
-        "{{\"contextUri\":{},\"trackUri\":{},\"index\":{},\"tracks\":[{}]}}",
+        "{{\"contextUri\":{},\"trackUri\":{},\"index\":{},\"videoId\":{},\"tracks\":[{}]}}",
         escape(&playing.context_uri),
         escape(&playing.track_uri),
         playing.index,
+        escape(&playing.video_id),
         tracks.join(","),
     ))
 }

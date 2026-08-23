@@ -195,6 +195,13 @@ pub struct PlayingHere {
     pub tracks: Vec<String>,
     /// Where the current track sits in `tracks`.
     pub index: usize,
+    /// LOCAL PATCH: the video this track has, when it has one.
+    ///
+    /// Empty for almost everything. A track with a music video carries the id
+    /// of it in the metadata the account sends with the track — there is no
+    /// endpoint to ask, and no way to work it out from the track's own uri —
+    /// so this is the only place a client can learn that a video exists.
+    pub video_id: String,
 }
 
 impl Spirc {
@@ -537,11 +544,18 @@ impl SpircTask {
             // taken, or the position would point past them.
             tracks.retain(|uri| uri.starts_with("spotify:track:"));
             let index = tracks.iter().position(|uri| *uri == track).unwrap_or(0);
+            let video_id = state
+                .track
+                .as_ref()
+                .and_then(|track| track.metadata.get("media.manifest_id"))
+                .cloned()
+                .unwrap_or_default();
             *playing = PlayingHere {
                 context_uri: state.context_uri.clone(),
                 track_uri: track,
                 tracks,
                 index,
+                video_id,
             };
         }
     }

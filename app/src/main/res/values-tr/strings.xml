@@ -45,6 +45,8 @@
     <string name="settings">Ayarlar</string>
     <string name="home">Ana sayfa</string>
     <string name="library">Kitaplık</string>
+    <string name="switch_to_video">Videoya geç</string>
+    <string name="switch_to_audio">Yalnızca sese geç</string>
     <string name="library_all">Tümü</string>
     <string name="search">Ara</string>
     <string name="now_playing">Şimdi çalıyor</string>

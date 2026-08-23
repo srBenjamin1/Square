@@ -64,7 +64,7 @@ object LocalPlayerFactory {
      * the same amount would sound worse from the phone than from Spotify. See
      * BungeeAudioProcessor.
      */
-    private fun renderers(host: PlaybackHost) =
+    internal fun renderers(host: PlaybackHost) =
         object : androidx.media3.exoplayer.DefaultRenderersFactory(host.context) {
             override fun buildAudioSink(
                 context: android.content.Context,
