@@ -41,7 +41,7 @@ use std::{
     future::Future,
     sync::Arc,
     sync::atomic::{AtomicUsize, Ordering},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use thiserror::Error;
 use tokio::{sync::mpsc, time::sleep};
@@ -85,6 +85,9 @@ struct SpircTask {
 
     play_request_id: Option<u64>,
     play_status: SpircPlayStatus,
+    /// LOCAL PATCH: when the queue last moved on, whatever moved it. See
+    /// [`SpircTask::advanced_recently`].
+    last_advance: Option<Instant>,
 
     connection_id_update: BoxedStreamResult<String>,
     connect_state_update: BoxedStreamResult<ClusterUpdate>,
@@ -305,6 +308,7 @@ impl Spirc {
 
             play_request_id: None,
             play_status: SpircPlayStatus::Stopped,
+            last_advance: None,
 
             connection_id_update,
             connect_state_update,
@@ -847,7 +851,22 @@ impl SpircTask {
             SpircCommand::PlayPause => self.handle_play_pause(),
             SpircCommand::Pause => self.handle_pause(),
             SpircCommand::Prev => self.handle_prev()?,
-            SpircCommand::Next => self.handle_next(None)?,
+            SpircCommand::Next => {
+                // LOCAL PATCH: not if the queue has just moved on its own.
+                //
+                // With a crossfade, the end of a song is announced seconds
+                // before it arrives, and a listener who presses skip in those
+                // seconds is asking for the thing that is already happening.
+                // Obeying both moves the queue twice and the song in between is
+                // never heard. Only an advance the queue made by itself is
+                // swallowed this way; two presses in a row are two skips, which
+                // is what pressing twice means.
+                if self.advanced_recently() {
+                    debug!("the queue has just advanced by itself, taking this skip as that one");
+                    return Ok(());
+                }
+                self.handle_next(None)?
+            }
             SpircCommand::VolumeUp => self.handle_volume_up(),
             SpircCommand::VolumeDown => self.handle_volume_down(),
             SpircCommand::Shuffle(shuffle) => self.handle_shuffle(shuffle)?,
@@ -914,7 +933,34 @@ impl SpircTask {
         }
 
         match event {
-            PlayerEvent::EndOfTrack { .. } => {
+            PlayerEvent::EndOfTrack { track_id, .. } => {
+                // LOCAL PATCH: only the track that is still current can end.
+                //
+                // The end of a song and a listener skipping it are the same
+                // thing to whoever owns the queue — both mean "play the next
+                // one" — and with a crossfade they can happen at once: the fade
+                // announces the end of the song, the listener presses skip a
+                // moment earlier or later, and the queue moves twice for one
+                // intention. What is between them is a song nobody heard.
+                //
+                // The play request id above cannot tell them apart, because the
+                // announcement and the skip belong to the same one. The current
+                // track can: once the queue has moved, an announcement about
+                // the song it moved off is news about the past.
+                let ended = track_id.to_string();
+                let current = self.connect_state.current_track(|t| t.uri.clone());
+                if !ended.is_empty() && !current.is_empty() && ended != current {
+                    debug!("<{ended}> finished, but <{current}> is the current track now");
+                    return Ok(());
+                }
+
+                // And the same the other way round: the listener skipped and
+                // the fade announced this song's end a moment later.
+                if self.advanced_recently() {
+                    debug!("the queue has just advanced, so this ending has been dealt with");
+                    return Ok(());
+                }
+
                 let next_track = self
                     .connect_state
                     .repeat_track()
@@ -1174,6 +1220,13 @@ impl SpircTask {
 
     async fn handle_request(&mut self, request: Request) -> Result<(), Error> {
         use Command::*;
+
+        // LOCAL PATCH: who asked, and for what.
+        //
+        // A queue that moves on its own has two possible authors — this device
+        // and the account — and from the events alone they look the same. This
+        // says when the instruction came over the wire.
+        info!("connect asked for {:?}", request.command);
 
         match request.command {
             // errors and unknown commands
@@ -1822,8 +1875,29 @@ impl SpircTask {
         self.context_resolver.add(resolve);
     }
 
+    /// LOCAL PATCH: whether the queue moved on in the last moment.
+    ///
+    /// Long enough to cover a fade announcing an ending and a listener pressing
+    /// skip about the same thing, short enough that two deliberate presses are
+    /// still two skips: measured at 150 ms between the two in the case this was
+    /// written for.
+    fn advanced_recently(&self) -> bool {
+        const TOGETHER: Duration = Duration::from_millis(700);
+        self.last_advance
+            .map(|at| at.elapsed() < TOGETHER)
+            .unwrap_or(false)
+    }
+
     fn handle_next(&mut self, track_uri: Option<String>) -> Result<(), Error> {
+        self.last_advance = Some(Instant::now());
         let continue_playing = self.connect_state.is_playing();
+        // LOCAL PATCH: every advance, so a burst of them is visible as a burst,
+        // and what the queue believed about itself when it made this one — a
+        // track loaded paused after a skip is this having said "no".
+        info!(
+            "advancing to the next track (playing={continue_playing}, status={:?})",
+            self.play_status
+        );
 
         let current_uri = self.connect_state.current_track(|t| &t.uri);
         let mut has_next_track =

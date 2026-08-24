@@ -53,6 +53,21 @@ const LOAD_RETRY_BACKOFF: Duration = Duration::from_millis(900);
 
 const PRELOAD_NEXT_TRACK_BEFORE_END_DURATION_MS: u32 = 30000;
 
+/// LOCAL PATCH: how far from the end of a track its stream can run out and
+/// still count as the track having ended.
+///
+/// Three seconds. Decoders and metadata disagree about the last fraction of a
+/// second, and a track cut three seconds short is something a listener hears.
+const SHORT_END_TOLERANCE_MS: i64 = 3_000;
+
+
+
+/// LOCAL PATCH: how many times a track whose stream keeps running out early is
+/// put back on before it is allowed to end. See [SHORT_END_TOLERANCE_MS].
+const MAX_SHORT_END_RELOADS: u8 = 2;
+
+
+
 /// LOCAL PATCH: the largest value that survives conversion to signed 16 bit.
 ///
 /// Full scale is asymmetric: -32768 exists, +32768 does not, so a mix that
@@ -115,6 +130,16 @@ struct PlayerInternal {
     fade_out: Option<FadeOut>,
     /// LOCAL PATCH: the play request whose end has already been announced early.
     early_end: Option<u64>,
+    /// LOCAL PATCH: the play request that has been heard playing before its own
+    /// fade window, and so may have its end announced early. See the use of it.
+    fade_armed: Option<u64>,
+    /// LOCAL PATCH: how many times a play request has had its stream run out
+    /// before the end of the track, so a stream that never completes gives up
+    /// instead of putting the same song back on for ever.
+    short_end: Option<(u64, u8)>,
+    /// LOCAL PATCH: the play request whose end has already been announced, by
+    /// whichever of the paths announces one. See `announce_end`.
+    ended: Option<u64>,
     /// LOCAL PATCH: how many times the track being loaded has been retried, and
     /// from what position, so a retry resumes the same load. See the failure
     /// branch of the loading state in `poll`.
@@ -551,6 +576,9 @@ impl Player {
 
                 fade_out: None,
                 early_end: None,
+                fade_armed: None,
+                short_end: None,
+                ended: None,
                 load_attempt: 0,
                 load_position_ms: 0,
                 normalisation_peaks: [0.0; 2],
@@ -619,6 +647,7 @@ impl Player {
     pub fn stop(&self) {
         self.command(PlayerCommand::Stop)
     }
+
 
     pub fn seek(&self, position_ms: u32) {
         self.command(PlayerCommand::Seek(position_ms));
@@ -802,6 +831,45 @@ impl PlayerState {
     /// LOCAL PATCH: where the track had got to, for reloading it after a
     /// failure. Zero when nothing is loaded, which is the right answer for a
     /// reload that will start from the beginning anyway.
+    /// LOCAL PATCH: what is playing, where it is, and how long it is.
+    /// LOCAL PATCH: which play request this state belongs to, if any.
+    fn play_request_id(&self) -> Option<u64> {
+        use self::PlayerState::*;
+        match *self {
+            Loading {
+                play_request_id, ..
+            }
+            | Paused {
+                play_request_id, ..
+            }
+            | Playing {
+                play_request_id, ..
+            }
+            | EndOfTrack {
+                play_request_id, ..
+            } => Some(play_request_id),
+            Stopped | Invalid => None,
+        }
+    }
+
+    fn playing_progress(&self) -> Option<(SpotifyUri, u64, u32, u32)> {
+        match *self {
+            PlayerState::Playing {
+                ref track_id,
+                play_request_id,
+                stream_position_ms,
+                duration_ms,
+                ..
+            } => Some((
+                track_id.clone(),
+                play_request_id,
+                stream_position_ms,
+                duration_ms,
+            )),
+            _ => None,
+        }
+    }
+
     fn stream_position_ms(&self) -> u32 {
         use self::PlayerState::*;
         match *self {
@@ -1790,17 +1858,35 @@ impl Future for PlayerInternal {
                 // being dropped. Nothing here decides what plays next, which is
                 // what keeps the Connect device the only thing that does.
                 let crossfade_ms = self.config.crossfade_duration_ms as i64;
-                if crossfade_ms > 0
-                    && self.early_end != Some(play_request_id)
-                    && self.state.is_playing()
-                    && duration_ms > 0
-                    && (duration_ms as i64 - stream_position_ms as i64) <= crossfade_ms
-                {
-                    self.early_end = Some(play_request_id);
-                    self.send_event(PlayerEvent::EndOfTrack {
-                        track_id,
-                        play_request_id,
-                    });
+                let position = stream_position_ms as i64;
+                let duration = duration_ms as i64;
+                if crossfade_ms > 0 && duration > crossfade_ms {
+                    if position < duration - crossfade_ms {
+                        // LOCAL PATCH: the track has been heard playing outside
+                        // its own ending, so its ending means something.
+                        //
+                        // Both numbers below come from the decoder, and a track
+                        // that arrives already inside the fade window is a
+                        // track whose numbers cannot be trusted: a duration
+                        // read before the stream was open, or a position left
+                        // over from the song that just finished. Announcing an
+                        // end from those is heard as a song playing for a
+                        // second and then being passed over, because whoever
+                        // owns the queue is being told — truthfully, as far as
+                        // it knows — that the song is over. Armed here, this
+                        // can only happen to a track that was playing normally
+                        // a moment ago.
+                        self.fade_armed = Some(play_request_id);
+                    } else if self.early_end != Some(play_request_id)
+                        && self.fade_armed == Some(play_request_id)
+                        && self.state.is_playing()
+                    {
+                        info!(
+                            "crossfade: {position} ms of {duration} ms played,                              announcing the end of <{track_id:?}>"
+                        );
+                        self.early_end = Some(play_request_id);
+                        self.announce_end(track_id, play_request_id);
+                    }
                 }
             }
 
@@ -2193,6 +2279,37 @@ impl PlayerInternal {
             }
 
             None => {
+                // LOCAL PATCH: a stream that runs out early is not a track that
+                // ended.
+                //
+                // The decoder having nothing left is how a song finishes, and it
+                // is also what a truncated file or a connection dropped mid-track
+                // looks like from here. Upstream cannot tell the two apart, so it
+                // reports the end of the track either way and whoever owns the
+                // queue plays the next song — which is heard as a song starting
+                // and being passed over a moment later, on a song that plays
+                // perfectly well when it is chosen again.
+                //
+                // Far enough from where the track really ends, this is a failure,
+                // and the answer to a failure is the one below: put it back on
+                // from where it stopped. Bounded, because a stream that truly
+                // cannot be read to the end would otherwise never let go.
+                if let Some((track_id, play_request_id, position, duration)) =
+                    self.state.playing_progress()
+                {
+                    let short = duration > 0
+                        && (position as i64) + SHORT_END_TOLERANCE_MS < duration as i64;
+                    let attempts = match self.short_end {
+                        Some((request, count)) if request == play_request_id => count,
+                        _ => 0,
+                    };
+                    if short && attempts < MAX_SHORT_END_RELOADS {
+                        warn!("the stream for <{track_id:?}> ended at {position} ms of {duration} ms, putting it back on");
+                        self.short_end = Some((play_request_id, attempts + 1));
+                        self.reload_track(track_id, play_request_id, position);
+                        return;
+                    }
+                }
                 self.state.playing_to_end_of_track();
                 if let PlayerState::EndOfTrack {
                     ref track_id,
@@ -2200,10 +2317,8 @@ impl PlayerInternal {
                     ..
                 } = self.state
                 {
-                    self.send_event(PlayerEvent::EndOfTrack {
-                        track_id: track_id.clone(),
-                        play_request_id,
-                    })
+                    let track_id = track_id.clone();
+                    self.announce_end(track_id, play_request_id)
                 } else {
                     error!("PlayerInternal handle_packet: Invalid PlayerState");
                     exit(1);
@@ -2304,6 +2419,27 @@ impl PlayerInternal {
     ) -> PlayerResult {
         let play_request_id =
             play_request_id_option.unwrap_or(self.play_request_id_generator.get());
+
+        // LOCAL PATCH: whatever was playing is being replaced, so nothing more
+        // is going to be said about it.
+        //
+        // A fade announces the end of a song a few seconds before it arrives,
+        // and a listener who skips inside those seconds leaves that
+        // announcement in flight: it lands after the queue has already moved,
+        // and is heard as the song after this one being passed over, or as two
+        // songs playing at once while the one that was replaced insists it is
+        // still finishing. The song being left has no end worth reporting — it
+        // is not ending, it is being replaced.
+        //
+        // Only the announcing is stopped. `early_end` stays exactly as it is,
+        // because it is also what tells `begin_fade_out` that this song is
+        // owed a fade: clearing it here left every crossfade to end as a cut,
+        // which is worse than the thing this was fixing.
+        if let Some(previous) = self.state.play_request_id() {
+            if previous != play_request_id {
+                self.ended = Some(previous);
+            }
+        }
 
         self.send_event(PlayerEvent::PlayRequestIdChanged { play_request_id });
 
@@ -2736,10 +2872,7 @@ impl PlayerInternal {
                             warn!(
                                 "Currently loaded track is explicit, which client setting forbids -- skipping to next track."
                             );
-                            self.send_event(PlayerEvent::EndOfTrack {
-                                track_id,
-                                play_request_id,
-                            })
+                            self.announce_end(track_id, play_request_id)
                         }
                     }
                 }
@@ -2747,6 +2880,26 @@ impl PlayerInternal {
         };
 
         Ok(())
+    }
+
+    /// LOCAL PATCH: says a track has finished, once and only once.
+    ///
+    /// A track can reach its end by more than one road — the crossfade
+    /// announcing it early, the stream running out, a filter refusing to play
+    /// it — and on a track whose file is shorter than its metadata says, two of
+    /// them arrive within a fraction of a second. Whoever owns the queue obeys
+    /// each one, so two announcements are two songs skipped: one heard for an
+    /// instant and one not heard at all.
+    fn announce_end(&mut self, track_id: SpotifyUri, play_request_id: u64) {
+        if self.ended == Some(play_request_id) {
+            debug!("<{track_id:?}> has already been announced as finished");
+            return;
+        }
+        self.ended = Some(play_request_id);
+        self.send_event(PlayerEvent::EndOfTrack {
+            track_id,
+            play_request_id,
+        });
     }
 
     fn send_event(&mut self, event: PlayerEvent) {

@@ -67,6 +67,11 @@ class LibrespotPlayer(
     private fun pushQueue(startPlaying: Boolean, positionMs: Int = 0) {
         val uris = queue.items.map { it.uri }
         if (uris.isEmpty()) return
+        // From here until the engine is on this queue, what it says it is
+        // playing is the past; see [ownQueuePending].
+        ownQueuePending = true
+        handler.removeCallbacks(giveUpOnOwnQueue)
+        handler.postDelayed(giveUpOnOwnQueue, OWN_QUEUE_MS)
         val index = queue.currentIndex
         val contextUri = queue.contextUri.orEmpty()
         // Never as a context, whatever it is.
@@ -757,6 +762,11 @@ class LibrespotPlayer(
                 .onFailure { android.util.Log.w("SquarePlayer", "could not take over", it) }
         }
 
+        android.util.Log.i(
+            "SquarePlayer",
+            "queue set: ${mediaItems.size} items at $startIndex, " +
+                "first=${mediaItems.getOrNull(startIndex)?.mediaId}",
+        )
         queue.replaceFromMediaItems(mediaItems, startIndex)
         // A new queue: whatever the engine was playing is no longer at any
         // index of this one.
@@ -892,6 +902,25 @@ class LibrespotPlayer(
      */
     private var awaitingEngine = false
 
+    /**
+     * True between handing the engine a queue and it playing from that queue.
+     *
+     * A queue takes a moment to land, and in that moment the engine goes on
+     * reporting the track it is still on — the one being replaced. That track
+     * is not in the new queue, which reads exactly like another device having
+     * chosen something this app knows nothing about, and the answer to that is
+     * to adopt what the engine is playing. So opening the app on a paused song
+     * and tapping a track in a playlist wiped the queue just chosen and put the
+     * old one back: the new song played, and the screen showed the old one.
+     *
+     * Nothing is adopted while this is set. It is only ever the app's own queue
+     * arriving, and there is nothing to learn from it.
+     */
+    private var ownQueuePending = false
+
+    /** A push that never landed must not switch adoption off for good. */
+    private val giveUpOnOwnQueue = Runnable { ownQueuePending = false }
+
     fun restore(
         tracks: List<PlayQueue.Track>,
         shuffleOrder: List<Int>?,
@@ -964,6 +993,10 @@ class LibrespotPlayer(
     fun handOverToEngine() {
         if (!awaitingEngine) return
         awaitingEngine = false
+        android.util.Log.i(
+            "SquarePlayer",
+            "handing over ${queue.items.size} tracks at ${queue.currentIndex}, play=$wantPlay",
+        )
         if (queue.items.isEmpty()) {
             playbackState = Player.STATE_IDLE
             invalidateState()
@@ -995,6 +1028,14 @@ class LibrespotPlayer(
         playing: Boolean,
     ) {
         if (tracks.isEmpty()) return
+        // The second line of the same defence as [ownQueuePending]: reading a
+        // context takes seconds, and a listener who has chosen something in
+        // those seconds has said what they want more recently than the engine
+        // has.
+        if (ownQueuePending) {
+            android.util.Log.i("SquarePlayer", "not adopting: a queue of ours is on its way")
+            return
+        }
         android.util.Log.i("SquarePlayer", "adopting ${tracks.size} tracks at $index")
 
         queue.restoreContext(contextUri, contextUri != null, contextLabel)
@@ -1107,6 +1148,20 @@ class LibrespotPlayer(
     private fun applyEvent(type: String, uri: String, eventPositionMs: Long) {
         if (released) return
 
+        // One line per track change, and nothing for the events that arrive
+        // several times a second. What a skip that nobody asked for looks like
+        // afterwards is a sequence of these, and without them the only record
+        // of it is the engine's own log — which says what the engine did, not
+        // what this side made of it.
+        if (type != "position" && type != "progress") {
+            android.util.Log.i(
+                "SquarePlayer",
+                "engine $type $uri at ${eventPositionMs}ms " +
+                    "(queue ${queue.currentIndex}/${queue.items.size}, engine $engineIndex, " +
+                    "sounding=$sounding, skipPending=$skipPending, own=$ownQueuePending)",
+            )
+        }
+
         // Nothing is coming out of the speaker any more, so the next load is a
         // real move rather than a head start on what is coming.
         if (type == "stopped" || type == "end_of_track" || type == "unavailable") {
@@ -1118,15 +1173,24 @@ class LibrespotPlayer(
         // device and a local one all arrive here the same way.
         if (uri.isNotEmpty()) {
             val index = queue.nearestIndexOf(uri, engineIndex.takeIf { it >= 0 } ?: queue.currentIndex)
-            if (index < 0 && (type == "playing" || type == "loading") && unknownAsked != uri) {
+            if (
+                index < 0 && !ownQueuePending &&
+                (type == "playing" || type == "loading") && unknownAsked != uri
+            ) {
                 // Not ours: somebody else chose it. Asked for once per track,
                 // and only on a track that is actually starting, so a position
                 // report on a queue mid-rebuild does not set this going.
+                android.util.Log.i(
+                    "SquarePlayer",
+                    "engine is $type $uri, which is not in this queue of ${queue.items.size}",
+                )
                 unknownAsked = uri
                 onUnknownTrack?.invoke(uri)
             }
             if (index >= 0) {
                 unknownAsked = null
+                ownQueuePending = false
+                handler.removeCallbacks(giveUpOnOwnQueue)
                 engineIndex = index
                 if (index == queue.currentIndex) {
                     // The engine is where it was asked to be.
@@ -1335,6 +1399,16 @@ class LibrespotPlayer(
          * screen ignoring the engine for ever.
          */
         const val SKIP_CONFIRM_MS = 8_000L
+
+        /**
+         * How long a queue is given to reach the engine; see [ownQueuePending].
+         *
+         * Measured at about seven hundred milliseconds from the tap to the
+         * first event about the new track, on a cold session that was still
+         * connecting. This is that with room to spare, and short enough that a
+         * queue which never arrived leaves adoption working again.
+         */
+        const val OWN_QUEUE_MS = 6_000L
 
 
         /** Ducked volume, as a fraction of the current one. */

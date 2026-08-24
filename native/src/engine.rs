@@ -1532,6 +1532,11 @@ fn transport(
     via_spirc: impl FnOnce(&Bundle) -> Result<(), librespot_core::Error>,
     via_player: impl FnOnce(&Bundle),
 ) -> EngineResult<()> {
+    // LOCAL PATCH: every command this side sends, so a skip nobody asked for
+    // can be told from one this app asked for. See spirc.rs, which says the
+    // same about the commands that arrive from the account.
+    log::info!("this device asks to {what}");
+
     // Asked before trying, not after failing.
     //
     // A command sent to a Spirc task that has already ended does not come back
@@ -1704,6 +1709,7 @@ pub fn previous() -> EngineResult<()> {
     leaving();
     transport("previous", |e| e.spirc.prev(), |e| e.player.stop())
 }
+
 
 /// Shuts the output until the track being played is a different one.
 ///

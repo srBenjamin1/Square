@@ -1,4 +1,8 @@
-use std::{collections::HashMap, io::Write, time::Duration};
+use std::{
+    collections::HashMap,
+    io::Write,
+    time::{Duration, Instant},
+};
 
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use bytes::Bytes;
@@ -36,12 +40,32 @@ impl From<AudioKeyError> for Error {
     }
 }
 
+// LOCAL PATCH: `cool_off_until` is when the next key may be asked for, and
+// `cool_off` how long the wait becomes if that one is refused too. The macro
+// takes no doc comments on its fields, hence this note; see
+// [AudioKeyManager::request] for what they are for.
 component! {
     AudioKeyManager : AudioKeyManagerInner {
         sequence: SeqGenerator<u32> = SeqGenerator::new(0),
         pending: HashMap<u32, oneshot::Sender<Result<AudioKey, Error>>> = HashMap::new(),
+        cool_off_until: Option<Instant> = None,
+        cool_off: Duration = FIRST_COOL_OFF,
     }
 }
+
+/// LOCAL PATCH: how long to leave the key service alone after it refuses one.
+///
+/// Spotify meters these: a burst of requests — a run of skips, a preload
+/// landing on top of a load, a failed load being tried again — is answered by
+/// refusing everything for around a minute, and every retry inside that minute
+/// makes it worse rather than better. Measured on this app: thirty-nine
+/// requests in seventy seconds, four different tracks, none of them playable,
+/// and everything fine on either side of the window.
+///
+/// So a refusal puts the whole session on hold, doubling until the cap, and one
+/// key that comes back clears it.
+const FIRST_COOL_OFF: Duration = Duration::from_secs(3);
+const MAX_COOL_OFF: Duration = Duration::from_secs(30);
 
 impl AudioKeyManager {
     pub(crate) fn dispatch(&self, cmd: PacketType, mut data: Bytes) -> Result<(), Error> {
@@ -93,14 +117,29 @@ impl AudioKeyManager {
     /// would just add latency to an error that is not going to change.
     pub async fn request(&self, track: SpotifyId, file: FileId) -> Result<AudioKey, Error> {
         const ATTEMPTS: usize = 3;
-        const FIRST_BACKOFF: Duration = Duration::from_millis(250);
 
-        let mut backoff = FIRST_BACKOFF;
         let mut last = None;
 
         for attempt in 0..ATTEMPTS {
+            // Whatever is left of the hold from the last refusal, whoever it
+            // was that ran into it.
+            if let Some(wait) = self.lock(|inner| {
+                inner
+                    .cool_off_until
+                    .and_then(|until| until.checked_duration_since(Instant::now()))
+            }) {
+                debug!("waiting {wait:?} before asking for another audio key");
+                tokio::time::sleep(wait).await;
+            }
+
             match self.request_once(track, file).await {
-                Ok(key) => return Ok(key),
+                Ok(key) => {
+                    self.lock(|inner| {
+                        inner.cool_off_until = None;
+                        inner.cool_off = FIRST_COOL_OFF;
+                    });
+                    return Ok(key);
+                }
                 Err(e) => {
                     // Through the boxed cause, not the wrapper. This `Error` is
                     // librespot's own: a `kind` plus the error it was built
@@ -109,13 +148,22 @@ impl AudioKeyManager {
                         e.error.downcast_ref::<AudioKeyError>(),
                         Some(AudioKeyError::AesKey) | Some(AudioKeyError::Timeout)
                     );
+                    if transient {
+                        // The hold belongs to the session, not to this request:
+                        // the next track is about to ask for one too, and it
+                        // will be refused for the same reason.
+                        self.lock(|inner| {
+                            let wait = inner.cool_off;
+                            inner.cool_off_until = Some(Instant::now() + wait);
+                            inner.cool_off = (wait * 2).min(MAX_COOL_OFF);
+                            warn!("audio key refused, holding off for {wait:?}");
+                        });
+                    }
                     if !transient || attempt + 1 == ATTEMPTS {
                         return Err(e);
                     }
                     debug!("audio key attempt {} failed, retrying", attempt + 1);
                     last = Some(e);
-                    tokio::time::sleep(backoff).await;
-                    backoff *= 2;
                 }
             }
         }

@@ -132,6 +132,29 @@ impl Sink for AndroidSink {
 
     fn write(&mut self, packet: AudioPacket, converter: &mut Converter) -> SinkResult<()> {
         if self.stale() {
+            // LOCAL PATCH: dropped, but at the speed it would have played.
+            //
+            // Throwing the packet away and returning is what a muted output
+            // should do — and returning *immediately* is what made a song be
+            // skipped a second after it started. Writing to the AudioTrack is
+            // what paces the whole player: it blocks until the hardware has
+            // room. With nothing to block on, the decoder ran flat out and the
+            // track's position went up twenty times faster than the sound
+            // would have: eight seconds in, the engine believed it was three
+            // minutes and thirteen seconds into a three-minute-twenty song, so
+            // it announced the end and the queue moved on. The listener heard
+            // the song start and vanish, having touched nothing.
+            //
+            // Sleeping for exactly as long as this packet would have taken
+            // keeps time honest while the output is shut.
+            let frames = match &packet {
+                AudioPacket::Samples(samples) => samples.len() / NUM_CHANNELS as usize,
+                AudioPacket::Raw(data) => data.len() / (2 * NUM_CHANNELS as usize),
+            };
+            if frames > 0 {
+                let nanos = (frames as u64 * 1_000_000_000) / SAMPLE_RATE as u64;
+                std::thread::sleep(std::time::Duration::from_nanos(nanos));
+            }
             return Ok(());
         }
 

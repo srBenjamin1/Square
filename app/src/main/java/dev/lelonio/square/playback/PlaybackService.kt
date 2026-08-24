@@ -461,6 +461,30 @@ class PlaybackService : MediaLibraryService() {
                         AudioEffects.speed.value,
                         AudioEffects.pitch.value,
                     )
+                    // A video that ends is a song that ended.
+                    //
+                    // This player holds one item — the video — and knows
+                    // nothing about the queue, so reaching the end of it left
+                    // the app sitting in silence on the last frame while a
+                    // whole queue waited behind it. What happens instead is
+                    // what happens when a song finishes: back to the audio
+                    // player, on to the next track.
+                    built.addListener(object : androidx.media3.common.Player.Listener {
+                        override fun onPlaybackStateChanged(state: Int) {
+                            if (state != androidx.media3.common.Player.STATE_ENDED) return
+                            if (playerKind != PlayerKind.VIDEO) return
+                            scope.launch {
+                                runCatching {
+                                    playVideoRequest(
+                                        dev.lelonio.square.backend.spotify.SpotifyVideoMode
+                                            .Request.Skip(forward = true),
+                                    )
+                                }.onFailure {
+                                    android.util.Log.w(TAG, "after the video: $it")
+                                }
+                            }
+                        }
+                    })
                 }
         }
 
@@ -668,7 +692,19 @@ class PlaybackService : MediaLibraryService() {
         val saved = runCatching { playbackStore.load() }.getOrNull() ?: return
         val first = saved.tracks.firstOrNull()?.uri ?: return
         if (!dev.lelonio.square.data.LocalLibrary.isLocal(first)) return
-        scope.launch { swapPlayer(PlayerKind.LOCAL, restore = true) }
+        scope.launch {
+            // Not if something has started in the meantime.
+            //
+            // This is queued at startup and runs whenever the engine has
+            // finished coming up, which can be after the listener has already
+            // opened a playlist and tapped a song. Swapping then put the local
+            // player — holding the file that was paused when the app was last
+            // closed — in front of a session that was playing something else:
+            // the new song came out of the speaker while the screen showed the
+            // old one, paused.
+            if (player.mediaItemCount > 0) return@launch
+            swapPlayer(PlayerKind.LOCAL, restore = true)
+        }
     }
 
     /**
