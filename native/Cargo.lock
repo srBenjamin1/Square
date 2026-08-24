@@ -2334,6 +2334,7 @@ dependencies = [
  "futures-util",
  "http",
  "jni",
+ "librespot-audio",
  "librespot-connect",
  "librespot-core",
  "librespot-metadata",

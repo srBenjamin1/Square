@@ -1067,6 +1067,7 @@ impl PlayerTrackLoader {
             }
         };
 
+        let began = Instant::now();
         let audio_item = match AudioItem::get_file(&self.session, track_uri).await {
             Ok(audio) => match self.find_available_alternative(audio).await {
                 Some(audio) => audio,
@@ -1088,6 +1089,8 @@ impl PlayerTrackLoader {
             "Loading <{}> with Spotify URI <{}>",
             audio_item.name, audio_item.uri
         );
+        // LOCAL PATCH: where the wait before a song starts actually goes.
+        let after_metadata = began.elapsed();
 
         // (Most) podcasts seem to support only 96 kbps Ogg Vorbis, so fall back to it
         let formats = match self.config.bitrate {
@@ -1163,6 +1166,7 @@ impl PlayerTrackLoader {
             };
 
             let is_cached = encrypted_file.is_cached();
+            let after_open = began.elapsed();
 
             let stream_loader_controller = encrypted_file.get_stream_loader_controller().ok()?;
 
@@ -1203,6 +1207,7 @@ impl PlayerTrackLoader {
                 }
             };
 
+            let after_key = began.elapsed();
             let mut decrypted_file = AudioDecrypt::new(key, encrypted_file);
 
             let is_ogg_vorbis = AudioFiles::is_ogg_vorbis(format);
@@ -1302,13 +1307,33 @@ impl PlayerTrackLoader {
             // the cursor may have been moved by parsing normalisation data. This may not
             // matter for playback (but won't hurt either), but may be useful for the
             // passthrough decoder.
-            let stream_position_ms = match decoder.seek(position_ms) {
-                Ok(new_position_ms) => new_position_ms,
-                Err(e) => {
-                    error!(
-                        "PlayerTrackLoader::load_track error seeking to starting position {position_ms}: {e}"
-                    );
-                    return None;
+            // LOCAL PATCH: a track that starts at the beginning is already there.
+            //
+            // Upstream seeks unconditionally, and the note above says why: the
+            // cursor may have moved while the normalisation packet was read.
+            // That read happens on the stream *before* the decoder is built,
+            // and the decoder is built on a fresh view of the file, so a new
+            // decoder is at the first audio packet already.
+            //
+            // What the seek costs is the whole point of this patch. Symphonia
+            // is asked for an accurate seek, which on an Ogg stream is a
+            // bisection: it reads pages at scattered offsets to find the one
+            // holding the target. Over a network file that is not yet
+            // downloaded, every one of those reads asks the CDN for a block and
+            // waits — measured on this phone at between eight hundred
+            // milliseconds and twelve seconds, on every single track, to arrive
+            // at a position the decoder was already sitting on.
+            let stream_position_ms = if position_ms == 0 {
+                0
+            } else {
+                match decoder.seek(position_ms) {
+                    Ok(new_position_ms) => new_position_ms,
+                    Err(e) => {
+                        error!(
+                            "PlayerTrackLoader::load_track error seeking to starting position {position_ms}: {e}"
+                        );
+                        return None;
+                    }
                 }
             };
 
@@ -1317,7 +1342,18 @@ impl PlayerTrackLoader {
 
             let is_explicit = audio_item.is_explicit;
 
-            info!("<{}> ({} ms) loaded", audio_item.name, duration_ms);
+            info!(
+                "<{}> ({} ms) loaded in {} ms (metadata {} ms, stream {} ms, key {} ms, decode {} ms{})",
+                audio_item.name,
+                duration_ms,
+                began.elapsed().as_millis(),
+                after_metadata.as_millis(),
+                (after_open - after_metadata).as_millis(),
+                (after_key - after_open).as_millis(),
+                (began.elapsed() - after_key).as_millis(),
+                if is_cached { ", from the cache" } else { "" },
+            );
+
 
             return Some(PlayerLoadedTrackData {
                 decoder,

@@ -18,6 +18,10 @@ librespot-playback = { version = "0.8", default-features = false, features = ["r
 # are only recorded in their history — because this publishes state; nothing
 # about decoding audio requires it.
 librespot-connect = { version = "0.8", default-features = false, features = ["rustls-tls-webpki-roots"] }
+# Only for its fetch parameters: how big a block is asked for, and how long the
+# player waits before it starts. The defaults are tuned for a desktop on a fixed
+# line; see `engine::tune_fetching`.
+librespot-audio = { version = "0.8", default-features = false, features = ["rustls-tls-webpki-roots"] }
 librespot-metadata = { version = "0.8", default-features = false, features = ["rustls-tls-webpki-roots"] }
 librespot-protocol = { version = "0.8", default-features = false }
 protobuf = "3"

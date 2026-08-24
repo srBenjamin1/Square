@@ -95,6 +95,54 @@ pub(crate) fn playback_armed() -> bool {
     PLAYBACK_ARMED.load(Ordering::SeqCst) || uptime_ms() >= ARM_BY_MS.load(Ordering::SeqCst)
 }
 
+/// How a track is fetched, which is most of how long it takes to start.
+///
+/// While a track is being opened the file is in random-access mode: every read
+/// the decoder makes that lands on bytes nobody has yet asks the CDN for a
+/// block and waits for it. Symphonia makes several of those — the Ogg headers,
+/// Spotify's own normalisation packet, then the seek to the starting position —
+/// and with librespot's default block of 64 KiB each one is a separate request
+/// with a full round trip in front of it. Measured on this phone, on a healthy
+/// connection: the download itself took 300 ms and opening the decoder took two
+/// seconds, all of it waiting for those small blocks.
+///
+/// What is left here are the waits, not the sizes: a phone on wifi is not half
+/// a second away from a CDN, and half a second of audio in hand is enough to
+/// start on. The block size is the crate's own; see the note beside it.
+///
+/// Set once for the process; a second call is refused by the crate and ignored
+/// here, which is right — the first player's numbers are as good as the next's.
+fn tune_fetching() {
+    use std::time::Duration;
+
+    // Back at the crate's own size, and deliberately.
+    //
+    // Raising it looked obvious — fewer requests for the same bytes — and made
+    // things worse: while a track is opening, every read the decoder makes on
+    // bytes nobody has fetches a whole block and waits for it, so a bigger
+    // block is a longer wait at each of those. What actually cost the time was
+    // the seek that is no longer done at all; see the note in player.rs.
+    let minimum_download_size = 64 * 1024;
+    let minimum_throughput = 8 * 1024;
+    let _ = librespot_audio::AudioFetchParams::set(librespot_audio::AudioFetchParams {
+        minimum_download_size,
+        minimum_throughput,
+        // A phone on wifi is not half a second away from a CDN, and assuming it
+        // is makes the loader hold back on the prefetch that would hide the
+        // next round trip.
+        initial_ping_time_estimate: Duration::from_millis(150),
+        maximum_assumed_ping_time: Duration::from_millis(800),
+        // What has to be in hand before the first sample is played. A second is
+        // a second of waiting on every track; half of one is still several
+        // blocks at this size.
+        read_ahead_before_playback: Duration::from_millis(500),
+        read_ahead_during_playback: Duration::from_secs(5),
+        prefetch_threshold_factor: 4.0,
+        // A block that has not arrived in fifteen seconds is not going to.
+        download_timeout: Duration::from_secs(15),
+    });
+}
+
 /// Shuts the output until `gate` is satisfied.
 fn shut(gate: Gate) {
     if let Ok(mut current) = GATE.lock() {
@@ -285,6 +333,8 @@ pub fn start(
     crossfade_ms: i32,
     listener: GlobalRef,
 ) -> EngineResult<()> {
+    tune_fetching();
+
     let mut guard = ENGINE.lock().map_err(|_| "engine mutex poisoned")?;
     if guard.is_some() {
         return Err("engine already started".into());
