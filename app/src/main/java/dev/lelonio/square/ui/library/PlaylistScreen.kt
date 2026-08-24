@@ -307,6 +307,10 @@ fun PlaylistScreen(
             pageColor = pageColor,
             saved = state.saved,
             onToggleSaved = onToggleSaved,
+            following = state.following.takeIf {
+                state.kind == MainViewModel.DetailKind.ARTIST
+            },
+            onToggleFollow = onToggleFollow,
             trackCount = state.tracks.size,
             totalMs = state.tracks.sumOf { it.durationMs },
             backdrop = pageBackdrop,
@@ -339,12 +343,7 @@ fun PlaylistScreen(
         ) {
             if (state.kind == MainViewModel.DetailKind.ARTIST) {
                 item(contentType = "artistAbout") {
-                    ArtistAbout(
-                        followers = state.followers,
-                        genres = state.genres,
-                        following = state.following,
-                        onToggleFollow = onToggleFollow,
-                    )
+                    ArtistAbout(followers = state.followers, genres = state.genres)
                 }
             }
 
@@ -664,6 +663,16 @@ private fun DetailHeader(
     /** Whether the page is kept in the library; null hides the button. */
     saved: Boolean?,
     onToggleSaved: () -> Unit,
+    /**
+     * Whether the artist is followed; null on every page that is not one.
+     *
+     * Here rather than under the name, where it used to sit: following an
+     * artist is the same kind of act as saving an album, and both belong beside
+     * the button that starts the music. Under the follower count it read as
+     * part of the caption.
+     */
+    following: Boolean?,
+    onToggleFollow: () -> Unit,
     trackCount: Int,
     totalMs: Long,
     backdrop: Backdrop,
@@ -727,7 +736,7 @@ private fun DetailHeader(
 
             Row(
                 Modifier.padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (following != null) 10.dp else 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CircleAction(
@@ -746,7 +755,13 @@ private fun DetailHeader(
                         .clip(CircleShape)
                         .background(Color.White)
                         .pressable(onPlay, pressedScale = 0.95f)
-                        .padding(horizontal = 40.dp, vertical = 14.dp),
+                        // Narrower with a word button beside it. Three controls
+                        // and two labels do not fit across a phone at the width
+                        // this has to itself on every other page.
+                        .padding(
+                            horizontal = if (following != null) 26.dp else 40.dp,
+                            vertical = 14.dp,
+                        ),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -777,6 +792,12 @@ private fun DetailHeader(
                         backdrop = backdrop,
                         onClick = onToggleSaved,
                     )
+                }
+
+                // An artist has no library button — the question does not apply
+                // — so this stands where that one would.
+                if (following != null) {
+                    FollowPill(following = following, onClick = onToggleFollow)
                 }
             }
 
@@ -1328,8 +1349,6 @@ private fun formatTotal(ms: Long): String {
 private fun ArtistAbout(
     followers: Int,
     genres: List<String>,
-    following: Boolean?,
-    onToggleFollow: () -> Unit,
 ) {
     Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 14.dp)) {
         val line = listOfNotNull(
@@ -1348,36 +1367,41 @@ private fun ArtistAbout(
             )
         }
 
-        // Absent until the answer is known: see PlaylistState.following.
-        if (following != null) {
-            val shape = RoundedCornerShape(percent = 50)
-            Row(
-                Modifier
-                    .padding(top = 12.dp)
-                    .clip(shape)
-                    .background(
-                        if (following) Color.Transparent else Color.White,
-                        shape,
-                    )
-                    .then(
-                        if (following) {
-                            Modifier.border(1.dp, Color.White.copy(alpha = 0.4f), shape)
-                        } else {
-                            Modifier
-                        },
-                    )
-                    .pressable(onToggleFollow, pressedScale = 0.94f)
-                    .padding(horizontal = 20.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(if (following) R.string.following else R.string.follow),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (following) Color.White else Color.Black,
-                )
-            }
-        }
+    }
+}
+
+/**
+ * Follow, and the same button saying it is already done.
+ *
+ * Outlined once followed rather than filled: it is then a state to read and
+ * occasionally undo, not something to press, and two solid buttons side by side
+ * both ask to be the one you tap.
+ */
+@Composable
+private fun FollowPill(following: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(percent = 50)
+    Row(
+        Modifier
+            .clip(shape)
+            .background(if (following) Color.Transparent else Color.White, shape)
+            .then(
+                if (following) {
+                    Modifier.border(1.dp, Color.White.copy(alpha = 0.4f), shape)
+                } else {
+                    Modifier
+                },
+            )
+            .pressable(onClick, pressedScale = 0.94f)
+            .padding(horizontal = 18.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(if (following) R.string.following else R.string.follow),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = if (following) Color.White else Color.Black,
+            maxLines = 1,
+        )
     }
 }
 
