@@ -69,6 +69,15 @@ interface MusicBackend {
 
     suspend fun search(query: String, labels: SearchLabels): SearchResults
 
+    /**
+     * Whether the last search had nowhere to go.
+     *
+     * Only Spotify can be in this state, and only when the gateway will not
+     * answer and no application has been registered either — the one case
+     * where the screen has something to offer instead of an empty page.
+     */
+    val searchNeedsSetup: Boolean get() = false
+
     /** The signed-in account's own playlists; empty when logged out or unsupported. */
     suspend fun playlists(): List<CatalogPlaylist>
 

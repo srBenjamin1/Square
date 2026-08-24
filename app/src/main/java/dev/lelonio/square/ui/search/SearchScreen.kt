@@ -79,6 +79,14 @@ fun SearchScreen(
     onClientIdChange: (String) -> Unit,
     onConnectWebApi: () -> Unit,
     onPlayTrack: (List<CatalogTrack>, Int) -> Unit,
+    /**
+     * Songs found by searching and played before, newest first.
+     *
+     * Shown in place of the prompt on an empty box, which is where a list of
+     * things somebody already wanted belongs.
+     */
+    history: List<CatalogTrack>,
+    onClearHistory: () -> Unit,
     onEnqueue: (CatalogTrack) -> Unit,
     /** Opens the same track sheet the library rows open. */
     onTrackMenu: (CatalogTrack) -> Unit,
@@ -117,8 +125,36 @@ fun SearchScreen(
                 StatusBox { Message(state.error) }
             }
 
-            state.query.isBlank() -> item(contentType = "status") {
+            state.query.isBlank() && history.isEmpty() -> item(contentType = "status") {
                 StatusBox { Message(stringResource(R.string.search_prompt)) }
+            }
+
+            state.query.isBlank() -> {
+                item(contentType = "history-title") {
+                    HistoryTitle(onClear = onClearHistory)
+                }
+                items(
+                    count = history.size,
+                    key = { "history-${history[it].uri}" },
+                    contentType = { "track" },
+                ) { index ->
+                    val track = history[index]
+                    SwipeToQueue(onQueue = { onEnqueue(track) }) {
+                        ResultRow(
+                            title = track.name,
+                            subtitle = track.artist,
+                            artworkUrl = track.artworkUrl,
+                            highlighted = track.uri == nowPlayingUri,
+                            round = false,
+                            // The list itself is the queue, as a playlist would
+                            // be: playing the third song leaves the two after it
+                            // to follow.
+                            onClick = { onPlayTrack(history, index) },
+                            onMenu = { onTrackMenu(track) },
+                        )
+                    }
+                }
+                item(contentType = "tail") { Box(Modifier.height(24.dp)) }
             }
 
             state.results.isEmpty -> item(contentType = "status") {
@@ -151,6 +187,8 @@ fun SearchScreen(
                                 // share about it that the page does not do
                                 // better.
                                 onMenu = { onTrackMenu(track) },
+                                badge = stringResource(R.string.lyrics_match)
+                                    .takeIf { track.uri in state.results.lyricMatches },
                             )
                         }
                     }
@@ -189,6 +227,7 @@ private fun KindRow(selected: Kind, backdrop: Backdrop, onSelect: (Kind) -> Unit
                 contentHeight = 38.dp,
                 contentPadding = 18.dp,
                 surfaceColor = if (isSelected) SelectedFilm else Color.Unspecified,
+                wash = dev.lelonio.square.ui.glass.chipWash(isSelected),
             ) {
                 Text(
                     stringResource(entry.label),
@@ -229,6 +268,32 @@ private fun LazyListScope.section(
     }
 }
 
+/** The history's own heading, with the way to empty it beside the name. */
+@Composable
+private fun HistoryTitle(onClear: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 24.dp, end = 12.dp, top = 22.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.search_history).uppercase(),
+            style = MaterialTheme.typography.labelLarge,
+            color = InkDim,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            stringResource(R.string.clear),
+            style = MaterialTheme.typography.labelLarge,
+            color = InkDim,
+            modifier = Modifier
+                .pressable(onClear, shape = RoundedCornerShape(12.dp), pressedScale = 0.96f)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
+}
+
 @Composable
 private fun SectionTitle(text: String) {
     Text(
@@ -248,6 +313,14 @@ private fun ResultRow(
     round: Boolean,
     onClick: () -> Unit,
     onMenu: (() -> Unit)?,
+    /**
+     * Why this row is here, when the title does not say it.
+     *
+     * Shown before the artist rather than under it: a row is two lines tall
+     * everywhere in the app, and a third line for some rows and not others
+     * makes a list that was even into a list that jumps.
+     */
+    badge: String? = null,
 ) {
     Row(
         Modifier
@@ -277,13 +350,28 @@ private fun ResultRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = InkDim,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (badge != null) {
+                    Text(
+                        badge,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Ink,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(BadgeFilm)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkDim,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (onMenu != null) {
             Icon(
@@ -323,6 +411,14 @@ private fun StatusBox(content: @Composable () -> Unit) {
 
 /** The chip that is lit, filled a little harder than the rest; see the home page. */
 private val SelectedFilm = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.26f)
+
+/**
+ * The pill behind "lyrics match": lighter than a lit chip.
+ *
+ * It labels a row rather than offering something to press, and at chip
+ * strength a whole page of them reads as a page of buttons.
+ */
+private val BadgeFilm = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f)
 
 /** How many of each kind the combined page shows before the chips take over. */
 private const val TOP_RESULTS = 4

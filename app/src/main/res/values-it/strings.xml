@@ -9,6 +9,14 @@
     <string name="cancel">Annulla</string>
     <string name="save">Salva</string>
     <string name="clear">Cancella</string>
+    <string name="credits">Crediti</string>
+    <string name="credits_none">Nessun credito</string>
+    <string name="credits_source">Fonte</string>
+    <string name="credits_performers">Interpreti</string>
+    <string name="credits_writers">Autori</string>
+    <string name="credits_producers">Produttori</string>
+    <string name="search_history">Dalle tue ricerche</string>
+    <string name="lyrics_match">Testo trovato</string>
     <string name="retry">Riprova</string>
     <string name="log_out">Esci</string>
     <string name="refresh">Aggiorna</string>

@@ -13,6 +13,14 @@
     <string name="cancel">Vazgeç</string>
     <string name="save">Kaydet</string>
     <string name="clear">Temizle</string>
+    <string name="credits">Katkıda bulunanlar</string>
+    <string name="credits_none">Kayıt yok</string>
+    <string name="credits_source">Kaynak</string>
+    <string name="credits_performers">Sanatçılar</string>
+    <string name="credits_writers">Söz yazarları</string>
+    <string name="credits_producers">Prodüktörler</string>
+    <string name="search_history">Aramalarından</string>
+    <string name="lyrics_match">Şarkı sözünde bulundu</string>
     <string name="retry">Yeniden dene</string>
     <string name="log_out">Çıkış yap</string>
     <string name="refresh">Yenile</string>

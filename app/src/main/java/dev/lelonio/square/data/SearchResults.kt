@@ -13,6 +13,15 @@ data class SearchResults(
     val artists: List<SearchItem> = emptyList(),
     val albums: List<SearchItem> = emptyList(),
     val playlists: List<SearchItem> = emptyList(),
+    /**
+     * The tracks that were found by their words rather than their titles.
+     *
+     * Spotify says which those are — a match carries the fields it matched on
+     * — and it is worth showing: a list of songs whose names have nothing to
+     * do with what was typed looks like a broken search until the reason is on
+     * the row. Empty from the Web API, which does not search lyrics at all.
+     */
+    val lyricMatches: Set<String> = emptySet(),
 ) {
     val isEmpty: Boolean
         get() = tracks.isEmpty() && artists.isEmpty() && albums.isEmpty() && playlists.isEmpty()

@@ -19,6 +19,14 @@
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
     <string name="clear">Clear</string>
+    <string name="credits">Credits</string>
+    <string name="credits_none">Nobody credited</string>
+    <string name="credits_source">Source</string>
+    <string name="credits_performers">Performers</string>
+    <string name="credits_writers">Writers</string>
+    <string name="credits_producers">Producers</string>
+    <string name="search_history">From your searches</string>
+    <string name="lyrics_match">Lyrics match</string>
     <string name="retry">Retry</string>
     <string name="log_out">Log out</string>
     <string name="refresh">Refresh</string>

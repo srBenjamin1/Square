@@ -34,6 +34,9 @@ class SpotifyBackend(private val container: SquareApplication) : MusicBackend {
 
     override val id = BackendId.SPOTIFY
 
+    override var searchNeedsSetup: Boolean = false
+        private set
+
     private val _authState = MutableStateFlow<BackendAuthState>(
         if (container.spotifySignedIn) BackendAuthState.Connecting else BackendAuthState.LoggedOut,
     )
@@ -66,13 +69,34 @@ class SpotifyBackend(private val container: SquareApplication) : MusicBackend {
     }
 
     /**
-     * Search goes through the user's own registered application; see
-     * [dev.lelonio.square.auth.WebApiAccount] for why it cannot use the
-     * playback session's client id.
+     * Spotify's own search, with the Web API behind it.
+     *
+     * The gateway first, for two reasons. It searches the way Spotify's own
+     * clients do, which includes the words *inside* a song — type a line you
+     * remember and the song is the first result — and it answers anyone who is
+     * signed in, where the Web API wants an application the listener has to
+     * register for themselves.
+     *
+     * What it does not offer is any promise of being there tomorrow: the query
+     * is addressed by a hash Spotify retires whenever it rebuilds its web
+     * client. So the registered application stays as the fallback, and a search
+     * only fails when both have nothing; see [dev.lelonio.square.data.Gateway].
      */
     override suspend fun search(query: String, labels: SearchLabels): SearchResults {
-        if (!container.webApi.isReady) return SearchResults()
-        return container.api.search(query.trim()).toResults(
+        val term = query.trim()
+        container.gateway.search(term)
+            ?.let { dev.lelonio.square.data.GatewaySearch.parse(it, labels) }
+            ?.let {
+                searchNeedsSetup = false
+                return it
+            }
+
+        if (!container.webApi.isReady) {
+            searchNeedsSetup = true
+            return SearchResults()
+        }
+        searchNeedsSetup = false
+        return container.api.search(term).toResults(
             artistLabel = labels.artist,
             albumLabel = labels.album,
             playlistLabel = labels.playlist,

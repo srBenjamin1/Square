@@ -33,6 +33,8 @@ import dev.lelonio.square.playback.EffectPreset
 import dev.lelonio.square.playback.PlaybackService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -763,19 +765,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val results: SearchResults = SearchResults(),
         val error: String? = null,
         /**
-         * False until the user has registered their own Spotify application.
-         * Search cannot work without one, so the screen offers the setup instead
-         * of a search box that would only ever answer 429.
+         * Set when a search had nowhere to go, so the screen can offer the way
+         * out instead of an empty page.
+         *
+         * Rare now: Spotify's own gateway answers anyone who is signed in, and
+         * only a retired query hash sends a search back to the registered
+         * application that used to be the only way in.
          */
         val needsSetup: Boolean = false,
     )
 
-    private val _search = MutableStateFlow(
-        SearchState(
-            needsSetup = container.activeBackend.id == BackendId.SPOTIFY &&
-                !container.webApi.isReady,
-        ),
-    )
+    private val _search = MutableStateFlow(SearchState())
     val search: StateFlow<SearchState> = _search.asStateFlow()
     private var searchJob: Job? = null
 
@@ -787,14 +787,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun onSearchQuery(query: String) {
         val backend = container.activeBackend
-        // Only Spotify needs a registered application to search; YouTube Music
-        // is anonymous, so the setup prompt would be asking for nothing.
-        val ready = backend.id != BackendId.SPOTIFY || container.webApi.isReady
-        _search.value = _search.value.copy(query = query, needsSetup = !ready)
+        _search.value = _search.value.copy(query = query)
         searchJob?.cancel()
 
-        if (query.isBlank() || !ready) {
-            _search.value = SearchState(query = query, needsSetup = !ready)
+        if (query.isBlank()) {
+            _search.value = SearchState(query = query)
             return
         }
 
@@ -812,9 +809,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
                 .onSuccess { results ->
-                    _search.value = _search.value.copy(loading = false, results = results)
+                    // The answer to a question nobody is asking any more is
+                    // not shown: a slow search that was replaced while it ran
+                    // would otherwise land on top of the newer one.
+                    currentCoroutineContext().ensureActive()
+                    _search.value = _search.value.copy(
+                        loading = false,
+                        results = results,
+                        needsSetup = backend.searchNeedsSetup,
+                    )
                 }
                 .onFailure {
+                    // A cancelled search is not a failed one. Every keystroke
+                    // cancels the one before it, and runCatching catches that
+                    // like anything else — which put "StandaloneCoroutine was
+                    // cancelled" on the page while the next search was already
+                    // on its way.
+                    if (it is kotlinx.coroutines.CancellationException) throw it
                     android.util.Log.e(TAG, "search failed: ${chain(it)}", it)
                     _search.value = _search.value.copy(loading = false, error = describe(it))
                 }
@@ -934,7 +945,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun disconnectWebApi() {
         container.webApi.disconnect()
         _webApi.value = _webApi.value.copy(connected = false, error = null)
-        _search.value = _search.value.copy(needsSetup = true)
+        // Not needsSetup: search comes from Spotify's own gateway now, and
+        // giving up the registered application only gives up the fallback.
     }
 
     /**
@@ -1114,6 +1126,74 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Called when a track starts, to keep the home page's history current. */
     fun recordPlayed(track: CatalogTrack) = viewModelScope.launch {
         container.recentStore.record(track)
+    }
+
+    /**
+     * Songs found by searching and played, newest first.
+     *
+     * Filtered by the source in use, like [recent]: a Spotify track is not
+     * something the YouTube Music backend can play, and offering it would be
+     * offering a row that does nothing.
+     */
+    val searchHistory: StateFlow<List<CatalogTrack>> =
+        combine(container.searchHistory.tracks, container.preferences.backend) { tracks, _ ->
+            tracks.filter { container.activeBackend.owns(it.uri) }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _credits =
+        MutableStateFlow<dev.lelonio.square.backend.spotify.SpotifyCredits.Credits?>(null)
+
+    /**
+     * Who made the track on screen, once somebody asks.
+     *
+     * Fetched when the panel is opened rather than with the track: it is a page
+     * most listeners never look at, and a request per song for it would be a
+     * request per song nobody wanted.
+     */
+    val credits: StateFlow<dev.lelonio.square.backend.spotify.SpotifyCredits.Credits?> =
+        _credits.asStateFlow()
+
+    private val _creditsLoading = MutableStateFlow(false)
+    val creditsLoading: StateFlow<Boolean> = _creditsLoading.asStateFlow()
+
+    private var creditsFor: String? = null
+    private var creditsJob: Job? = null
+
+    /** Asked for the open track; a repeat for the same one is free. */
+    fun loadCredits(trackUri: String?) {
+        if (trackUri == null || !trackUri.startsWith("spotify:track:")) {
+            creditsJob?.cancel()
+            creditsFor = null
+            _credits.value = null
+            _creditsLoading.value = false
+            return
+        }
+        if (creditsFor == trackUri && (_credits.value != null || _creditsLoading.value)) return
+
+        creditsJob?.cancel()
+        creditsFor = trackUri
+        _credits.value = null
+        _creditsLoading.value = true
+        creditsJob = viewModelScope.launch {
+            val found = dev.lelonio.square.backend.spotify.SpotifyCredits.of(trackUri)
+            if (creditsFor == trackUri) {
+                _credits.value = found
+                _creditsLoading.value = false
+            }
+        }
+    }
+
+    /** Called when a search result is played, rather than when a track starts. */
+    fun recordSearchPlay(track: CatalogTrack) = viewModelScope.launch {
+        container.searchHistory.record(track)
+    }
+
+    fun forgetSearchPlay(uri: String) = viewModelScope.launch {
+        container.searchHistory.remove(uri)
+    }
+
+    fun clearSearchHistory() = viewModelScope.launch {
+        container.searchHistory.clear()
     }
 
     init {

@@ -73,6 +73,47 @@ class Gateway(private val keys: PathfinderKeys) {
     }
 
     /**
+     * Everything the search box asks for, in one query.
+     *
+     * The reason to ask here rather than the Web API is not the quota this
+     * time: Spotify's own search reads the words as a listener would, so a line
+     * of a song finds the song. "Is this the real life" answers with Bohemian
+     * Rhapsody, which no amount of matching titles and artist names will ever
+     * do. It also means a search works for anyone signed in, with no registered
+     * application of their own.
+     *
+     * Null when the gateway will not answer, and the Web API is where the
+     * caller goes then; see SpotifyBackend.
+     */
+    suspend fun search(term: String): String? {
+        if (term.isBlank()) return null
+        keys.refresh()
+        val quoted = org.json.JSONObject.quote(term)
+        return runCatching {
+            query(
+                operation = "searchDesktop",
+                hash = keys.search,
+                // Exactly what the web player asks, values included.
+                //
+                // Not a detail. A query nobody else sends — twenty of every
+                // kind, audiobooks turned off, fields left out — is a caller
+                // that stands out from every other caller of the same query,
+                // and standing out is the one thing this app should never do
+                // here. Ten and five is the web player's own page size, so an
+                // hour of searching from this app reads like an hour of
+                // searching from a browser tab.
+                variables = """{"searchTerm":$quoted,"offset":0,"limit":$SEARCH_LIMIT,""" +
+                    """"numberOfTopResults":$TOP_RESULTS,"includeAudiobooks":true,""" +
+                    """"includeArtistHasConcertsField":false,"includePreReleases":true,""" +
+                    """"includeLocalConcertsField":false,"includeAlbumPreReleases":false,""" +
+                    """"includeAuthors":false,"includeEpisodeContentRatingsV2":false}""",
+            )
+        }
+            .onFailure { android.util.Log.i(TAG, "gateway search unavailable: ${it.message}") }
+            .getOrNull()
+    }
+
+    /**
      * Reads a list to its end.
      *
      * Null when the first page will not come back, and null part way through
@@ -131,5 +172,11 @@ class Gateway(private val keys: PathfinderKeys) {
          * maximum for the same lists is a hundred, and fifty for the library.
          */
         const val PAGE = 200
+
+        /** What one page of each kind of search result holds, as the web player asks. */
+        const val SEARCH_LIMIT = 10
+
+        /** And how many of the best of everything it asks for; see [search]. */
+        const val TOP_RESULTS = 5
     }
 }

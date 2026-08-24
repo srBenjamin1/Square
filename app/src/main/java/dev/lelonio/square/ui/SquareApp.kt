@@ -344,6 +344,7 @@ fun SquareApp(
     val accent by rememberArtworkColor(playback.artworkUrl)
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
+    val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
     val webApi by viewModel.webApi.collectAsStateWithLifecycle()
     val reverb by AudioEffects.reverb.collectAsStateWithLifecycle()
     val presets by viewModel.effectPresets.collectAsStateWithLifecycle()
@@ -953,8 +954,11 @@ fun SquareApp(
                                 onClientIdChange = viewModel::onWebApiClientIdChange,
                                 onConnectWebApi = { viewModel.connectWebApi() },
                                 onPlayTrack = { tracks, index ->
+                                    tracks.getOrNull(index)?.let(viewModel::recordSearchPlay)
                                     onPlay(tracks, index, null, false, searchLabel, 0L)
                                 },
+                                history = searchHistory,
+                                onClearHistory = viewModel::clearSearchHistory,
                                 onEnqueue = onEnqueue,
                                 onTrackMenu = { track ->
                                     trackMenu = TrackMenuRequest(

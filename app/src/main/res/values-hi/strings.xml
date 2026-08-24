@@ -13,6 +13,14 @@
     <string name="cancel">रद्द करें</string>
     <string name="save">सहेजें</string>
     <string name="clear">साफ़ करें</string>
+    <string name="credits">श्रेय</string>
+    <string name="credits_none">कोई श्रेय नहीं</string>
+    <string name="credits_source">स्रोत</string>
+    <string name="credits_performers">कलाकार</string>
+    <string name="credits_writers">लेखक</string>
+    <string name="credits_producers">निर्माता</string>
+    <string name="search_history">आपकी खोजों से</string>
+    <string name="lyrics_match">गीत में मिला</string>
     <string name="retry">फिर कोशिश करें</string>
     <string name="log_out">लॉग आउट</string>
     <string name="refresh">रीफ़्रेश करें</string>

@@ -8,6 +8,14 @@
     <string name="cancel">Abbrechen</string>
     <string name="save">Speichern</string>
     <string name="clear">Löschen</string>
+    <string name="credits">Credits</string>
+    <string name="credits_none">Keine Angaben</string>
+    <string name="credits_source">Quelle</string>
+    <string name="credits_performers">Mitwirkende</string>
+    <string name="credits_writers">Autoren</string>
+    <string name="credits_producers">Produzenten</string>
+    <string name="search_history">Aus deinen Suchen</string>
+    <string name="lyrics_match">Songtext gefunden</string>
     <string name="retry">Erneut versuchen</string>
     <string name="log_out">Abmelden</string>
     <string name="refresh">Aktualisieren</string>

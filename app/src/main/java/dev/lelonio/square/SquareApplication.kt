@@ -52,6 +52,11 @@ class SquareApplication : Application() {
             dev.lelonio.square.auth.EngineCredentials.exist(this)
     val recentStore: RecentStore by lazy { RecentStore(this) }
 
+    /** Songs found by searching and then played; see [SearchHistoryStore]. */
+    val searchHistory: dev.lelonio.square.data.SearchHistoryStore by lazy {
+        dev.lelonio.square.data.SearchHistoryStore(this)
+    }
+
     /** Which playlists were opened most recently, for ordering the home page. */
     val playlistOrder: PlaylistOrderStore by lazy { PlaylistOrderStore(this) }
 
