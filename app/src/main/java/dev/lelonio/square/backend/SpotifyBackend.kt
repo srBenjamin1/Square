@@ -283,6 +283,7 @@ class SpotifyBackend(private val container: SquareApplication) : MusicBackend {
             audioOutput::fadeOutThen,
             audioOutput::fadeIn,
             audioOutput::setPlaybackActive,
+            audioOutput::duckReverb,
         )
     }
 

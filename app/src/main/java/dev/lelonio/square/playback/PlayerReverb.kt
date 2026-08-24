@@ -20,6 +20,34 @@ class PlayerReverb {
 
     private var effect: EnvironmentalReverb? = null
 
+    /** What the room is set to, so a change of level can re-apply it. */
+    private var amount = 0f
+
+    /**
+     * Follows the player's own level.
+     *
+     * ExoPlayer ducks by turning itself down, and the send that feeds this
+     * room is not part of that: a song ducked under a voice note would come
+     * back as music at a third and reverb at full, which reads as the room
+     * suddenly swallowing the track. The send is held down by the same amount.
+     */
+    private var watched: ExoPlayer? = null
+    private val level = object : androidx.media3.common.Player.Listener {
+        override fun onVolumeChanged(volume: Float) {
+            val player = watched ?: return
+            val room = amount
+            if (room <= 0f) return
+            runCatching {
+                player.setAuxEffectInfo(
+                    AuxEffectInfo(
+                        effect?.id ?: return,
+                        ReverbTuning.sendLevel(room) * volume.coerceIn(0f, 1f),
+                    ),
+                )
+            }
+        }
+    }
+
     /**
      * Puts [amount] of room on [player], or takes it away at zero.
      *
@@ -29,9 +57,16 @@ class PlayerReverb {
      */
     fun apply(player: ExoPlayer, amount: Float) {
         val level = amount.coerceIn(0f, 1f)
+        this.amount = level
         if (level <= 0f) {
             detach(player)
             return
+        }
+
+        if (watched !== player) {
+            watched?.runCatching { removeListener(this@PlayerReverb.level) }
+            watched = player
+            runCatching { player.addListener(this.level) }
         }
 
         val existing = effect
@@ -47,7 +82,12 @@ class PlayerReverb {
         runCatching {
             ReverbTuning.tune(reverb, level)
             reverb.enabled = true
-            player.setAuxEffectInfo(AuxEffectInfo(reverb.id, ReverbTuning.sendLevel(level)))
+            player.setAuxEffectInfo(
+                AuxEffectInfo(
+                    reverb.id,
+                    ReverbTuning.sendLevel(level) * player.volume.coerceIn(0f, 1f),
+                ),
+            )
             if (existing == null) android.util.Log.i(TAG, "reverb on at $level, id ${reverb.id}")
         }.onFailure { android.util.Log.w(TAG, "reverb not applied: ${it.message}") }
     }
@@ -63,6 +103,10 @@ class PlayerReverb {
     }
 
     private fun detach(player: ExoPlayer) {
+        if (watched === player) {
+            runCatching { player.removeListener(level) }
+            watched = null
+        }
         runCatching {
             player.setAuxEffectInfo(AuxEffectInfo(AuxEffectInfo.NO_AUX_EFFECT_ID, 0f))
         }

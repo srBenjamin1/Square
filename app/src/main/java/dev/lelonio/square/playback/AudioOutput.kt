@@ -154,6 +154,41 @@ class AudioOutput {
      * — a notification, another app — arrives into a room it was never meant to
      * be in. So the effect is only alive while this player is actually playing.
      */
+    /**
+     * How far the room is held down while something else is talking.
+     *
+     * 1 at rest. The reverb is an auxiliary effect on the output mix and its
+     * send does not pass through the track's volume — which is the whole reason
+     * it can be attached at all — so a duck that quietens the music leaves the
+     * room at full level, and a song ducked under a voice note comes back as
+     * mostly reverb. See [duckReverb].
+     */
+    private var reverbDuck = 1f
+
+    /**
+     * Whether the room is inside this track's session rather than on the mix.
+     *
+     * A session effect needs no send level and no attachment: it is part of the
+     * track. See [applyReverb] for why that is worth preferring.
+     */
+    private var reverbOnSession = false
+
+    /**
+     * Holds the room down by the same amount as everything else.
+     *
+     * Called from the player's own ducking, since that is where the decision is
+     * made; the level is re-applied rather than remembered separately, so the
+     * listener moving the reverb slider mid-duck still lands in the right place.
+     */
+    fun duckReverb(factor: Float) {
+        synchronized(this) {
+            val wanted = factor.coerceIn(0f, 1f)
+            if (wanted == reverbDuck) return
+            reverbDuck = wanted
+            if (reverbAmount > 0f) applyReverb()
+        }
+    }
+
     private fun applyReverb() {
         val output = track
         val amount = reverbAmount
@@ -172,12 +207,40 @@ class AudioOutput {
         }
 
         val fresh = reverb == null
-        val effect = reverb ?: runCatching {
-            // Priority 0: no reason to outbid anything else on the mix.
-            EnvironmentalReverb(0, 0)
-        }.onFailure {
-            android.util.Log.w(TAG, "reverb unavailable: ${it.message}")
-        }.getOrNull() ?: return
+        // On this track's own session where the device allows it, on the output
+        // mix where it does not.
+        //
+        // An effect on the output mix is fed *before* the level of the track
+        // that feeds it, which is what lets it be attached at all — and what
+        // made a ducked song come back as a whisper in a cathedral: from
+        // Android 8 the system ducks a track by itself, without telling the
+        // app, so the music dropped and the room did not. An effect on the
+        // session is processed inside the track, so whatever attenuates the
+        // track afterwards attenuates the room with it, whoever does the
+        // attenuating.
+        val effect = reverb ?: run {
+            val session = runCatching { output.audioSessionId }.getOrDefault(0)
+            val made = if (session != 0) {
+                runCatching { EnvironmentalReverb(0, session) }
+                    .onSuccess {
+                        reverbOnSession = true
+                        android.util.Log.i(TAG, "reverb inside this session ($session)")
+                    }
+                    .onFailure {
+                        android.util.Log.w(TAG, "no reverb on the session: ${it.message}")
+                    }
+                    .getOrNull()
+            } else {
+                null
+            }
+            made ?: runCatching {
+                // Priority 0: no reason to outbid anything else on the mix.
+                reverbOnSession = false
+                EnvironmentalReverb(0, 0)
+            }.onFailure {
+                android.util.Log.w(TAG, "reverb unavailable: ${it.message}")
+            }.getOrNull()
+        } ?: return
 
         reverb = effect
         runCatching {
@@ -186,8 +249,12 @@ class AudioOutput {
             ReverbTuning.tune(effect, amount)
             effect.enabled = true
 
-            output.attachAuxEffect(effect.id)
-            output.setAuxEffectSendLevel(ReverbTuning.sendLevel(amount))
+            // A session effect is already in the path; only an auxiliary one
+            // has to be sent to.
+            if (!reverbOnSession) {
+                output.attachAuxEffect(effect.id)
+                output.setAuxEffectSendLevel(ReverbTuning.sendLevel(amount) * reverbDuck)
+            }
             if (fresh) android.util.Log.i(TAG, "reverb on at $amount, id ${effect.id}")
         }.onFailure { android.util.Log.w(TAG, "reverb not applied: ${it.message}") }
     }
@@ -272,10 +339,15 @@ class AudioOutput {
     }
 
     private fun suspendReverb() {
-        track?.runCatching {
-            setAuxEffectSendLevel(0f)
-            attachAuxEffect(0)
+        // Only an auxiliary effect has a send to close; a session one goes with
+        // the track it lives in.
+        if (!reverbOnSession) {
+            track?.runCatching {
+                setAuxEffectSendLevel(0f)
+                attachAuxEffect(0)
+            }
         }
+        reverbOnSession = false
         dropReverb()
     }
 

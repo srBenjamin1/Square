@@ -53,6 +53,14 @@ class LibrespotPlayer(
      * AudioOutput.setPlaybackActive.
      */
     private val onPlaybackActive: (Boolean) -> Unit,
+    /**
+     * Holds the reverb down while the music is ducked.
+     *
+     * Separate from the volume below because it has to be: the room is an
+     * effect on the output mix, and its send is fed before the level this
+     * player sets. See AudioOutput.duckReverb.
+     */
+    private val onDuckReverb: (Float) -> Unit,
 ) : SimpleBasePlayer(looper), NativeEvents {
 
     /**
@@ -700,6 +708,7 @@ class LibrespotPlayer(
      * verbatim and restored rather than recomputed.
      */
     private fun applyDuck(ducked: Boolean) {
+        onDuckReverb(if (ducked) DUCK_FACTOR.toFloat() else 1f)
         if (ducked) {
             if (volumeBeforeDuck != null) return
             val current = runCatching { NativeBridge.volume }.getOrNull() ?: return
