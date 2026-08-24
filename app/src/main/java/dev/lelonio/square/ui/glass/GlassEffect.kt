@@ -15,6 +15,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -452,6 +453,22 @@ fun Modifier.liquidGlass(
         return this
             .clip(shape)
             .background(surfaceTintColor.copy(alpha = config.surfaceOpacity.coerceIn(0f, 1f)))
+            // What this control adds to the shared film, which this path used
+            // to drop on the floor.
+            //
+            // Everything that reaches here is a flat pane — every chip in the
+            // app, since those are drawn without sampling the screen — and for
+            // all of them the tint was simply not run: the chosen chip was not
+            // being filled any harder than the rest, and only its label being
+            // brighter said which one it was. Between the film and the rim, so
+            // it sits inside the material rather than over its edge.
+            .then(
+                if (onDrawTint != null) {
+                    Modifier.drawBehind { onDrawTint.invoke(this) }
+                } else {
+                    Modifier
+                },
+            )
             .border(EdgeHighlightWidth, flatRimColor.copy(alpha = flatRim), shape)
     }
 

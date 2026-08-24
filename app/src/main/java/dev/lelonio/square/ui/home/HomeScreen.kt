@@ -623,8 +623,12 @@ private fun Header(
                 // collapses rather than leaving, because a bar with nothing in
                 // it says nothing about where you are.
                 AppLockup(
-                    iconSize = 34.dp,
+                    // Larger than the bare mark was: the glass around it is
+                    // part of the shape now, and the drawing inside has to stay
+                    // the size it was to read at a glance.
+                    iconSize = 44.dp,
                     nameHeight = 22.dp,
+                    plate = backdrop,
                     modifier = Modifier
                         .padding(top = 4.dp)
                         .graphicsLayer {
@@ -699,6 +703,7 @@ private fun FilterRow(selected: Feed, backdrop: Backdrop, onSelect: (Feed) -> Un
                 // A tinted fill would put the artwork's colour on a control
                 // whose whole job is to be legible over any artwork.
                 surfaceColor = if (isSelected) SelectedFilm else Color.Unspecified,
+                wash = dev.lelonio.square.ui.glass.chipWash(isSelected),
             ) {
                 Text(
                     stringResource(entry.label),

@@ -483,6 +483,7 @@ private fun Header(
                     contentHeight = 36.dp,
                     contentPadding = 14.dp,
                     surfaceColor = if (selected) SelectedFilm else Color.Unspecified,
+                    wash = dev.lelonio.square.ui.glass.chipWash(selected),
                 ) {
                     Text(
                         stringResource(entry.label),

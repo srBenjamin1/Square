@@ -54,6 +54,19 @@ fun LiquidButton(
      * read as five identical buttons.
      */
     surfaceColor: Color = Color.Unspecified,
+    /**
+     * A colour for the glass to hold, over the film rather than under it.
+     *
+     * Glass over a flat page has nothing to refract and comes out grey. What
+     * this gives it is something to bend: a diagonal wash, strongest where the
+     * rim catches the light, with a sheen along the top edge. The alpha is the
+     * caller's — see GlassWash for what a chip should ask for and why it is
+     * less than what the app's own mark asks for.
+     *
+     * Drawn with the tint below, which is to say inside the material, so the
+     * label on top of it stays the colour it was set to.
+     */
+    wash: Color = Color.Unspecified,
     // LOCAL CHANGE: upstream pins the height at 48dp and the horizontal padding
     // at 16dp, which silently overrode any size the caller asked for — a 62dp
     // round button came out 48 tall with its icon squeezed by the padding. Both
@@ -141,7 +154,7 @@ fun LiquidButton(
                 },
                 // The shared film is drawn first; these are only what this
                 // particular control adds to it.
-                onDrawTint = if (tint.isSpecified || surfaceColor.isSpecified) {
+                onDrawTint = if (tint.isSpecified || surfaceColor.isSpecified || wash.isSpecified) {
                     {
                         if (tint.isSpecified) {
                             drawRect(tint, blendMode = BlendMode.Hue)
@@ -149,6 +162,28 @@ fun LiquidButton(
                         }
                         if (surfaceColor.isSpecified) {
                             drawRect(surfaceColor)
+                        }
+                        if (wash.isSpecified) {
+                            drawRect(
+                                androidx.compose.ui.graphics.Brush.linearGradient(
+                                    0f to wash,
+                                    0.55f to wash.copy(alpha = wash.alpha * 0.34f),
+                                    1f to Color.Transparent,
+                                    start = androidx.compose.ui.geometry.Offset.Zero,
+                                    end = androidx.compose.ui.geometry.Offset(size.width, size.height),
+                                ),
+                            )
+                            // The light along the top, which is what says the
+                            // surface is curved rather than printed.
+                            drawRect(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.14f),
+                                        Color.Transparent,
+                                    ),
+                                    endY = size.height * 0.6f,
+                                ),
+                            )
                         }
                     }
                 } else {

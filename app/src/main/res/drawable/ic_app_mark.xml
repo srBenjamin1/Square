@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  The mark itself, from app/icon-src/wave-square.svg.
+
+  The same path the launcher art was drawn from, rather than the stroked
+  approximation of it that used to stand in for it here: a square wave with the
+  weights and the corners the artwork has, at any size.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M240,128v56a8,8,0,0,1,-8,8H128a8,8,0,0,1,-8,-8V80H32v48a8,8,0,0,1,-16,0V72a8,8,0,0,1,8,-8H128a8,8,0,0,1,8,8V176h88V128a8,8,0,0,1,16,0Z" />
+</vector>
