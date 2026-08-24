@@ -59,6 +59,8 @@ import com.adamglin.phosphoricons.fill.SlidersHorizontal
 import com.adamglin.phosphoricons.fill.TextAlignLeft
 import com.adamglin.phosphoricons.fill.VinylRecord
 import com.adamglin.phosphoricons.regular.VinylRecord
+import com.adamglin.phosphoricons.fill.Info
+import com.adamglin.phosphoricons.regular.Info
 import com.adamglin.phosphoricons.regular.X
 
 /** Which panel is open below the transport controls. */
@@ -67,6 +69,9 @@ enum class PlayerPanel {
     QUEUE,
     LYRICS,
     EFFECTS,
+
+    /** Who made the track: performers, writers, producers, and the label. */
+    INFO,
 
     /**
      * The Connect device list and the playlist picker.
@@ -124,7 +129,9 @@ fun PlayerPanelSection(
             .collectAsStateWithLifecycle()
         val effectsOn = speed != 1f || pitch != 1f || reverb > 0f
 
-        val views = remember { listOf(PlayerPanel.NONE, PlayerPanel.LYRICS, PlayerPanel.EFFECTS) }
+        val views = remember {
+            listOf(PlayerPanel.NONE, PlayerPanel.LYRICS, PlayerPanel.EFFECTS, PlayerPanel.INFO)
+        }
         val selected = views.indexOf(panel).coerceAtLeast(0)
         // Stable, or LiquidBottomTabs throws away the state it keys on this and
         // the indicator stops animating; see the note in SquareApp.
@@ -168,6 +175,12 @@ fun PlayerPanelSection(
                 selected = selected == 2,
                 marked = effectsOn,
             ) { onSelect(PlayerPanel.EFFECTS) }
+            PanelTab(
+                icon = PhosphorIcons.Regular.Info,
+                activeIcon = PhosphorIcons.Fill.Info,
+                label = stringResource(R.string.credits),
+                selected = selected == 3,
+            ) { onSelect(PlayerPanel.INFO) }
         }
 
     }

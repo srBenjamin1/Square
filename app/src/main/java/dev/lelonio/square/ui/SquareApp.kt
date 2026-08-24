@@ -256,7 +256,8 @@ fun SquareApp(
     // The session as it was left, so the player has something to draw before
     // the media controller connects. Read once, off the saved queue.
     val seed = remember(context) { savedPlaybackSeed(context) }
-    val local by rememberPlaybackState(player, seed)
+    val localState = rememberPlaybackState(player, seed)
+    val local by localState
 
     /**
      * Playback on another of the account's devices, when there is any.
@@ -399,7 +400,10 @@ fun SquareApp(
 
     // Asked once per track: almost no song has a video, and the answer is two
     // catalogue calls rather than something the account volunteers.
-    LaunchedEffect(playback.mediaId) { viewModel.lookUpVideo(playback.mediaId) }
+    LaunchedEffect(playback.mediaId) {
+        awaitAudible(localState)
+        viewModel.lookUpVideo(playback.mediaId)
+    }
     val devices by viewModel.devices.collectAsStateWithLifecycle()
     val addToPlaylist by viewModel.addToPlaylist.collectAsStateWithLifecycle()
     val trackSort by viewModel.trackSort.collectAsStateWithLifecycle()
@@ -553,9 +557,16 @@ fun SquareApp(
         val uri = playback.mediaId
         canvas = null
         if (uri != null && backend == dev.lelonio.square.backend.BackendId.SPOTIFY) {
+            // After the song, not beside it: a Canvas is a video, and fetching
+            // one while the track is still arriving takes the connection the
+            // track needs. See awaitAudible.
+            awaitAudible(localState)
             canvas = Catalog.canvas(uri)
         }
     }
+
+    val credits by viewModel.credits.collectAsStateWithLifecycle()
+    val creditsLoading by viewModel.creditsLoading.collectAsStateWithLifecycle()
 
     var lyrics by remember { mutableStateOf<Lyrics?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
@@ -572,6 +583,9 @@ fun SquareApp(
         lyrics = null
         if (uri == null) return@LaunchedEffect
         lyricsLoading = true
+        // Behind the song as well; see awaitAudible. The panel shows its own
+        // spinner meanwhile, so the wait is visible rather than blank.
+        awaitAudible(localState)
         lyrics = runCatching {
             (context.applicationContext as dev.lelonio.square.SquareApplication)
                 .activeBackend
@@ -1540,6 +1554,9 @@ fun SquareApp(
                                 queue = queue,
                                 lyrics = lyrics,
                                 lyricsLoading = lyricsLoading,
+                                credits = credits,
+                                creditsLoading = creditsLoading,
+                                onWantCredits = viewModel::loadCredits,
                                 onPlayQueueItem = { player?.seekTo(it, 0L) },
                                 reverb = reverb,
                                 // Speed and pitch are set as a pair because
@@ -2403,3 +2420,27 @@ private fun BarSearchField(
         }
     }
 }
+
+/**
+ * Waits for the song to be playing before fetching what surrounds it.
+ *
+ * Everything the player shows around a track — the Canvas clip above all, which
+ * is a video, plus the lyrics and the question of whether there is a music
+ * video — is worth having and worth nothing at all until the song is audible.
+ * Asked for the moment the track changes, they compete with the audio for the
+ * same connection, and on a slow one that is the difference between a song
+ * starting now and starting in three seconds.
+ *
+ * Bounded, because a track that never gets going must not hold them for ever:
+ * after this, they are fetched anyway.
+ */
+private suspend fun awaitAudible(
+    state: androidx.compose.runtime.State<dev.lelonio.square.ui.player.PlaybackState>,
+) {
+    kotlinx.coroutines.withTimeoutOrNull(AUDIBLE_TIMEOUT_MS) {
+        snapshotFlow { state.value.isBuffering }.first { !it }
+    }
+}
+
+/** How long the extras wait for the song; see [awaitAudible]. */
+private const val AUDIBLE_TIMEOUT_MS = 5_000L

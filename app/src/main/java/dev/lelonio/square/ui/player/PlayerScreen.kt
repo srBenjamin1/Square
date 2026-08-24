@@ -138,7 +138,9 @@ private const val PAUSED_DIM = 0.55f
  * back here as a full-bleed backdrop.
  */
 /** What occupies the middle of the player. */
-private enum class Stage { COVER, LYRICS, EFFECTS, QUEUE, DEVICES, ADD_TO_PLAYLIST, CANVAS, VIDEO }
+private enum class Stage {
+    COVER, LYRICS, EFFECTS, INFO, QUEUE, DEVICES, ADD_TO_PLAYLIST, CANVAS, VIDEO
+}
 
 @UnstableApi
 @Composable
@@ -156,6 +158,11 @@ fun PlayerScreen(
     queue: List<QueueEntry>,
     lyrics: dev.lelonio.square.data.Lyrics?,
     lyricsLoading: Boolean,
+    /** Who made the track, for the credits panel; null until it is asked for. */
+    credits: dev.lelonio.square.backend.spotify.SpotifyCredits.Credits?,
+    creditsLoading: Boolean,
+    /** Asked for when the credits panel is opened, and not before. */
+    onWantCredits: (String?) -> Unit,
     onPlayQueueItem: (Int) -> Unit,
     /** The music video for this track, when the catalogue has one. */
     videoFileId: String? = null,
@@ -251,6 +258,13 @@ fun PlayerScreen(
     onAnotherDevice: Boolean = false,
 ) {
     var panel by remember { mutableStateOf(PlayerPanel.NONE) }
+
+    // The one panel whose contents are fetched rather than already here, and
+    // the one nobody opens for most songs. Asking on open keeps a request per
+    // track from being made for a page most listeners never see.
+    LaunchedEffect(panel, state.mediaId) {
+        if (panel == PlayerPanel.INFO) onWantCredits(state.mediaId)
+    }
 
     // How far the track-change swipe has been dragged, when the clip stands in
     // for the cover. Written from the gesture and read only inside a
@@ -509,6 +523,7 @@ fun PlayerScreen(
                             targetState = when (panel) {
                                 PlayerPanel.LYRICS -> Stage.LYRICS
                                 PlayerPanel.EFFECTS -> Stage.EFFECTS
+                                PlayerPanel.INFO -> Stage.INFO
                                 PlayerPanel.QUEUE -> Stage.QUEUE
                                 PlayerPanel.DEVICES -> Stage.DEVICES
                                 PlayerPanel.ADD_TO_PLAYLIST -> Stage.ADD_TO_PLAYLIST
@@ -580,6 +595,12 @@ fun PlayerScreen(
                                 // controls. A panel that pushed the transport
                                 // around every time it opened was the reason
                                 // this screen never sat still.
+                                Stage.INFO -> CreditsView(
+                                    credits = credits,
+                                    loading = creditsLoading,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+
                                 Stage.EFFECTS -> Box(
                                     Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center,
@@ -1132,6 +1153,7 @@ private fun TopBar(
             targetState = when (panel) {
                 PlayerPanel.LYRICS -> stringResource(R.string.lyrics)
                 PlayerPanel.EFFECTS -> stringResource(R.string.effects)
+                PlayerPanel.INFO -> stringResource(R.string.credits)
                 PlayerPanel.QUEUE -> stringResource(R.string.queued)
                 PlayerPanel.DEVICES -> stringResource(R.string.play_on)
                 PlayerPanel.ADD_TO_PLAYLIST -> stringResource(R.string.add_to_playlist)
