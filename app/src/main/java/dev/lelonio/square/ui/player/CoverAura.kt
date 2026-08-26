@@ -52,6 +52,21 @@ fun CoverAura(
 ) {
     if (colors.isEmpty()) return
 
+    // The colours cross over rather than cut.
+    //
+    // A track change replaces the whole palette at once, and the light behind
+    // the player jumped from one record's colours to the next's in a single
+    // frame — the one moment on this screen where nothing was moving smoothly.
+    // Each lamp is animated to its new colour on its own, so the whole thing
+    // turns rather than switches.
+    val blended = colors.mapIndexed { index, target ->
+        androidx.compose.animation.animateColorAsState(
+            targetValue = target,
+            animationSpec = tween(700),
+            label = "aura$index",
+        ).value
+    }
+
     val transition = rememberInfiniteTransition(label = "aura")
     // One phase read at several speeds below, rather than several animations:
     // they would drift apart on a dropped frame and this cannot.
@@ -86,7 +101,7 @@ fun CoverAura(
         // The bed: wide, soft, and the only part meant to be looked at
         // directly. Everything after this is for the glass.
         repeat(3) { index ->
-            val color = colors[index % colors.size]
+            val color = blended[index % blended.size]
             val angle = turn * DRIFT[index] + index * (TAU / 3f)
             val centre = Offset(
                 x = size.width * (0.5f + 0.34f * cos(angle)),
@@ -107,7 +122,7 @@ fun CoverAura(
         // The beams. Each is a band with one soft side and one abrupt one, and
         // the abrupt side is the whole point: that is the edge the panes bend.
         repeat(2) { index ->
-            val color = colors[(index + 1) % colors.size]
+            val color = blended[(index + 1) % blended.size]
             val angle = turn * BEAM[index] + index * 1.7f
             rotate(degrees = 20f * sin(angle) + index * 40f - 20f) {
                 beam(
@@ -124,7 +139,7 @@ fun CoverAura(
         // and few — under a lens each one throws a highlight far larger than
         // itself, and a dozen would be glitter.
         repeat(3) { index ->
-            val color = colors[(index + 2) % colors.size]
+            val color = blended[(index + 2) % blended.size]
             val angle = turn * CAUSTIC[index] + index * 2.1f
             val centre = Offset(
                 x = size.width * (0.5f + 0.40f * sin(angle)),

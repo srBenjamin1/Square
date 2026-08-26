@@ -1,11 +1,15 @@
 package dev.lelonio.square.ui.player
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -138,6 +142,12 @@ private const val PAUSED_DIM = 0.55f
  * back here as a full-bleed backdrop.
  */
 /** What occupies the middle of the player. */
+/** How long each half of a change between the cover and a panel takes. */
+private const val STAGE_FADE_MS = 180
+
+/** And the whole of a change between the cover and a Canvas; see the use of it. */
+private const val CLIP_FADE_MS = 460
+
 private enum class Stage {
     COVER, LYRICS, EFFECTS, INFO, QUEUE, DEVICES, ADD_TO_PLAYLIST, CANVAS, VIDEO
 }
@@ -643,29 +653,32 @@ fun PlayerScreen(
                                     else -> Stage.CANVAS
                                 }
                             },
-                            animationSpec = tween(320),
+                            // Spelled out rather than left to Crossfade.
+                            //
+                            // Crossfade dropped the cover the instant a panel
+                            // opened — the log had it leaving the composition in
+                            // the same millisecond the lyrics arrived, while the
+                            // panels dissolved into each other perfectly. Said
+                            // this way, both halves of the change are named and
+                            // both are given the same time.
+                            // Between one panel and another, where no cover
+                            // is involved, this is the whole animation. Going to
+                            // or from the cover it is held at nothing until its
+                            // turn; see panelAlpha.
+                            transitionSpec = {
+                                fadeIn(tween(STAGE_FADE_MS)) togetherWith
+                                    fadeOut(tween(STAGE_FADE_MS)) using null
+                            },
                             label = "stage",
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = panelAlpha },
                         ) { stage ->
                             when (stage) {
-                                Stage.COVER -> Box(
-                                    Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Cover(
-                                        state,
-                                        panel,
-                                        onNext,
-                                        onPrevious,
-                                        sharedScope,
-                                        animatedScope,
-                                    )
-                                }
+                                // Empty: the cover above this AnimatedContent
+                                // is what fills the slot when no panel is open.
+                                Stage.COVER -> Box(Modifier.fillMaxSize())
 
-                                // The picture in the cover's place rather than
-                                // behind the glass like a Canvas: this one is
-                                // the thing being watched, so it gets the slot
-                                // and keeps its own shape inside it.
                                 Stage.VIDEO -> Box(
                                     Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center,
@@ -779,13 +792,32 @@ fun PlayerScreen(
                         // the title because that is where the official client
                         // puts it: it is a choice about this song, not about
                         // the app.
-                        if (videoFileId != null) {
+                        // Faded and grown in, not dropped in.
+                        //
+                        // Whether a track has a video is answered a moment
+                        // after it starts, so this button arrives while the
+                        // listener is already looking at the screen. Appearing
+                        // in one frame reads as a glitch; arriving reads as an
+                        // answer.
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = videoFileId != null,
+                            enter = fadeIn(tween(260)) + scaleIn(tween(260), initialScale = 0.9f) +
+                                expandVertically(tween(260)),
+                            exit = fadeOut(tween(180)) + scaleOut(tween(180), targetScale = 0.92f) +
+                                shrinkVertically(tween(180)),
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                        ) {
                             GlassSurface(
                                 backdrop = glassBackdrop,
                                 surfaceColor = GlassFilm,
                                 shape = RoundedCornerShape(50),
+                                // The gap to the title lives here rather than
+                                // in a spacer beside it: what a visibility
+                                // block holds is stacked in a box, so a spacer
+                                // next to the button sat *on* it and the button
+                                // ended up against the title.
                                 modifier = Modifier
-                                    .align(Alignment.CenterHorizontally)
+                                    .padding(bottom = 14.dp)
                                     .pressable(onClick = onToggleVideo),
                             ) {
                                 Row(

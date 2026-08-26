@@ -2,6 +2,7 @@ package dev.lelonio.square.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -343,6 +344,23 @@ fun SquareApp(
         }
     }
     val accent by rememberArtworkColor(playback.artworkUrl)
+
+    // How bright the page behind the glass is, from the artwork rather than
+    // from the screen.
+    //
+    // The library's own adaptive-luminance demo photographs its backdrop every
+    // frame and reads the pixels back to average them, which on a bar that is
+    // always on screen is a capture and a GPU-to-CPU copy for ever. The colours
+    // of the cover playing are already extracted for the aura and the accent,
+    // and they answer the same question: is what is behind this light or dark.
+    val palette by dev.lelonio.square.ui.theme.rememberArtworkPalette(playback.artworkUrl)
+    val backdropLuminance by animateFloatAsState(
+        targetValue = remember(palette) {
+            if (palette.isEmpty()) 0f else palette.map { it.luminance() }.average().toFloat()
+        },
+        animationSpec = tween(600),
+        label = "backdropLuminance",
+    )
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
     val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
@@ -696,6 +714,9 @@ fun SquareApp(
         return
     }
 
+    androidx.compose.runtime.CompositionLocalProvider(
+        dev.lelonio.square.ui.glass.LocalBackdropLuminance provides backdropLuminance,
+    ) {
     SquareTheme(seed = accent) {
         // Material's default content colour is black, and it used to arrive from
         // the Surface that wrapped this tree. That Surface is gone — it painted

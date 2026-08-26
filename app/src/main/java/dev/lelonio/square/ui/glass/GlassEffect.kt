@@ -276,6 +276,21 @@ fun glassContentColorFor(behind: Color, tint: Color, opacity: Float): Color {
  * 0.5 alpha) reads as near-invisible at typical density, but a wide bright rim
  * overshoots in the other direction, so this lands narrower and dimmer than that.
  */
+/**
+ * How bright what is behind the glass has to be before the film darkens, and
+ * where it has finished darkening. See the use of it in [liquidGlass].
+ */
+private const val BRIGHT_FROM = 0.42f
+private const val BRIGHT_TO = 0.72f
+
+/**
+ * How bright the thing behind this app's glass is, 0 to 1.
+ *
+ * Provided once, near the top of the tree, from the palette of the artwork
+ * playing. Anything drawn in glass can read it; nothing has to measure it.
+ */
+val LocalBackdropLuminance = androidx.compose.runtime.compositionLocalOf { 0f }
+
 private val EdgeHighlightWidth = 0.8f.dp
 private const val EdgeHighlightAlpha = 0.55f
 
@@ -418,12 +433,25 @@ fun Modifier.liquidGlass(
     // that blends into an OLED-black background. Honor an explicit user color,
     // otherwise use a proper adaptive glass gray rather than matching the theme
     // surface color 1:1 (which made the bar invisible over pure-black content).
+    // The film follows what is actually behind the glass, not only the theme.
+    //
+    // A pane over a dark page wants a light film to read as glass at all; the
+    // same film over a bright cover turns the whole control into a pale smear
+    // with white text on it. What decides is the artwork playing, which the app
+    // already reads a palette from — no per-frame readback of the screen, which
+    // is how the library's own adaptive-luminance demo does it and why that
+    // demo costs a capture and a pixel copy every frame.
+    val backdropLuminance = LocalBackdropLuminance.current
     val surfaceTintColor = if (config.surfaceTintColor.isSpecified) {
         config.surfaceTintColor
     } else if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
         Color(0xFFFAFAFA)
     } else {
-        Color(0xFF4A4A4E)
+        // Between the two across the middle of the range rather than at a line,
+        // so a cover that is merely light does not flip the chrome.
+        val bright = ((backdropLuminance - BRIGHT_FROM) / (BRIGHT_TO - BRIGHT_FROM))
+            .coerceIn(0f, 1f)
+        lerp(Color(0xFF4A4A4E), Color(0xFF23232A), bright)
     }
 
     // Translucent style short-circuits everything below: no backdrop is sampled and
