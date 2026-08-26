@@ -239,20 +239,43 @@ private fun RowScope.PanelTab(
 }
 
 /** One row of the upcoming-tracks list. */
-data class QueueEntry(val index: Int, val title: String, val artist: String, val isCurrent: Boolean)
+data class QueueEntry(
+    val index: Int,
+    /** What the row is, so a list that loses one can animate the rest. */
+    val uri: String,
+    val title: String,
+    val artist: String,
+    val isCurrent: Boolean,
+)
 
 @Composable
-internal fun QueueList(queue: List<QueueEntry>, onPlay: (Int) -> Unit) {
+internal fun QueueList(
+    queue: List<QueueEntry>,
+    onPlay: (Int) -> Unit,
+    /** Takes a track out of the queue; absent for the one playing. */
+    onRemove: (Int) -> Unit,
+) {
     if (queue.isEmpty()) {
         EmptyPanel(stringResource(R.string.queue_empty))
         return
     }
 
     LazyColumn(Modifier.padding(vertical = 8.dp)) {
-        itemsIndexed(queue, key = { _, entry -> entry.index }) { _, entry ->
+        // Keyed on the track, not on where it sits.
+        //
+        // With the index as the key, taking one out renumbered every row below
+        // it — as far as the list is concerned each of those became a different
+        // item, so nothing could be animated and the queue jumped. Keyed on the
+        // track itself, the row that went is the only one that changes and the
+        // rest slide up into the gap.
+        itemsIndexed(
+            queue,
+            key = { at, entry -> "${entry.uri}-$at-${entry.title}" },
+        ) { _, entry ->
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .animateItem()
                     .clickable { onPlay(entry.index) }
                     .padding(horizontal = 18.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,

@@ -272,6 +272,7 @@ fun rememberQueue(player: Player?): State<List<QueueEntry>> {
                 val metadata = player.getMediaItemAt(index).mediaMetadata
                 QueueEntry(
                     index = index,
+                    uri = player.getMediaItemAt(index).mediaId,
                     title = metadata.title?.toString().orEmpty(),
                     artist = metadata.artist?.toString().orEmpty(),
                     isCurrent = index == current,

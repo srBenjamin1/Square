@@ -127,10 +127,25 @@ class PlayQueue {
 
     fun add(index: Int, tracks: List<Track>) {
         val at = index.coerceIn(0, _items.size)
+
+        // Added to both lists, so a shuffled queue keeps the order it has.
+        //
+        // As in [remove]: dropping the permutation here meant that queueing one
+        // song reshuffled everything after it. The new tracks go on the end of
+        // the pre-shuffle list and take their places in the permutation where
+        // the listener put them.
+        val order = originalIndices
+        if (order != null) {
+            val original = originalOrder.orEmpty()
+            originalOrder = original + tracks
+            originalIndices = order.toMutableList().apply {
+                addAll(at, tracks.indices.map { original.size + it })
+            }
+        }
+
         _items.addAll(at, tracks)
         if (at <= currentIndex) currentIndex += tracks.size
-        // The saved order no longer describes this queue.
-        clearShuffle()
+        if (originalIndices?.size != _items.size) clearShuffle()
     }
 
     /**
@@ -183,13 +198,32 @@ class PlayQueue {
         val to = toIndex.coerceIn(from, _items.size)
         if (from == to) return
 
+        // The shuffled order survives, minus what was taken out.
+        //
+        // Throwing it away and letting shuffle be applied again drew a *new*
+        // random order for everything still to come: taking one song out of a
+        // shuffled queue looked like several disappearing, because the rest had
+        // been dealt out afresh. What has to go is those tracks' places in the
+        // permutation, not the permutation.
+        val removed = originalIndices?.subList(from, to)?.toSet()
+        if (removed != null) {
+            val kept = originalIndices?.filterIndexed { at, _ -> at < from || at >= to }.orEmpty()
+            val original = originalOrder.orEmpty()
+            val survivors = original.indices.filterNot { it in removed }
+            // The original list loses the same tracks, and every index left has
+            // to point at where its track sits in the shorter list.
+            val moved = survivors.withIndex().associate { (to, from) -> from to to }
+            originalOrder = survivors.map(original::get)
+            originalIndices = kept.mapNotNull(moved::get)
+        }
+
         _items.subList(from, to).clear()
         currentIndex = when {
             currentIndex >= to -> currentIndex - (to - from)
             currentIndex >= from -> from
             else -> currentIndex
         }.coerceIn(0, maxOf(0, _items.lastIndex))
-        clearShuffle()
+        if (originalIndices?.size != _items.size) clearShuffle()
     }
 
     fun move(fromIndex: Int, toIndex: Int, newIndex: Int) {
