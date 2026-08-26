@@ -332,6 +332,23 @@ fun BoxScope.GlassChoiceMenu(
  * is thickened: at 0.55 and above it adds nothing at all and the menu is purely
  * what the settings say.
  */
+/**
+ * The skin a menu wears, for the other things that live in their own window.
+ *
+ * A dialog is a separate window like a popup is, so it cannot sample the layer
+ * behind it and cannot be real glass — see the note on [GlassMenu]. What it can
+ * be is the same surface: the same base, the same film taken from the
+ * listener's own glass settings, the same hairline. Two windows that cannot
+ * refract should at least be one design.
+ */
+@Composable
+fun Modifier.menuSkin(shape: androidx.compose.ui.graphics.Shape): Modifier =
+    this
+        .clip(shape)
+        .background(MenuSurface)
+        .background(menuFilm())
+        .border(1.dp, MenuEdge, shape)
+
 @Composable
 private fun menuFilm(): Color {
     val config = dev.lelonio.square.ui.glass.LocalGlassEffectConfig.current

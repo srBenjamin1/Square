@@ -45,8 +45,7 @@ fun ConfirmDialog(
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(shape)
-                .background(DialogFill)
+                .menuSkin(shape)
                 .padding(22.dp),
         ) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = Ink)
@@ -83,4 +82,3 @@ private fun DialogAction(label: String, color: Color, onClick: () -> Unit) {
     )
 }
 
-private val DialogFill = Color(0xFF1B1B1B)

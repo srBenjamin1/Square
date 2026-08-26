@@ -54,8 +54,7 @@ fun NameDialog(
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(shape)
-                .background(DialogFill)
+                .menuSkin(shape)
                 .padding(22.dp),
         ) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = Ink)
@@ -118,7 +117,5 @@ private fun DialogAction(label: String, color: Color, onClick: () -> Unit) {
     )
 }
 
-/** Opaque: a dialog floats over its own scrim, with no artwork to refract. */
-private val DialogFill = Color(0xFF1B1B1B)
 
 private val FieldFill = Color.White.copy(alpha = 0.08f)

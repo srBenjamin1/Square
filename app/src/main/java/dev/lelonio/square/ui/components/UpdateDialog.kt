@@ -42,8 +42,7 @@ fun UpdateDialog(
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(DialogFill)
+                .menuSkin(RoundedCornerShape(24.dp))
                 .padding(22.dp),
         ) {
             Text(
@@ -88,5 +87,3 @@ private fun DialogAction(label: String, color: Color, onClick: () -> Unit) {
     )
 }
 
-/** Opaque, like the other dialogs: nothing behind this is worth refracting. */
-private val DialogFill = Color(0xFF1B1B1B)
