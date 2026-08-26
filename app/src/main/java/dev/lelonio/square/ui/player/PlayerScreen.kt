@@ -259,6 +259,11 @@ fun PlayerScreen(
 ) {
     var panel by remember { mutableStateOf(PlayerPanel.NONE) }
 
+    /** Bumped to open the karaoke control; see KaraokeDial. */
+    var karaokeExpand by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
+
+
     // The one panel whose contents are fetched rather than already here, and
     // the one nobody opens for most songs. Asking on open keeps a request per
     // track from being made for a page most listeners never see.
@@ -519,7 +524,103 @@ fun PlayerScreen(
                         // simply going. A plain fade is what opening a lyric
                         // sheet should look like, and holding the slot open
                         // keeps everything below it still.
-                        Crossfade(
+                        // The cover is drawn here rather than as one of the
+                        // states below.
+                        //
+                        // As a state it could not be made to dissolve: whichever
+                        // container held it — Crossfade first, then
+                        // AnimatedContent — dropped it from the composition in
+                        // the same frame the panel arrived, so there was nothing
+                        // left to fade. The panels go on swapping between
+                        // themselves; the cover is simply the floor of this
+                        // slot, and opening a panel takes its opacity away.
+                        val coverShowing = panel == PlayerPanel.NONE &&
+                            !(videoOn && videoPlayer != null && LocalGlassEnabled.current) &&
+                            (canvas == null || !canvasReady)
+                        // One at a time, from one clock.
+                        //
+                        // Faded together, the cover and the panel are both half
+                        // visible through the middle of the change: lyrics
+                        // printed over a record sleeve, which reads as a mistake
+                        // rather than as a transition. Two animations with the
+                        // same duration and opposite delays were still two
+                        // clocks, and they overlapped by however far apart they
+                        // started. This is a single number: the first half of it
+                        // takes the cover away, the second half brings the panel
+                        // in, and neither half can begin before the other ends.
+                        // Slower when the cover is handing over to a clip.
+                        //
+                        // With a panel it is a change the listener asked for and
+                        // wants over with. A Canvas arriving is not: the clip
+                        // fades up behind the glass over four hundred
+                        // milliseconds, and a cover that left in a hundred and
+                        // eighty made the two look like separate events instead
+                        // of one dissolve.
+                        val toClip = panel == PlayerPanel.NONE
+                        val phase by animateFloatAsState(
+                            targetValue = if (coverShowing) 0f else 1f,
+                            animationSpec = tween(
+                                if (toClip) CLIP_FADE_MS else STAGE_FADE_MS * 2,
+                            ),
+                            label = "stageFade",
+                        )
+                        val coverAlpha = (1f - phase * 2f).coerceIn(0f, 1f)
+                        val panelAlpha = ((phase - 0.5f) * 2f).coerceIn(0f, 1f)
+
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            // Says so in words, over whatever the slot is
+                            // showing.
+                            //
+                            // The lit microphone says it to whoever is looking
+                            // at the control; this says it to whoever comes
+                            // back to a song that sounds wrong and does not
+                            // remember why. It rides above the cover rather
+                            // than beside the title, where the transport
+                            // already has all the room it needs.
+                            val karaokeAmount by dev.lelonio.square.playback.AudioEffects.karaoke
+                                .collectAsStateWithLifecycle()
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = karaokeAmount > 0f,
+                                enter = fadeIn(tween(220)),
+                                exit = fadeOut(tween(180)),
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .then(androidx.compose.ui.Modifier)
+
+                            ) {
+                                KaraokeBadge(karaokeAmount, glassBackdrop) {
+                                    panel = PlayerPanel.LYRICS
+                                    karaokeExpand++
+                                }
+                            }
+
+                            if (coverAlpha > 0f) {
+                                Box(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer { alpha = coverAlpha },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Cover(
+                                        state,
+                                        // Always as if nothing were open: the
+                                        // cover shrinks towards the size it
+                                        // takes beside a panel, and doing that
+                                        // while it fades is two movements where
+                                        // one was asked for. It is only ever
+                                        // seen at full size now.
+                                        PlayerPanel.NONE,
+                                        onNext,
+                                        onPrevious,
+                                        // Only for the journey the bar's
+                                        // thumbnail makes into this cover.
+                                        sharedScope.takeIf { coverShowing },
+                                        animatedScope.takeIf { coverShowing },
+                                    )
+                                }
+                            }
+
+                        AnimatedContent(
                             targetState = when (panel) {
                                 PlayerPanel.LYRICS -> Stage.LYRICS
                                 PlayerPanel.EFFECTS -> Stage.EFFECTS
@@ -588,6 +689,8 @@ fun PlayerScreen(
                                     positionMs = positionMs,
                                     isPlaying = state.isPlaying,
                                     onSeek = onSeek,
+                                    backdrop = glassBackdrop,
+                                    expandSignal = karaokeExpand,
                                 )
 
                                 // Effects and the queue share the lyrics' space
@@ -1516,6 +1619,51 @@ internal fun Controls(
  * bar has. A capsule with equal sides is a circle, so no separate shape is
  * needed.
  */
+/**
+ * A word for the setting that is quietly changing the record.
+ *
+ * Small, unclickable and out of the way: it is a note to self, not a control.
+ * The control is the microphone at the other end of the panel.
+ */
+@Composable
+private fun KaraokeBadge(amount: Float, backdrop: Backdrop, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .padding(top = 4.dp)
+            .clip(dev.lelonio.square.ui.glass.shapes.ContinuousCapsule())
+            // A way to the thing it is talking about: the lyrics, with the
+            // control open. A label about a setting that cannot be reached from
+            // where it is read is half a message.
+            .pressable(onClick, pressedScale = 0.94f)
+            // The app's material, not a grey plate: it sits among glass and a
+            // painted rectangle is the one thing that reads as pasted on.
+            .liquidGlass(
+                config = LocalGlassEffectConfig.current,
+                shape = dev.lelonio.square.ui.glass.shapes.ContinuousCapsule(),
+                ownBackdrop = backdrop,
+                highlightAlpha = BarHighlightAlpha,
+                backdropScale = 0.4f,
+            )
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            PhosphorIcons.Fill.MicrophoneStage,
+            contentDescription = null,
+            // White, like the control it refers to: an accent pulled from the
+            // cover lands anywhere, including on the cover itself.
+            tint = Color.White,
+            modifier = Modifier.size(13.dp),
+        )
+        Text(
+            stringResource(R.string.karaoke_on, (amount * 100).toInt()),
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+    }
+}
+
 @Composable
 private fun RoundGlassButton(
     backdrop: Backdrop,
@@ -1613,7 +1761,60 @@ private fun LyricsStage(
     positionMs: State<Long>,
     isPlaying: Boolean,
     onSeek: (Long) -> Unit,
+    backdrop: Backdrop,
+    /** Bumped when somebody arrives here asking for the karaoke control. */
+    expandSignal: Int,
 ) {
+    // Off when a song starts: turning it on is asking to read this one.
+    var translated by androidx.compose.runtime.saveable.rememberSaveable(lyrics) {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    // The language the app itself is read in, which is the one to translate
+    // into — not the phone's, when the two have been made to differ on purpose.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val target = remember(context) {
+        (context.applicationContext as dev.lelonio.square.SquareApplication)
+            .language
+            .language()
+    }
+
+    // What the translator answered for this song, once it has been asked.
+    // Kept per song, so turning the toggle off and on again costs nothing.
+    var machine by remember(lyrics) {
+        androidx.compose.runtime.mutableStateOf<List<String>?>(null)
+    }
+    var translating by remember(lyrics) { androidx.compose.runtime.mutableStateOf(false) }
+
+    // A document that ships its own translation is already answered; anything
+    // else is put through the translator the first time it is asked for.
+    val hasOwn = lyrics?.lines.orEmpty().any { !it.translation.isNullOrBlank() }
+
+    androidx.compose.runtime.LaunchedEffect(lyrics, translated) {
+        if (!translated || lyrics == null || hasOwn || machine != null) return@LaunchedEffect
+        translating = true
+        machine = runCatching {
+            dev.lelonio.square.backend.lyrics.Translate.lines(
+                lyrics.lines.map { it.text },
+                target,
+            )
+        }.getOrNull()
+        translating = false
+    }
+
+    val shown = remember(lyrics, machine) {
+        val answers = machine
+        if (lyrics == null || answers == null) {
+            lyrics
+        } else {
+            lyrics.copy(
+                lines = lyrics.lines.mapIndexed { index, line ->
+                    line.copy(translation = answers.getOrNull(index)?.takeIf { it.isNotBlank() })
+                },
+            )
+        }
+    }
+
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         when {
             loading -> androidx.compose.material3.CircularProgressIndicator(
@@ -1628,13 +1829,48 @@ private fun LyricsStage(
             )
 
             else -> LyricsView(
-                lyrics = lyrics,
+                lyrics = shown ?: lyrics,
                 positionMs = positionMs,
                 isPlaying = isPlaying,
+                showTranslation = translated,
                 onSeek = onSeek,
                 modifier = Modifier.fillMaxSize(),
             )
         }
+
+        // Beside the words rather than under them: a band across the panel took
+        // the room the lyrics need, for a control touched once a song.
+        val karaoke by dev.lelonio.square.playback.AudioEffects.karaoke
+            .collectAsStateWithLifecycle()
+        // Offered on every song with words. Where the document carries no
+        // translation of its own the lines are put through a translator, so
+        // there is always something behind the switch.
+        if (lyrics != null) {
+            TranslationToggle(
+                on = translated,
+                busy = translating,
+                onChange = { translated = it },
+                backdrop = backdrop,
+                modifier = Modifier
+                    // Above the karaoke dial, in the same column: the two are
+                    // the panel's controls, and a second one loose on the other
+                    // side would read as belonging to something else.
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 6.dp, bottom = 56.dp),
+            )
+        }
+
+        KaraokeDial(
+            amount = karaoke,
+            onChange = dev.lelonio.square.playback.AudioEffects::setKaraoke,
+            backdrop = backdrop,
+            expandSignal = expandSignal,
+            modifier = Modifier
+                // Low on the right, just above the transport — where Apple puts
+                // it, and out of the way of the line being sung, which sits in
+                // the middle of the panel.
+                .align(Alignment.BottomEnd)
+                .padding(end = 6.dp, bottom = 6.dp),
+        )
     }
 }
-

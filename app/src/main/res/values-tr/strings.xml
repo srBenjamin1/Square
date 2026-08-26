@@ -14,6 +14,11 @@
     <string name="save">Kaydet</string>
     <string name="clear">Temizle</string>
     <string name="credits">Katkıda bulunanlar</string>
+    <string name="karaoke">Karaoke</string>
+    <string name="translation">Çeviri</string>
+    <string name="karaoke_on">Karaoke %%%d</string>
+    <string name="pip_listen">Yalnızca ses</string>
+    <string name="remove_from_queue">Sıradan çıkar</string>
     <string name="credits_none">Kayıt yok</string>
     <string name="credits_source">Kaynak</string>
     <string name="credits_performers">Sanatçılar</string>

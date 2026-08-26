@@ -9,6 +9,11 @@
     <string name="save">Salvar</string>
     <string name="clear">Limpar</string>
     <string name="credits">Créditos</string>
+    <string name="karaoke">Karaoke</string>
+    <string name="translation">Tradução</string>
+    <string name="karaoke_on">Karaoke %d%%</string>
+    <string name="pip_listen">Só áudio</string>
+    <string name="remove_from_queue">Remover da fila</string>
     <string name="credits_none">Sem créditos</string>
     <string name="credits_source">Fonte</string>
     <string name="credits_performers">Intérpretes</string>

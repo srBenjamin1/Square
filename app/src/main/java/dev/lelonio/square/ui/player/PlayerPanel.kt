@@ -128,6 +128,9 @@ fun PlayerPanelSection(
         val reverb by dev.lelonio.square.playback.AudioEffects.reverb
             .collectAsStateWithLifecycle()
         val effectsOn = speed != 1f || pitch != 1f || reverb > 0f
+        val karaoke by dev.lelonio.square.playback.AudioEffects.karaoke
+            .collectAsStateWithLifecycle()
+        val karaokeOn = karaoke > 0f
 
         val views = remember {
             listOf(PlayerPanel.NONE, PlayerPanel.LYRICS, PlayerPanel.EFFECTS, PlayerPanel.INFO)
@@ -167,6 +170,9 @@ fun PlayerPanelSection(
                 activeIcon = PhosphorIcons.Fill.TextAlignLeft,
                 label = stringResource(R.string.lyrics),
                 selected = selected == 1,
+                // The karaoke lives in this view and keeps working with the
+                // panel shut; see the same halo on the effects tab.
+                marked = karaokeOn,
             ) { onSelect(PlayerPanel.LYRICS) }
             PanelTab(
                 icon = PhosphorIcons.Regular.SlidersHorizontal,

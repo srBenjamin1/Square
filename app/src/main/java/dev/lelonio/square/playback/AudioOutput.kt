@@ -503,6 +503,14 @@ class AudioOutput {
         val currentSpeed = speed
         val currentPitch = pitch
 
+        // Before anything else touches the audio: this reads where each sound
+        // sits between the two channels, and a stretcher that has resynthesised
+        // them no longer has the same two channels. See CentreExtractor.
+        val karaoke = AudioEffects.karaoke.value
+        if (karaoke > 0f) {
+            vocals.apply(data, sizeInBytes, channels, sampleRate, karaoke)
+        }
+
         // The platform does it below this app when the light path is chosen, so
         // the packets go out untouched and the rate is set on the track itself.
         if (lightEffects) {
@@ -552,6 +560,9 @@ class AudioOutput {
             platformPitch = wantedPitch
         }.onFailure { android.util.Log.w(TAG, "the platform refused $wantedSpeed x: ${it.message}") }
     }
+
+    /** Takes the middle of the stage away; see [CentreExtractor]. */
+    private val vocals = CentreExtractor()
 
     /** What the track was last told, so it is not told again every packet. */
     private var platformSpeed = 1f

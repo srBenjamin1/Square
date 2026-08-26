@@ -146,6 +146,50 @@ class BungeeAudioProcessor : BaseAudioProcessor() {
  * from whoever is doing the stretching, or the position on screen runs at a
  * different rate from the sound.
  */
+/**
+ * The same vocal removal, for the players that are not the Spotify engine.
+ *
+ * In the chain before the stretcher, because the trick rests on what the two
+ * channels have in common and a resynthesised pair no longer has the same two.
+ * See [CentreExtractor].
+ */
+@OptIn(UnstableApi::class)
+class VocalAudioProcessor : BaseAudioProcessor() {
+
+    private val vocals = CentreExtractor()
+
+    override fun onConfigure(
+        inputAudioFormat: AudioProcessor.AudioFormat,
+    ): AudioProcessor.AudioFormat {
+        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
+            throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
+        }
+        return inputAudioFormat
+    }
+
+    override fun queueInput(inputBuffer: ByteBuffer) {
+        val size = inputBuffer.remaining()
+        if (size == 0) return
+
+        val amount = AudioEffects.karaoke.value
+        val out = replaceOutputBuffer(size)
+        val start = out.position()
+        out.put(inputBuffer)
+        out.position(start)
+        if (amount > 0f) {
+            vocals.apply(
+                out,
+                size,
+                inputAudioFormat.channelCount,
+                inputAudioFormat.sampleRate,
+                amount,
+            )
+        }
+        out.position(start)
+        out.limit(start + size)
+    }
+}
+
 @OptIn(UnstableApi::class)
 class BungeeProcessorChain(
     private val bungee: BungeeAudioProcessor = BungeeAudioProcessor(),
@@ -153,7 +197,9 @@ class BungeeProcessorChain(
 
     private var parameters = PlaybackParameters.DEFAULT
 
-    override fun getAudioProcessors(): Array<AudioProcessor> = arrayOf(bungee)
+    private val vocals = VocalAudioProcessor()
+
+    override fun getAudioProcessors(): Array<AudioProcessor> = arrayOf(vocals, bungee)
 
     override fun applyPlaybackParameters(
         playbackParameters: PlaybackParameters,

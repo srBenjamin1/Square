@@ -14,6 +14,11 @@
     <string name="save">सहेजें</string>
     <string name="clear">साफ़ करें</string>
     <string name="credits">श्रेय</string>
+    <string name="karaoke">कराओके</string>
+    <string name="translation">अनुवाद</string>
+    <string name="karaoke_on">कराओके %d%%</string>
+    <string name="pip_listen">केवल ऑडियो</string>
+    <string name="remove_from_queue">कतार से हटाएं</string>
     <string name="credits_none">कोई श्रेय नहीं</string>
     <string name="credits_source">स्रोत</string>
     <string name="credits_performers">कलाकार</string>

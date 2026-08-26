@@ -10,6 +10,11 @@
     <string name="save">Salva</string>
     <string name="clear">Cancella</string>
     <string name="credits">Crediti</string>
+    <string name="karaoke">Karaoke</string>
+    <string name="translation">Traduzione</string>
+    <string name="karaoke_on">Karaoke %d%%</string>
+    <string name="pip_listen">Solo audio</string>
+    <string name="remove_from_queue">Togli dalla coda</string>
     <string name="credits_none">Nessun credito</string>
     <string name="credits_source">Fonte</string>
     <string name="credits_performers">Interpreti</string>

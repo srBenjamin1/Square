@@ -51,6 +51,28 @@ object AudioEffects {
     private val _pitch = MutableStateFlow(1f)
     val pitch: StateFlow<Float> = _pitch.asStateFlow()
 
+    private val _karaoke = MutableStateFlow(0f)
+
+    /**
+     * How much of the singing to take out, 0 (as recorded) to 1 (as far as this
+     * can go).
+     *
+     * Not what Apple does. Their karaoke is separate recordings — the label's
+     * own stems, one per instrument — and there is no such thing to ask Spotify
+     * for. What this does is the oldest trick in the book and the only one
+     * available to a player holding a finished stereo mix: a voice is almost
+     * always mixed dead centre, so taking away what the two channels have in
+     * common takes the voice with it. See AudioOutput.
+     */
+    val karaoke: StateFlow<Float> = _karaoke.asStateFlow()
+
+    fun setKaraoke(amount: Float) {
+        val wanted = amount.coerceIn(0f, 1f)
+        if (wanted == _karaoke.value) return
+        _karaoke.value = wanted
+        prefs?.edit()?.putFloat(KEY_KARAOKE, wanted)?.commit()
+    }
+
     fun load(context: Context) {
         if (prefs != null) return
         val store = context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
@@ -58,6 +80,7 @@ object AudioEffects {
         _reverb.value = store.getFloat(KEY_REVERB, 0f)
         _speed.value = store.getFloat(KEY_SPEED, 1f)
         _pitch.value = store.getFloat(KEY_PITCH, 1f)
+        _karaoke.value = store.getFloat(KEY_KARAOKE, 0f)
         android.util.Log.i(
             "SpotAudio",
             "effects restored: reverb=${_reverb.value} speed=${_speed.value} pitch=${_pitch.value}",
@@ -101,4 +124,5 @@ object AudioEffects {
     private const val KEY_REVERB = "reverb"
     private const val KEY_SPEED = "speed"
     private const val KEY_PITCH = "pitch"
+    private const val KEY_KARAOKE = "karaoke"
 }
