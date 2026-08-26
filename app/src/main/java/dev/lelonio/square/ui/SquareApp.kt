@@ -637,7 +637,15 @@ fun SquareApp(
                     .background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
-                player?.let { dev.lelonio.square.ui.player.VideoSurface(it) }
+                // The key matters for a Spotify video: its player is built
+                // fresh when the mode is entered, and a surface attached to the
+                // one before it shows nothing at all.
+                player?.let {
+                    dev.lelonio.square.ui.player.VideoSurface(
+                        it,
+                        attachKey = if (spotifyVideoOn) spotifyVideoGeneration else null,
+                    )
+                }
             }
         }
         return

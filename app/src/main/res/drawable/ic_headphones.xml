@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  For the floating window's own button: keep the sound, drop the picture.
+
+  A drawable rather than one of the app's Compose icons because this one is
+  drawn by the system, in a window this app does not compose.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256"
+    android:tint="#FFFFFFFF">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M201.89,54.66A103.43,103.43,0,0,0,128.79,24H128A104,104,0,0,0,24,128v56a24,24,0,0,0,24,24H64a24,24,0,0,0,24-24V152a24,24,0,0,0-24-24H40.36A88.12,88.12,0,0,1,128,40h0.68a87.55,87.55,0,0,1,61.9,25.95A88.11,88.11,0,0,1,215.64,128H192a24,24,0,0,0-24,24v32a24,24,0,0,0,24,24h16a24,24,0,0,0,24-24V128A103.41,103.41,0,0,0,201.89,54.66ZM64,144a8,8,0,0,1,8,8v32a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V144Zm152,40a8,8,0,0,1-8,8H192a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8h24Z" />
+</vector>

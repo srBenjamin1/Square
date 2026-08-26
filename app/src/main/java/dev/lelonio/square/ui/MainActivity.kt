@@ -27,6 +27,9 @@ import dev.lelonio.square.playback.PlaybackService
  * it, and holding one from a backgrounded app leaks a binder connection.
  */
 @UnstableApi
+private const val ACTION_LISTEN = "dev.lelonio.square.LISTEN_ONLY"
+private const val ACTION_TOGGLE = "dev.lelonio.square.PIP_TOGGLE"
+
 class MainActivity : ComponentActivity() {
 
     private var controller by mutableStateOf<MediaController?>(null)
@@ -98,24 +101,111 @@ class MainActivity : ComponentActivity() {
      */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!dev.lelonio.square.backend.youtube.YouTubeVideoMode.enabled.value) return
+        // Either kind of video: YouTube's, and the music video Spotify has for
+        // a track. Leaving the app while watching one means the same thing in
+        // both cases.
+        val watching = dev.lelonio.square.backend.youtube.YouTubeVideoMode.enabled.value ||
+            dev.lelonio.square.backend.spotify.SpotifyVideoMode.enabled.value
+        if (!watching) return
+        runCatching { enterPictureInPictureMode(pipParams()) }
+    }
+
+    /**
+     * The floating window, and the one button in it.
+     *
+     * The button is the thing YouTube puts there: keep the sound, drop the
+     * picture. Pausing to close a video is the wrong end of what the listener
+     * asked for — they left the app, so the music is what they are keeping.
+     */
+    private fun pipParams(): android.app.PictureInPictureParams {
         val size = controller?.videoSize
         val width = size?.width?.takeIf { it > 0 } ?: 16
         val height = size?.height?.takeIf { it > 0 } ?: 9
-        runCatching {
-            enterPictureInPictureMode(
-                android.app.PictureInPictureParams.Builder()
-                    .setAspectRatio(android.util.Rational(width, height))
-                    .build(),
-            )
+
+        // Play and pause first, because that is the one control anybody
+        // expects a floating video to have.
+        val playing = controller?.isPlaying == true
+        val transport = android.app.RemoteAction(
+            android.graphics.drawable.Icon.createWithResource(
+                this,
+                if (playing) {
+                    dev.lelonio.square.R.drawable.ic_pip_pause
+                } else {
+                    dev.lelonio.square.R.drawable.ic_pip_play
+                },
+            ),
+            getString(if (playing) dev.lelonio.square.R.string.pause else dev.lelonio.square.R.string.play),
+            getString(if (playing) dev.lelonio.square.R.string.pause else dev.lelonio.square.R.string.play),
+            android.app.PendingIntent.getBroadcast(
+                this,
+                1,
+                android.content.Intent(ACTION_TOGGLE).setPackage(packageName),
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                    android.app.PendingIntent.FLAG_IMMUTABLE,
+            ),
+        )
+
+        val listen = android.app.RemoteAction(
+            android.graphics.drawable.Icon.createWithResource(this, dev.lelonio.square.R.drawable.ic_headphones),
+            getString(dev.lelonio.square.R.string.pip_listen),
+            getString(dev.lelonio.square.R.string.pip_listen),
+            android.app.PendingIntent.getBroadcast(
+                this,
+                0,
+                android.content.Intent(ACTION_LISTEN).setPackage(packageName),
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                    android.app.PendingIntent.FLAG_IMMUTABLE,
+            ),
+        )
+
+        return android.app.PictureInPictureParams.Builder()
+            .setAspectRatio(android.util.Rational(width, height))
+            .setActions(listOf(transport, listen))
+            .build()
+    }
+
+    /**
+     * Told by the button above: the picture goes, the song stays.
+     *
+     * Registered while the activity is alive and not exported — nothing outside
+     * this app has any business asking for it.
+     */
+    private val listenRequest = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            if (intent?.action == ACTION_TOGGLE) {
+                controller?.let { if (it.isPlaying) it.pause() else it.play() }
+                return
+            }
+            if (intent?.action != ACTION_LISTEN) return
+            val at = controller?.currentPosition ?: 0L
+            if (dev.lelonio.square.backend.spotify.SpotifyVideoMode.enabled.value) {
+                dev.lelonio.square.backend.spotify.SpotifyVideoMode.listen(at)
+            } else {
+                controller?.let(dev.lelonio.square.backend.youtube.YouTubeVideoMode::toggle)
+            }
+            // Said before finishing, and this matters: the flag is the app's,
+            // not the window's, and finishing from inside a floating window
+            // does not always report the window closing. Left set, the next
+            // time the app was opened it drew the floating window's layout —
+            // a black rectangle with a video surface and nothing else.
+            dev.lelonio.square.backend.youtube.YouTubeVideoMode.setPictureInPicture(false)
+
+            // Closing the window rather than going back to a full screen the
+            // listener has already left. The music is in the service, and it
+            // carries on.
+            finish()
         }
     }
+
+    /** Whether this activity is the floating window right now. */
+    private var inPictureInPicture = false
 
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: android.content.res.Configuration,
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        inPictureInPicture = isInPictureInPictureMode
         dev.lelonio.square.backend.youtube.YouTubeVideoMode.setPictureInPicture(
             isInPictureInPictureMode,
         )
@@ -147,6 +237,12 @@ class MainActivity : ComponentActivity() {
             getBooleanExtra(dev.lelonio.square.playback.EXTRA_OPEN_PLAYER, false)
 
     override fun onStart() {
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            listenRequest,
+            android.content.IntentFilter(ACTION_LISTEN).apply { addAction(ACTION_TOGGLE) },
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         super.onStart()
         val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
@@ -154,12 +250,22 @@ class MainActivity : ComponentActivity() {
             {
                 // The activity may already be stopping by the time this lands.
                 controller = runCatching { future.get() }.getOrNull()
+                // The floating window's own button has to say what it does now,
+                // and the system only redraws it when the parameters are set
+                // again.
+                controller?.addListener(object : androidx.media3.common.Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        if (!inPictureInPicture) return
+                        runCatching { setPictureInPictureParams(pipParams()) }
+                    }
+                })
             },
             MoreExecutors.directExecutor(),
         )
     }
 
     override fun onStop() {
+        runCatching { unregisterReceiver(listenRequest) }
         controller?.release()
         controller = null
         super.onStop()

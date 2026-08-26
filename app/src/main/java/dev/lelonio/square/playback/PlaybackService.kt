@@ -412,6 +412,18 @@ class PlaybackService : MediaLibraryService() {
             kindFor(container.preferences.backend.value)
         }
         if (wanted == playerKind) return
+
+        // Leaving the video behind, if that is what was in front.
+        //
+        // Choosing a song somewhere else while a video plays is a choice to
+        // listen to that song: the player swapped underneath, but the screen was
+        // never told the video had ended, so it went on drawing the video's slot
+        // — a black rectangle over a song that was playing perfectly well, with
+        // the switch back to audio pointing at a video that no longer existed.
+        if (playerKind == PlayerKind.VIDEO) {
+            dev.lelonio.square.backend.spotify.SpotifyVideoMode.setEnabled(false)
+            dev.lelonio.square.backend.spotify.SpotifyVideoMode.setManifest(null)
+        }
         // Nothing to put back: the queue that caused this swap is about to be
         // set on the new player by the session itself.
         swapPlayer(wanted, restore = false)
