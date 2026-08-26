@@ -7,6 +7,8 @@ import dev.lelonio.square.backend.BackendId
 import dev.lelonio.square.backend.MusicBackend
 import dev.lelonio.square.backend.PlaybackHost
 import dev.lelonio.square.backend.SearchLabels
+import dev.lelonio.square.backend.lyrics.LrcLib
+import dev.lelonio.square.backend.lyrics.Lossless
 import dev.lelonio.square.data.CatalogPlaylist
 import dev.lelonio.square.data.CatalogTrack
 import dev.lelonio.square.data.SearchItem
@@ -218,12 +220,20 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
         }
     }
 
+    /**
+     * lossless.wtf first, LrcLib for everything it does not have.
+     *
+     * The TTML archive is the better answer where it has the track and much the
+     * smaller of the two, so it is asked first and LrcLib carries the rest of
+     * the catalogue as it did before.
+     */
     override suspend fun lyrics(
         uri: String,
         title: String,
         artist: String,
         durationMs: Long,
-    ) = LrcLib.lyrics(title, artist, durationMs)
+    ) = Lossless.lyrics(title, artist, durationMs)
+        ?: LrcLib.lyrics(title, artist, durationMs)
 
     override val canEditPlaylists: Boolean
         get() = account.isSignedIn

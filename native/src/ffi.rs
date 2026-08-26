@@ -461,6 +461,23 @@ pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeLyr
 }
 
 #[no_mangle]
+pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeTrackRelatives(
+    mut env: JNIEnv,
+    _class: JClass,
+    track_uri: JString,
+) -> jstring {
+    let uri = match read_string(&mut env, &track_uri) {
+        Ok(value) => value,
+        Err(message) => {
+            let _ = env.throw_new(EXCEPTION, message);
+            return JObject::null().into_raw() as jstring;
+        }
+    };
+    guard_string(&mut env, "TrackRelatives", || catalog::track_relatives(&uri))
+
+}
+
+#[no_mangle]
 pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeTracksMetadata(
     mut env: JNIEnv,
     _class: JClass,

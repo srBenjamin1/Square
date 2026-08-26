@@ -378,6 +378,16 @@ object NativeBridge {
     fun lyrics(trackUri: String): String = nativeLyrics(trackUri)
 
     /**
+     * The other Spotify ids for the same recording, and its ISRC.
+     *
+     * `{"isrc":"…","alternatives":["spotify:track:…"]}`. Used to find a track in
+     * a database that is addressed by id when the listener is playing a
+     * different pressing of the same song; see the Amll lyrics source.
+     */
+    fun trackRelatives(trackUri: String): String? =
+        runCatching { nativeTrackRelatives(trackUri) }.getOrNull()
+
+    /**
      * Canvas JSON for a track — the short looping clip shown behind the player —
      * or the string `null` when the track has none, which is the common case.
      */
@@ -484,5 +494,6 @@ object NativeBridge {
     private external fun nativeContextTracks(contextUri: String): String
     private external fun nativeTracksMetadata(urisJson: String): String
     private external fun nativeLyrics(trackUri: String): String
+    private external fun nativeTrackRelatives(trackUri: String): String
     private external fun nativeCanvas(trackUri: String): String
 }

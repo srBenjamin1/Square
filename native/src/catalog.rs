@@ -570,6 +570,46 @@ pub fn access_token() -> EngineResult<String> {
 ///   BatchedEntityRequest { repeated EntityRequest entity_request = 2 }
 ///   EntityRequest       { string entity_uri = 1, repeated ExtensionQuery query = 2 }
 ///   ExtensionQuery      { ExtensionKind extension_kind = 1 }
+/// The other Spotify ids for the same recording, and its ISRC.
+///
+/// A song is on Spotify many times over — the single, the album, the remaster,
+/// the market-specific pressing — and each of those is its own id. Anything
+/// addressed by id therefore misses whenever the listener happens to be playing
+/// a different edition of the same recording, which is what the word-by-word
+/// lyric database does; see AmllLyrics.
+///
+/// Both answers come from metadata the account already serves: `alternatives`
+/// is Spotify's own list of the copies it relinks between, and the ISRC is the
+/// recording's number in the industry's register, which is the same on every
+/// pressing of it.
+pub fn track_relatives(track_uri: &str) -> EngineResult<String> {
+    let uri = SpotifyUri::from_uri(track_uri).map_err(|e| format!("bad track uri: {e}"))?;
+    let session = with_session(|s| s.clone())?;
+
+    block_on(async move {
+        let track = Track::get(&session, &uri)
+            .await
+            .map_err(|e| format!("track lookup failed: {e}"))?;
+
+        let alternatives: Vec<String> = track
+            .alternatives
+            .0
+            .iter()
+            .filter_map(|id| id.to_uri().ok())
+            .collect();
+
+        let isrc = track
+            .external_ids
+            .0
+            .iter()
+            .find(|id| id.external_type.eq_ignore_ascii_case("isrc"))
+            .map(|id| id.id.clone())
+            .unwrap_or_default();
+
+        Ok(json!({ "isrc": isrc, "alternatives": alternatives }).to_string())
+    })
+}
+
 pub fn track_video(track_uri: &str) -> EngineResult<String> {
     let session = with_session(|s| s.clone())?;
     let uri = track_uri.to_string();

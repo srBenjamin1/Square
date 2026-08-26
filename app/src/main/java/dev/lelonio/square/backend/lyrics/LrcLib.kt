@@ -1,4 +1,4 @@
-package dev.lelonio.square.backend.youtube
+package dev.lelonio.square.backend.lyrics
 
 import dev.lelonio.square.data.LyricLine
 import dev.lelonio.square.data.Lyrics
@@ -31,7 +31,7 @@ object LrcLib {
      */
     suspend fun lyrics(title: String, artist: String, durationMs: Long): Lyrics? =
         withContext(Dispatchers.IO) {
-            val cleaned = title.cleanedTitle()
+            val cleaned = title.songTitle()
             val body = get(url(cleaned, artist, durationMs))
             // Retry without the duration before giving up: YouTube's own
             // duration includes any silence at the end of the upload, so an
@@ -76,23 +76,6 @@ object LrcLib {
             if (!response.isSuccessful) null else response.body?.string()
         }
     }.getOrNull()
-
-    /**
-     * Trims what YouTube titles carry and song titles do not.
-     *
-     * Uploads are named for a video — "(Official Video)", "[4K Remaster]",
-     * "(Lyrics)" — and searching a lyrics database for any of that finds
-     * nothing.
-     */
-    private fun String.cleanedTitle(): String =
-        replace(NOISE, "").replace(WHITESPACE, " ").trim()
-
-    private val NOISE = Regex(
-        "\\((?:official|lyric|audio|video|visualizer|hd|4k|mv|m/v)[^)]*\\)" +
-            "|\\[[^\\]]*(?:official|lyric|audio|video|remaster|hd|4k)[^\\]]*\\]",
-        RegexOption.IGNORE_CASE,
-    )
-    private val WHITESPACE = Regex("\\s+")
 
     /**
      * `[mm:ss.xx] words` per line.

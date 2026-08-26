@@ -64,8 +64,10 @@ the screen's own frame rate.
 - **Records what you listen to** *(Spotify)*. Listens are reported to the
   account, filed under the playlist or album they happened in, so Square can be
   used *instead* of the official client rather than beside it.
-- **Lyrics, canvas, artwork.** Synced lyrics, from Spotify where it has them
-  and from [LrcLib](https://lrclib.net) for the YouTube side; the looping
+- **Lyrics, canvas, artwork.** Synced lyrics, from the TTML archive at
+  [lossless.wtf](https://lossless.wtf) first — timed to the word, the format
+  Apple Music ships — and from Spotify or [LrcLib](https://lrclib.net) for
+  everything it does not carry; the looping
   Spotify canvas video on the player; and the covers of the generated playlists
   in the app's own language.
 - **Watches the video** *(YouTube Music)*. One tap on the player swaps the audio
@@ -214,6 +216,7 @@ is already dead. It is the bug behind the random logouts in most other clients.
 | [librespot](https://github.com/librespot-org/librespot) | MIT | The Spotify engine. `librespot-core` is vendored with local patches. |
 | [Metrolist](https://github.com/mostafaalagamy/Metrolist) | GPL-3.0 | Its InnerTube client, vendored as [`innertube/`](innertube/), because it is published nowhere else. Powers the signed-in YouTube Music library. |
 | [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor) | GPL-3.0 | Anonymous YouTube Music search and stream URLs. |
+| [lossless.wtf](https://lossless.wtf) | n/a | Synced TTML lyrics, asked first on both backends. |
 | [LrcLib](https://lrclib.net) | n/a | Synced lyrics for the YouTube Music backend, over its open API. |
 | [Bungee](https://github.com/kupix/bungee) | MPL-2.0 | Time stretching, fetched at build time. |
 | [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) | Apache-2.0 | The glass material; the catalog components are copied with their notice. |

@@ -3,6 +3,7 @@ package dev.lelonio.square.ui.player
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,6 +54,8 @@ fun LyricsView(
     positionMs: State<Long>,
     isPlaying: Boolean,
     modifier: Modifier = Modifier,
+    /** Whether to read each line in the listener's language underneath it. */
+    showTranslation: Boolean = false,
     onSeek: (Long) -> Unit,
 ) {
     // Keyed on the lyrics, so a new track starts at its first line. Kept across
@@ -99,16 +102,15 @@ fun LyricsView(
             val isActive = index == activeLine
             LyricRow(
                 text = line.text,
+                // Real timings where the source has them; see the lyrics package.
+                words = line.words,
+                translation = line.translation.takeIf { showTranslation },
+                positionMs = position,
                 distance = if (activeLine < 0) 0 else abs(index - activeLine),
                 isActive = isActive,
                 unsynced = !lyrics.synced,
                 // Only the line being sung pays for this; the rest are drawn
                 // plain.
-                sungFraction = if (isActive) {
-                    lineProgress(lyrics, index, position)
-                } else {
-                    0f
-                },
                 onClick = { line.startTimeMs?.let(onSeek) },
             )
         }
@@ -158,43 +160,18 @@ private fun lineProgress(lyrics: Lyrics, index: Int, positionMs: Long): Float {
     return ((positionMs - start).toFloat() / span).coerceIn(0f, 1f)
 }
 
-/**
- * Splits a line into words with a share of its duration each.
- *
- * Spotify times lyrics by line, never by word, so Apple Music's sung-along
- * highlight cannot be reproduced from the data — this approximates it by giving
- * each word a share of the line proportional to its length. Longer words take
- * longer to sing, which is true often enough to read as right; it will drift on
- * a line that holds one syllable for a bar, and nothing here can know that.
- *
- * Trailing space is counted with the word so the highlight sweeps continuously
- * instead of stepping across gaps.
- */
-private fun wordStops(text: String): List<Pair<IntRange, Float>> {
-    val total = text.count { !it.isWhitespace() }.coerceAtLeast(1)
-    val stops = mutableListOf<Pair<IntRange, Float>>()
-    var consumed = 0
-    var index = 0
-    while (index < text.length) {
-        while (index < text.length && text[index].isWhitespace()) index++
-        if (index >= text.length) break
-        val start = index
-        while (index < text.length && !text[index].isWhitespace()) index++
-        val wordEnd = index
-        while (index < text.length && text[index].isWhitespace()) index++
-        consumed += wordEnd - start
-        stops += (start until index) to consumed.toFloat() / total
-    }
-    return stops
-}
 
 @Composable
 private fun LyricRow(
     text: String,
+    /** When each word is sung, when that is known. */
+    words: List<dev.lelonio.square.data.LyricWord>,
+    /** The line in the listener's language, if there is one and it is wanted. */
+    translation: String?,
+    positionMs: Long,
     distance: Int,
     isActive: Boolean,
     unsynced: Boolean,
-    sungFraction: Float,
     onClick: () -> Unit,
 ) {
     val springSpec = spring<Float>(
@@ -234,63 +211,180 @@ private fun LyricRow(
             .padding(horizontal = 22.dp, vertical = 9.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        // The sung part of the line is fully lit, the rest of it is not.
-        //
-        // Word by word rather than a sweep across the whole line: a gradient
-        // spans the text block, so on a line that wraps it would light the
-        // second row from the left while the first is still being sung.
-        val rendered = remember(text, isActive, sungFraction) {
-            if (!isActive) {
-                AnnotatedString(text)
-            } else {
-                buildAnnotatedString {
-                    append(text)
-                    var previousStop = 0f
-                    wordStops(text).forEach { (range, stop) ->
-                        // Each word lights over its own span rather than
-                        // switching at the moment it starts. A hard switch is
-                        // what made this read as stepping from word to word;
-                        // Apple's version has each one come up as it is reached.
-                        val span = (stop - previousStop).coerceAtLeast(0.0001f)
-                        val lit = ((sungFraction - previousStop) / span).coerceIn(0f, 1f)
-                        previousStop = stop
+        val style = MaterialTheme.typography.titleLarge.copy(
+            fontSize = 27.sp,
+            lineHeight = 33.sp,
+        )
+
+        androidx.compose.foundation.layout.Column {
+
+            // One composable per word, so the one being sung can move on its own.
+            //
+            // Taken from Convx, whose lyrics lift each word as it is reached: it
+            // rises a little, grows a little and carries a soft light, then settles
+            // as the next takes over. Doing it to the whole line — which is what
+            // this did first — makes the whole sentence breathe, which is not the
+            // same thing and reads as a wobble.
+            //
+            // Wrapped by the layout rather than by the text engine, since a lifted
+            // word has to be its own thing to lift. The trailing space is part of
+            // each word, so the spacing is the font's own rather than a guess.
+            androidx.compose.foundation.layout.FlowRow(
+                modifier = Modifier
+                    .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier)
+                    .graphicsLayer {
+                        // Scale from the left edge so the text grows into the line
+                        // instead of drifting sideways.
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
+                    },
+            ) {
+                // Word by word only where the words really are timed.
+                //
+                // A line-timed source knows when the line begins and nothing else,
+                // and dividing it by how much each word has to say is a guess: on a
+                // held note it lights three words while one is still being sung.
+                // Better to say what is known — this line, now — and light the
+                // whole of it. The words move only when a source has actually timed
+                // them; see the lyrics package.
+                if (words.isEmpty()) {
+                    // The whole line does what a word does when a word is timed:
+                    // rises, grows and carries a light while it is the one being
+                    // sung. What is not known is where inside the line the singing
+                    // has reached, so the line is treated as the unit it is.
+                    val lineBump by animateFloatAsState(
+                        targetValue = if (isActive) 1f else 0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioLowBouncy,
+                            stiffness = Spring.StiffnessLow,
+                        ),
+                        label = "lineBump",
+                    )
+
+                    Text(
+                        text = text,
+                        style = style.copy(
+                            shadow = if (lineBump > 0.05f) {
+                                androidx.compose.ui.graphics.Shadow(
+                                    color = Color.White.copy(alpha = 0.4f * lineBump),
+                                    offset = androidx.compose.ui.geometry.Offset.Zero,
+                                    blurRadius = 16f * lineBump,
+                                )
+                            } else {
+                                null
+                            },
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.graphicsLayer {
+                            translationY = -4.dp.toPx() * lineBump
+                            scaleX = 1f + 0.02f * lineBump
+                            scaleY = 1f + 0.02f * lineBump
+                        },
+                    )
+                } else {
+                    // Each word carries the space that follows it in the line.
+                    //
+                    // Taken out, the words sat against each other: what is drawn
+                    // here is a row of separate pieces of text, and a row has no
+                    // idea that written language puts gaps between words.
+                    val pieces = remember(text, words) {
+                        var at = 0
+                        words.map { word ->
+                            val start = text.indexOf(word.text, at).takeIf { it >= 0 } ?: at
+                            var stop = start + word.text.length
+                            while (stop < text.length && text[stop].isWhitespace()) stop++
+                            at = stop
+                            text.substring(start, stop)
+                        }
+                    }
+
+                    pieces.forEachIndexed { index, piece ->
+                        val word = words[index]
+                        val span = (word.endMs - word.startMs).coerceAtLeast(1L)
+                        val lit = if (isActive) {
+                            ((positionMs - word.startMs).toFloat() / span).coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        }
+
                         // Eased at both ends, so a word neither snaps on nor
                         // finishes brightening a beat before the next begins.
                         val eased = lit * lit * (3f - 2f * lit)
-                        addStyle(
-                            SpanStyle(
-                                color = Color.White.copy(
-                                    alpha = DIM_WORD_ALPHA + (1f - DIM_WORD_ALPHA) * eased,
-                                ),
+                        // And a half turn of a sine across the word: strongest in
+                        // the middle of it, gone by the time the next one starts.
+                        val bump = if (isActive && lit > 0f && lit < 1f) {
+                            kotlin.math.sin(lit * kotlin.math.PI.toFloat())
+                        } else {
+                            0f
+                        }
+
+                        Text(
+                            text = piece,
+                            style = style.copy(
+                                shadow = if (bump > 0.05f) {
+                                    androidx.compose.ui.graphics.Shadow(
+                                        color = Color.White.copy(alpha = 0.4f * bump),
+                                        offset = androidx.compose.ui.geometry.Offset.Zero,
+                                        blurRadius = 16f * bump,
+                                    )
+                                } else {
+                                    null
+                                },
                             ),
-                            range.first,
-                            range.last + 1,
+                            fontWeight = FontWeight.Bold,
+                            // White rather than the artwork accent. These sit over
+                            // a Canvas now, and an accent pulled from the cover can
+                            // land anywhere — including on the clip's own colours.
+                            color = Color.White.copy(
+                                alpha = if (isActive) {
+                                    DIM_WORD_ALPHA + (1f - DIM_WORD_ALPHA) * eased
+                                } else {
+                                    1f
+                                },
+                            ),
+                            textAlign = TextAlign.Start,
+                            modifier = Modifier.graphicsLayer {
+                                translationY = -4.dp.toPx() * bump
+                                scaleX = 1f + 0.02f * bump
+                                scaleY = 1f + 0.02f * bump
+                            },
                         )
                     }
                 }
             }
-        }
 
-        Text(
-            text = rendered,
-            style = MaterialTheme.typography.titleLarge.copy(fontSize = 27.sp, lineHeight = 33.sp),
-            fontWeight = FontWeight.Bold,
-            // White rather than the artwork accent. These sit over a Canvas now,
-            // and an accent pulled from the cover can land anywhere — including
-            // on the clip's own colours.
-            color = Color.White,
-            textAlign = TextAlign.Start,
-            modifier = Modifier
-                .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier)
-                .graphicsLayer {
-                    // Scale from the left edge so the text grows into the line
-                    // instead of drifting sideways.
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
-                    scaleX = scale
-                    scaleY = scale
-                    this.alpha = alpha
-                },
-        )
+            // Under the line, quieter and smaller: a second voice reading
+            // along, not a second line of the song. It fades, blurs and grows
+            // with the line above it, being part of the same line.
+            if (!translation.isNullOrBlank()) {
+                Text(
+                    text = translation,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 19.sp,
+                    ),
+                    color = Color.White.copy(alpha = 0.62f),
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier
+                        .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier)
+                        .padding(top = 3.dp)
+                        .graphicsLayer {
+                            // Anchored left with the words above, so it does
+                            // not drift out from under its own line as that
+                            // one grows.
+                            transformOrigin =
+                                androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                            scaleX = scale
+                            scaleY = scale
+                            this.alpha = alpha
+                        },
+                )
+            }
+        }
     }
 }
 

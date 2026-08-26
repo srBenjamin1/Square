@@ -216,13 +216,22 @@ class SpotifyBackend(private val container: SquareApplication) : MusicBackend {
         }
     }
 
-    /** Spotify's own, which the access point serves; see [Catalog.lyrics]. */
+    /**
+     * lossless.wtf first, Spotify's own behind it; see [Catalog.lyrics].
+     *
+     * Spotify's are line-synced and only cover what Spotify itself holds. The
+     * TTML archive is timed to the word where it has a track, so it is asked
+     * first here for the same reason it is on the other backend, and the access
+     * point answers for everything it does not have.
+     */
     override suspend fun lyrics(
         uri: String,
         title: String,
         artist: String,
         durationMs: Long,
-    ) = Catalog.lyrics(uri)
+    ) = dev.lelonio.square.backend.lyrics.Amll.lyrics(uri)
+        ?: Lossless.lyrics(title, artist, durationMs)
+        ?: Catalog.lyrics(uri)
 
     /**
      * Whether playlists can be made and changed.
