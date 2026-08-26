@@ -587,7 +587,17 @@ fun SquareApp(
     val creditsLoading by viewModel.creditsLoading.collectAsStateWithLifecycle()
 
     var lyrics by remember { mutableStateOf<Lyrics?>(null) }
-    var lyricsLoading by remember { mutableStateOf(false) }
+
+    /**
+     * The track [lyrics] is the answer for.
+     *
+     * A flag set at the top of the fetch is not enough to say whether an answer
+     * is in yet: between the track changing and the effect that fetches for it
+     * starting, the flag still reads as it did for the track before — long
+     * enough for the panel to say a song has no words before anybody has asked.
+     * Naming the track the answer belongs to leaves no such moment.
+     */
+    var lyricsFor by remember { mutableStateOf<String?>(null) }
 
     // One small question per track: is this one saved? The player draws a heart
     // from the answer, and there is no other way to know without reading the
@@ -599,8 +609,11 @@ fun SquareApp(
     LaunchedEffect(playback.mediaId) {
         val uri = playback.mediaId
         lyrics = null
-        if (uri == null) return@LaunchedEffect
-        lyricsLoading = true
+        lyricsFor = null
+        if (uri == null) {
+            lyricsFor = null
+            return@LaunchedEffect
+        }
         // Behind the song as well; see awaitAudible. The panel shows its own
         // spinner meanwhile, so the wait is visible rather than blank.
         awaitAudible(localState)
@@ -614,7 +627,7 @@ fun SquareApp(
                     durationMs = playback.durationMs,
                 )
         }.getOrNull()
-        lyricsLoading = false
+        lyricsFor = uri
     }
 
     // The language the app is read in. Changing it re-creates the activity,
@@ -1582,11 +1595,16 @@ fun SquareApp(
                                 },
                                 queue = queue,
                                 lyrics = lyrics,
-                                lyricsLoading = lyricsLoading,
+                                // Loading until the answer in hand is this
+                                // track's, which covers the wait before the
+                                // fetch has even begun.
+                                lyricsLoading = playback.mediaId != null &&
+                                    lyricsFor != playback.mediaId,
                                 credits = credits,
                                 creditsLoading = creditsLoading,
                                 onWantCredits = viewModel::loadCredits,
                                 onPlayQueueItem = { player?.seekTo(it, 0L) },
+                                onRemoveQueueItem = { player?.removeMediaItem(it) },
                                 reverb = reverb,
                                 // Speed and pitch are set as a pair because
                                 // PlaybackParameters carries both; changing one
@@ -2041,6 +2059,7 @@ fun SquareApp(
                 }
             }
         }
+    }
     }
 }
 

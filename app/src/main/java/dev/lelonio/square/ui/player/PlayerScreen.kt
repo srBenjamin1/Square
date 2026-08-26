@@ -82,7 +82,9 @@ import kotlinx.coroutines.withContext
 import dev.lelonio.square.backend.spotify.panelAt
 import androidx.core.graphics.scale
 import dev.lelonio.square.ui.glass.pressable
+import dev.lelonio.square.ui.glass.LocalGlassEffectConfig
 import dev.lelonio.square.ui.glass.backdrop.Backdrop
+import dev.lelonio.square.ui.glass.liquidGlass
 import dev.lelonio.square.ui.glass.backdrop.backdrops.layerBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberCombinedBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberLayerBackdrop
@@ -99,6 +101,7 @@ import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.fill.Heart
 import com.adamglin.phosphoricons.fill.Pause
+import com.adamglin.phosphoricons.fill.MicrophoneStage
 import com.adamglin.phosphoricons.fill.Play
 import com.adamglin.phosphoricons.fill.SkipBack
 import com.adamglin.phosphoricons.fill.SkipForward
@@ -174,6 +177,8 @@ fun PlayerScreen(
     /** Asked for when the credits panel is opened, and not before. */
     onWantCredits: (String?) -> Unit,
     onPlayQueueItem: (Int) -> Unit,
+    /** Drops one track out of the queue, by index. */
+    onRemoveQueueItem: (Int) -> Unit,
     /** The music video for this track, when the catalogue has one. */
     videoFileId: String? = null,
     /** Whether the listener has asked to watch rather than listen. */
@@ -737,7 +742,7 @@ fun PlayerScreen(
                                 }
 
                                 Stage.QUEUE -> Box(Modifier.fillMaxSize()) {
-                                    QueueList(queue, onPlayQueueItem)
+                                    QueueList(queue, onPlayQueueItem, onRemoveQueueItem)
                                 }
 
                                 Stage.DEVICES -> Box(
@@ -784,6 +789,7 @@ fun PlayerScreen(
                                     Box(Modifier.fillMaxSize())
                                 }
                             }
+                        }
                         }
 
                         Spacer(Modifier.height(20.dp))
@@ -844,7 +850,6 @@ fun PlayerScreen(
                                     )
                                 }
                             }
-                            Spacer(Modifier.height(14.dp))
                         }
 
                         // Title and artist on their own capsule, with the two

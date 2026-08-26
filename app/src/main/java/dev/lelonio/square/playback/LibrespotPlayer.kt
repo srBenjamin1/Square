@@ -825,8 +825,17 @@ class LibrespotPlayer(
         mediaItems: List<MediaItem>,
     ): ListenableFuture<*> {
         queue.addFromMediaItems(index, mediaItems)
-        engineQueueStale = true
         reapplyShuffle()
+        // The engine is told now, not at the end of the song.
+        //
+        // Left for later, the track a listener queued was not in the engine's
+        // list when the current one ended: the engine moved to its own next
+        // track and this side had to skip to the queued one after the fact,
+        // which is a cut — the change of track the listener hears when they
+        // press skip, in the middle of a crossfade they did not. Handed over as
+        // an order, the queued track simply *is* what comes next, and the end
+        // of the song dissolves into it like any other.
+        pushOrder()
         onQueueChanged()
         invalidateState()
         return Futures.immediateVoidFuture()
@@ -834,8 +843,11 @@ class LibrespotPlayer(
 
     override fun handleRemoveMediaItems(fromIndex: Int, toIndex: Int): ListenableFuture<*> {
         queue.remove(fromIndex, toIndex)
-        engineQueueStale = true
         reapplyShuffle()
+        // A track taken out of the queue is gone from the engine's list too, and
+        // for the same reason as above: otherwise it plays anyway when the
+        // current song ends, and this side skips past it afterwards.
+        pushOrder()
         onQueueChanged()
         invalidateState()
         return Futures.immediateVoidFuture()
@@ -1097,20 +1109,28 @@ class LibrespotPlayer(
         // Handed over as an order rather than as a load. A load would restart
         // the decoder, and a reordering of what comes later has no business
         // interrupting the song that is playing.
-        if (queue.items.isNotEmpty()) {
-            engineIndex = queue.currentIndex
-            runCatching {
-                NativeBridge.setQueueOrder(queue.items.map { it.uri }, queue.currentIndex)
-            }
-                .onFailure {
-                    // Left for the next skip to sort out, which rebuilds the
-                    // queue wholesale: better a load then than a wrong order now.
-                    android.util.Log.w("SquarePlayer", "could not reorder: ${it.message}")
-                    engineQueueStale = true
-                }
-        }
+        pushOrder()
         invalidateState()
         return Futures.immediateVoidFuture()
+    }
+
+    /**
+     * Hands the engine the running order, without touching what is playing.
+     *
+     * A load would restart the decoder; a change to what comes *after* the
+     * current track has no business interrupting it. When it cannot be sent the
+     * queue is marked stale, and the next skip rebuilds it wholesale — better a
+     * load then than a wrong order now.
+     */
+    private fun pushOrder() {
+        if (queue.items.isEmpty()) return
+        engineIndex = queue.currentIndex
+        runCatching {
+            NativeBridge.setQueueOrder(queue.items.map { it.uri }, queue.currentIndex)
+        }.onFailure {
+            android.util.Log.w("SquarePlayer", "could not reorder: ${it.message}")
+            engineQueueStale = true
+        }
     }
 
     override fun handleSetRepeatMode(repeatMode: @Player.RepeatMode Int): ListenableFuture<*> {

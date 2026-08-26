@@ -62,6 +62,7 @@ import com.adamglin.phosphoricons.regular.VinylRecord
 import com.adamglin.phosphoricons.fill.Info
 import com.adamglin.phosphoricons.regular.Info
 import com.adamglin.phosphoricons.regular.X
+import dev.lelonio.square.ui.glass.pressable
 
 /** Which panel is open below the transport controls. */
 enum class PlayerPanel {
@@ -300,6 +301,21 @@ internal fun QueueList(
                         color = GlassInkDim,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                // Not on the track being played: taking that one out is a
+                // different act — it is a skip — and it already has a button.
+                if (!entry.isCurrent) {
+                    Icon(
+                        PhosphorIcons.Regular.X,
+                        contentDescription = stringResource(R.string.remove_from_queue),
+                        tint = GlassInkDim,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .pressable({ onRemove(entry.index) }, pressedScale = 0.86f)
+                            .padding(10.dp)
+                            .size(16.dp),
                     )
                 }
             }

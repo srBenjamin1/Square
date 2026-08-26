@@ -3,6 +3,7 @@ package dev.lelonio.square.backend
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import dev.lelonio.square.SquareApplication
+import dev.lelonio.square.backend.lyrics.Lossless
 import dev.lelonio.square.data.Catalog
 import dev.lelonio.square.data.CatalogPlaylist
 import dev.lelonio.square.data.CatalogTrack
