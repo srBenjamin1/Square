@@ -740,15 +740,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 .onFailure {
                     android.util.Log.e(TAG, "add to playlist failed: ${chain(it)}", it)
+                    // The same 403 the followed artists take, for the same
+                    // reason: an application connected before a permission was
+                    // asked for holds a token that will never be allowed to do
+                    // this. Saying the playlist is not yours would be a lie
+                    // about Liked Songs, which is nobody else's.
+                    val forbidden = describe(it).contains("403")
+                    if (forbidden) _webApi.value = _webApi.value.copy(expired = true)
                     _addToPlaylist.value = _addToPlaylist.value.copy(
                         busy = null,
-                        // A playlist the account follows but does not own is the
-                        // one failure worth naming: it looks identical to the
-                        // user's own in every list the app draws.
-                        error = if (unsaving) {
-                            string(R.string.remove_failed, playlist.name)
-                        } else {
-                            string(R.string.add_failed, playlist.name)
+                        error = when {
+                            forbidden -> string(R.string.permission_needed)
+                            unsaving -> string(R.string.unlike_failed)
+                            toLibrary -> string(R.string.like_failed)
+                            // A playlist the account follows but does not own is
+                            // the one failure worth naming: it looks identical
+                            // to the user's own in every list the app draws.
+                            else -> string(R.string.add_failed, playlist.name)
                         },
                     )
                 }
@@ -924,6 +932,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // Following artists, and the list of the ones followed.
                     "user-follow-read",
                     "user-follow-modify",
+                    // Liked Songs. It sits in the "add to" list like a
+                    // playlist, but it is the account's library and takes its
+                    // own permission — without this, saving a track answers
+                    // 403 and the heart never fills.
+                    "user-library-read",
+                    "user-library-modify",
                 ),
             )
         }

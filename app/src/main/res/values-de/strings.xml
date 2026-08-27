@@ -115,6 +115,9 @@
     <string name="track_cannot_be_added">Dieser Titel lässt sich nicht hinzufügen.</string>
     <string name="connect_app_in_settings">Verbinde deine Anwendung in den Einstellungen.</string>
     <string name="add_failed">Zu %1$s konnte nichts hinzugefügt werden. Wenn die Playlist nicht dir gehört, kannst du sie nicht ändern.</string>
+    <string name="like_failed">Konnte nicht zu den Lieblingssongs hinzugefügt werden.</string>
+    <string name="unlike_failed">Konnte nicht aus den Lieblingssongs entfernt werden.</string>
+    <string name="permission_needed">Square fehlt eine Berechtigung. Verbinde das Konto in den Einstellungen neu.</string>
     <string name="remove_failed">%1$s konnte nicht geändert werden. Versuch es gleich noch einmal.</string>
 
     <string name="play_on">Abspielen auf</string>
@@ -155,6 +158,7 @@
     <string name="scope_transfer">Wiedergabe übertragen</string>
     <string name="scope_private_playlists">Zu privaten Playlists hinzufügen</string>
     <string name="scope_public_playlists">Zu öffentlichen Playlists hinzufügen</string>
+    <string name="scope_library">Lieblingssongs</string>
     <string name="enter_client_id">Gib die Client ID ein.</string>
     <string name="add_to_library">Zur Bibliothek hinzufügen</string>
     <string name="remove_from_library">Aus der Bibliothek entfernen</string>

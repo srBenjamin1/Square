@@ -124,6 +124,9 @@
     <string name="track_cannot_be_added">यह गाना जोड़ा नहीं जा सकता।</string>
     <string name="connect_app_in_settings">सेटिंग में अपना ऐप्लिकेशन कनेक्ट करें।</string>
     <string name="add_failed">%1$s में नहीं जोड़ा जा सका। अगर प्लेलिस्ट आपकी नहीं है तो आप उसे बदल नहीं सकते।</string>
+    <string name="like_failed">पसंद किए गए गानों में नहीं जोड़ा जा सका।</string>
+    <string name="unlike_failed">पसंद किए गए गानों से नहीं हटाया जा सका।</string>
+    <string name="permission_needed">Square को एक अनुमति चाहिए जो उसे नहीं मिली। सेटिंग्स में खाता दोबारा जोड़ें।</string>
     <string name="remove_failed">%1$s को बदला नहीं जा सका। थोड़ी देर बाद फिर कोशिश करें।</string>
 
     <!-- Player -->
@@ -167,6 +170,7 @@
     <string name="scope_transfer">प्लेबैक ले जाना</string>
     <string name="scope_private_playlists">निजी प्लेलिस्ट में जोड़ना</string>
     <string name="scope_public_playlists">सार्वजनिक प्लेलिस्ट में जोड़ना</string>
+    <string name="scope_library">पसंद किए गए गाने</string>
     <string name="enter_client_id">क्लाइंट आईडी डालें।</string>
     <string name="add_to_library">लाइब्रेरी में जोड़ें</string>
     <string name="remove_from_library">लाइब्रेरी से हटाएँ</string>

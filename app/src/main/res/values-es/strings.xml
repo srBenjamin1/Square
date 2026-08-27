@@ -115,6 +115,9 @@
     <string name="track_cannot_be_added">Esta canción no se puede añadir.</string>
     <string name="connect_app_in_settings">Conecta tu aplicación en los ajustes.</string>
     <string name="add_failed">No se ha podido añadir a %1$s. Si la playlist no es tuya, no puedes modificarla.</string>
+    <string name="like_failed">No se ha podido añadir a Tus me gusta.</string>
+    <string name="unlike_failed">No se ha podido quitar de Tus me gusta.</string>
+    <string name="permission_needed">Square necesita un permiso que no tiene. Vuelve a conectar la cuenta en los ajustes.</string>
     <string name="remove_failed">No se ha podido modificar %1$s. Inténtalo dentro de un momento.</string>
 
     <string name="play_on">Reproducir en</string>
@@ -155,6 +158,7 @@
     <string name="scope_transfer">Mover la reproducción</string>
     <string name="scope_private_playlists">Añadir a playlists privadas</string>
     <string name="scope_public_playlists">Añadir a playlists públicas</string>
+    <string name="scope_library">Tus me gusta</string>
     <string name="enter_client_id">Introduce el client ID.</string>
     <string name="add_to_library">Añadir a la biblioteca</string>
     <string name="remove_from_library">Quitar de la biblioteca</string>

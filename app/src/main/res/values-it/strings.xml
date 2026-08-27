@@ -116,6 +116,9 @@
     <string name="track_cannot_be_added">Questo brano non può essere aggiunto.</string>
     <string name="connect_app_in_settings">Collega la tua applicazione nelle impostazioni.</string>
     <string name="add_failed">Non è stato possibile aggiungere a %1$s. Se la playlist non è tua, non puoi modificarla.</string>
+    <string name="like_failed">Non è stato possibile aggiungere ai Brani che ti piacciono.</string>
+    <string name="unlike_failed">Non è stato possibile togliere dai Brani che ti piacciono.</string>
+    <string name="permission_needed">Square ha bisogno di un permesso che non ha. Ricollega l\'account nelle impostazioni.</string>
     <string name="remove_failed">Non è stato possibile modificare %1$s. Riprova tra poco.</string>
 
     <string name="play_on">Riproduci su</string>
@@ -156,6 +159,7 @@
     <string name="scope_transfer">Sposta la riproduzione</string>
     <string name="scope_private_playlists">Aggiungi a playlist private</string>
     <string name="scope_public_playlists">Aggiungi a playlist pubbliche</string>
+    <string name="scope_library">Brani che ti piacciono</string>
     <string name="enter_client_id">Inserisci il client id.</string>
     <string name="add_to_library">Aggiungi alla libreria</string>
     <string name="remove_from_library">Togli dalla libreria</string>

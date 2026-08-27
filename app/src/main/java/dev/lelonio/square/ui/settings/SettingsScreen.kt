@@ -869,6 +869,7 @@ private val SCOPES = listOf(
     "user-modify-playback-state" to R.string.scope_transfer,
     "playlist-modify-private" to R.string.scope_private_playlists,
     "playlist-modify-public" to R.string.scope_public_playlists,
+    "user-library-modify" to R.string.scope_library,
 )
 
 private val LICENCES = listOf(

@@ -130,6 +130,9 @@
     <string name="track_cannot_be_added">This song cannot be added.</string>
     <string name="connect_app_in_settings">Connect your application in settings.</string>
     <string name="add_failed">%1$s could not be added to. If the playlist is not yours, you cannot change it.</string>
+    <string name="like_failed">Could not add to Liked Songs.</string>
+    <string name="unlike_failed">Could not remove from Liked Songs.</string>
+    <string name="permission_needed">Square needs a permission it was not given. Reconnect the account in Settings.</string>
     <string name="remove_failed">%1$s could not be changed. Try again in a moment.</string>
 
     <!-- Player -->
@@ -173,6 +176,7 @@
     <string name="scope_transfer">Move playback</string>
     <string name="scope_private_playlists">Add to private playlists</string>
     <string name="scope_public_playlists">Add to public playlists</string>
+    <string name="scope_library">Liked Songs</string>
     <string name="enter_client_id">Enter the client ID.</string>
     <string name="add_to_library">Add to library</string>
     <string name="remove_from_library">Remove from library</string>

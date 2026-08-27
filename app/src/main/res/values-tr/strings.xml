@@ -124,6 +124,9 @@
     <string name="track_cannot_be_added">Bu şarkı eklenemiyor.</string>
     <string name="connect_app_in_settings">Uygulamanı ayarlardan bağla.</string>
     <string name="add_failed">%1$s listesine eklenemedi. Liste senin değilse değiştiremezsin.</string>
+    <string name="like_failed">Beğenilen Şarkılar\'a eklenemedi.</string>
+    <string name="unlike_failed">Beğenilen Şarkılar\'dan çıkarılamadı.</string>
+    <string name="permission_needed">Square\'in verilmemiş bir izne ihtiyacı var. Hesabı ayarlardan yeniden bağlayın.</string>
     <string name="remove_failed">%1$s değiştirilemedi. Birazdan tekrar dene.</string>
 
     <!-- Player -->
@@ -167,6 +170,7 @@
     <string name="scope_transfer">Çalmayı taşı</string>
     <string name="scope_private_playlists">Özel çalma listelerine ekleme</string>
     <string name="scope_public_playlists">Herkese açık listelere ekleme</string>
+    <string name="scope_library">Beğenilen Şarkılar</string>
     <string name="enter_client_id">İstemci kimliğini gir.</string>
     <string name="add_to_library">Kitaplığa ekle</string>
     <string name="remove_from_library">Kitaplıktan kaldır</string>
