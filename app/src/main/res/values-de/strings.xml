@@ -227,7 +227,9 @@
     <string name="update_checking">Wird geprüft…</string>
     <string name="update_none">Aktuell</string>
     <string name="update_available">%1$s verfügbar</string>
+    <string name="update_now">Aktualisieren</string>
     <string name="update_downloading">Wird geladen…</string>
+    <string name="update_channel">App-Updates</string>
     <string name="update_installing">Warte auf deine Bestätigung</string>
     <string name="update_needs_permission">Installation erlauben — tippen</string>
     <string name="update_failed">Gerade nicht — zum Wiederholen tippen</string>

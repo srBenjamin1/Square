@@ -242,7 +242,9 @@
     <string name="update_checking">Denetleniyor…</string>
     <string name="update_none">Güncel</string>
     <string name="update_available">%1$s hazır</string>
+    <string name="update_now">Güncelle</string>
     <string name="update_downloading">İndiriliyor…</string>
+    <string name="update_channel">Uygulama güncellemeleri</string>
     <string name="update_installing">Onayın bekleniyor</string>
     <string name="update_needs_permission">Yüklemeye izin ver — dokun</string>
     <string name="update_failed">Şimdi olmadı — yeniden denemek için dokun</string>

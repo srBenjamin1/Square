@@ -40,6 +40,9 @@ class Updater(context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
     private val client = OkHttpClient()
 
+    /** The last whole percent handed to the notification; see [download]. */
+    private var lastReported = -1
+
     private val _state = MutableStateFlow<State>(State.Idle)
     val state: StateFlow<State> = _state.asStateFlow()
 
@@ -47,7 +50,21 @@ class Updater(context: Context) {
         data object Idle : State
         data object Checking : State
         data object UpToDate : State
-        data class Available(val version: String, val url: String, val bytes: Long) : State
+        data class Available(
+            val version: String,
+            val url: String,
+            val bytes: Long,
+            /**
+             * What the release says about itself, as written on the releases
+             * page.
+             *
+             * An update is a thing being asked for rather than announced, and
+             * "there is a new version" is not enough to answer with. Empty when
+             * the release carries no text, which is a release worth showing
+             * anyway.
+             */
+            val notes: String = "",
+        ) : State
         /** 0f..1f, or null while the server sends no length to measure against. */
         data class Downloading(val progress: Float?) : State
         /** Handed to the system installer; the dialog is Android's, not ours. */
@@ -76,7 +93,8 @@ class Updater(context: Context) {
             _state.value = State.UpToDate
             return
         }
-        _state.value = State.Available(result.version, result.url, result.bytes)
+        _state.value =
+            State.Available(result.version, result.url, result.bytes, result.notes)
     }
 
     /**
@@ -101,7 +119,12 @@ class Updater(context: Context) {
         return null
     }
 
-    private data class Release(val version: String, val url: String, val bytes: Long)
+    private data class Release(
+        val version: String,
+        val url: String,
+        val bytes: Long,
+        val notes: String,
+    )
 
     private fun latestRelease(): Release? {
         val request = Request.Builder()
@@ -120,7 +143,8 @@ class Updater(context: Context) {
                 ?: return null
             val url = asset["browser_download_url"]?.jsonPrimitive?.content ?: return null
             val size = asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
-            return Release(tag, url, size)
+            val notes = body["body"]?.jsonPrimitive?.content.orEmpty().trim()
+            return Release(tag, url, size, notes)
         }
     }
 
@@ -132,19 +156,43 @@ class Updater(context: Context) {
      * replace itself unattended is one the user has to trust rather more than
      * this one asks to be trusted.
      */
-    suspend fun install(update: State.Available) {
+    fun install(update: State.Available) {
         if (!canInstall()) {
             _state.value = State.Failed(REASON_PERMISSION)
             return
         }
-
+        // Handed to a service rather than done here.
+        //
+        // This used to run in whatever scope the screen gave it, so leaving the
+        // app — or merely opening the player — cancelled the download halfway
+        // with nothing to show for it. See UpdateService.
         _state.value = State.Downloading(null)
-        val apk = runCatching { withContext(Dispatchers.IO) { download(update) } }
-            .getOrElse {
-                android.util.Log.w(TAG, "download failed: $it")
-                _state.value = State.Failed(it.message ?: "download")
-                return
-            }
+        UpdateService.start(app, update)
+    }
+
+    /**
+     * The download itself, called by the service that is allowed to finish it.
+     *
+     * @param onProgress told as often as the bytes arrive, so the notification
+     *   can say how far along it is; null while the server sends no length.
+     */
+    suspend fun fetchAndInstall(
+        url: String,
+        version: String,
+        bytes: Long,
+        onProgress: (Float?) -> Unit,
+    ) {
+        val update = State.Available(version, url, bytes)
+        _state.value = State.Downloading(null)
+        onProgress(null)
+
+        val apk = runCatching {
+            withContext(Dispatchers.IO) { download(update, onProgress) }
+        }.getOrElse {
+            android.util.Log.w(TAG, "download failed: $it")
+            _state.value = State.Failed(it.message ?: "download")
+            return
+        }
 
         runCatching { withContext(Dispatchers.IO) { commit(apk) } }
             .onSuccess { _state.value = State.Installing }
@@ -155,12 +203,13 @@ class Updater(context: Context) {
             }
     }
 
-    private fun download(update: State.Available): File {
+    private fun download(update: State.Available, onProgress: (Float?) -> Unit): File {
         // cacheDir, not filesDir: once the installer has read it the file is
         // dead weight, and twenty megabytes is worth letting the system reclaim
         // if the install never happens.
         val target = File(app.cacheDir, "update.apk")
         target.delete()
+        lastReported = -1
 
         val request = Request.Builder().url(update.url).build()
         client.newCall(request).execute().use { response ->
@@ -178,7 +227,17 @@ class Updater(context: Context) {
                         output.write(buffer, 0, read)
                         written += read
                         if (total > 0) {
-                            _state.value = State.Downloading(written.toFloat() / total)
+                            val progress = written.toFloat() / total
+                            _state.value = State.Downloading(progress)
+                            // Rounded to a percent before it is reported: a
+                            // notification redrawn on every sixty-fourth
+                            // kilobyte is three hundred redraws for a number
+                            // that changed a hundred times.
+                            val step = (progress * 100).toInt()
+                            if (step != lastReported) {
+                                lastReported = step
+                                onProgress(progress)
+                            }
                         }
                     }
                 }

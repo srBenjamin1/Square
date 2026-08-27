@@ -24,6 +24,17 @@ sealed interface BackdropEffectScope : Density, RuntimeShaderCache {
 
     val shape: Shape
 
+    /**
+     * Vendored addition: the fraction of the surface's real size the effects are
+     * working on, when the backdrop was recorded at a reduced resolution.
+     *
+     * [size] is already reported in that reduced grid. Anything an effect
+     * derives from [shape] is not — a corner radius in dp converts at the full
+     * density — so a shape's geometry has to be brought into the same grid by
+     * hand. See the lens.
+     */
+    val contentScale: Float
+
     var padding: Float
 
     var renderEffect: RenderEffect?
@@ -36,6 +47,7 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope, RuntimeSh
     override var size: Size = Size.Unspecified
     override var layoutDirection: LayoutDirection = LayoutDirection.Ltr
     override var padding: Float = 0f
+    override var contentScale: Float = 1f
     override var renderEffect: RenderEffect? = null
 
     private val runtimeShaderCache = RuntimeShaderCacheImpl()
@@ -56,13 +68,15 @@ internal abstract class BackdropEffectScopeImpl : BackdropEffectScope, RuntimeSh
         val changed = newDensity != density ||
                 newFontScale != fontScale ||
                 newSize != size ||
-                newLayoutDirection != layoutDirection
+                newLayoutDirection != layoutDirection ||
+                contentScale != this.contentScale
 
         if (changed) {
             density = newDensity
             fontScale = newFontScale
             size = newSize
             layoutDirection = newLayoutDirection
+            this.contentScale = contentScale
         }
 
         return changed

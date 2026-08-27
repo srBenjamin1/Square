@@ -242,7 +242,9 @@
     <string name="update_checking">देखा जा रहा है…</string>
     <string name="update_none">अप टू डेट</string>
     <string name="update_available">%1$s उपलब्ध</string>
+    <string name="update_now">अपडेट करें</string>
     <string name="update_downloading">डाउनलोड हो रहा है…</string>
+    <string name="update_channel">ऐप अपडेट</string>
     <string name="update_installing">आपकी पुष्टि का इंतज़ार</string>
     <string name="update_needs_permission">इंस्टॉल की अनुमति दें — टैप करें</string>
     <string name="update_failed">अभी नहीं — फिर कोशिश के लिए टैप करें</string>

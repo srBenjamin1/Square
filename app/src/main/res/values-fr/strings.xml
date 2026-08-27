@@ -227,7 +227,9 @@
     <string name="update_checking">Vérification…</string>
     <string name="update_none">À jour</string>
     <string name="update_available">%1$s disponible</string>
+    <string name="update_now">Mettre à jour</string>
     <string name="update_downloading">Téléchargement…</string>
+    <string name="update_channel">Mises à jour</string>
     <string name="update_installing">En attente de votre confirmation</string>
     <string name="update_needs_permission">Autorisez l\'installation — touchez</string>
     <string name="update_failed">Pas maintenant — touchez pour réessayer</string>

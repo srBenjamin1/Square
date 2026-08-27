@@ -70,6 +70,13 @@ fun BackdropEffectScope.lens(
 // Vendored change: support for io.github.kyant0:shapes' RoundedRectangularShape was
 // dropped so the vendored sources have no external dependency; this app only passes
 // CornerBasedShape here.
+// Vendored change: radii are brought into the recorded layer's pixel grid.
+//
+// [size] arrives already multiplied by the resolution the backdrop was recorded
+// at, but a corner in dp converts at the full density, so a half-resolution
+// layer refracted as if the corners were twice as round — invisible on a
+// capsule, whose radius is clamped to half its height anyway, and plain on a
+// large panel with a fixed corner: the arc swept an inch into the middle of it.
 private val BackdropEffectScope.cornerRadii: FloatArray?
     get() = when (val shape = shape) {
         is AbsoluteRoundedCornerShape -> {
@@ -80,10 +87,10 @@ private val BackdropEffectScope.cornerRadii: FloatArray?
             val bottomRight = shape.bottomEnd.toPx(size, this)
             val bottomLeft = shape.bottomStart.toPx(size, this)
             floatArrayOf(
-                topLeft.fastCoerceAtMost(maxRadius),
-                topRight.fastCoerceAtMost(maxRadius),
-                bottomRight.fastCoerceAtMost(maxRadius),
-                bottomLeft.fastCoerceAtMost(maxRadius)
+                (topLeft * contentScale).fastCoerceAtMost(maxRadius),
+                (topRight * contentScale).fastCoerceAtMost(maxRadius),
+                (bottomRight * contentScale).fastCoerceAtMost(maxRadius),
+                (bottomLeft * contentScale).fastCoerceAtMost(maxRadius)
             )
         }
 
@@ -104,10 +111,10 @@ private val BackdropEffectScope.cornerRadii: FloatArray?
                 if (isLtr) shape.bottomStart.toPx(size, this)
                 else shape.bottomEnd.toPx(size, this)
             floatArrayOf(
-                topLeft.fastCoerceAtMost(maxRadius),
-                topRight.fastCoerceAtMost(maxRadius),
-                bottomRight.fastCoerceAtMost(maxRadius),
-                bottomLeft.fastCoerceAtMost(maxRadius)
+                (topLeft * contentScale).fastCoerceAtMost(maxRadius),
+                (topRight * contentScale).fastCoerceAtMost(maxRadius),
+                (bottomRight * contentScale).fastCoerceAtMost(maxRadius),
+                (bottomLeft * contentScale).fastCoerceAtMost(maxRadius)
             )
         }
 

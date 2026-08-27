@@ -121,7 +121,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.IntOffset
 import dev.lelonio.square.ui.components.TrackSheet
 import dev.lelonio.square.ui.components.TrackSheetAction
-import dev.lelonio.square.ui.components.UpdateDialog
+import dev.lelonio.square.ui.components.UpdateSheet
 import dev.lelonio.square.update.Updater
 import dev.lelonio.square.ui.library.openLink
 import com.adamglin.phosphoricons.regular.Download
@@ -251,8 +251,6 @@ fun SquareApp(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
     val context = LocalContext.current
-
-    UpdatePrompt()
 
     // The session as it was left, so the player has something to draw before
     // the media controller connects. Read once, off the saved queue.
@@ -894,8 +892,13 @@ fun SquareApp(
                 // it refracts was not being recorded while it was the only
                 // thing open, so the glass had nothing behind it and the sheet
                 // came up as a transparent panel with no depth at all.
+                // The update sheet is glass like the rest, so it has to be
+                // counted here too: the layer below is only recorded while
+                // something is reading it, and a panel over an unrecorded
+                // backdrop has nothing to refract — it came out flat.
+                var updateOpen by remember { mutableStateOf(false) }
                 val sheetsOpen = trackMenu != null || addToPlaylist.open || playlistMenu != null ||
-                    sharedTrack != null || friendsOpen
+                    sharedTrack != null || friendsOpen || updateOpen
                 // Kept on a little past the close, or the layer would stop
                 // being recorded while the sheet is still fading out over it
                 // and the panel would go black on the way down.
@@ -1932,6 +1935,11 @@ fun SquareApp(
                 // Over everything, including the player: the same sheet is
                 // opened from a track row in the library and from the plus in
                 // the player, and it is one sheet with one state.
+                // Here rather than at the top of the app: a sheet made of
+                // glass has to be drawn where there is a layer to refract, and
+                // this is the layer the other sheets use.
+                UpdatePrompt(overlayBackdrop, onOpenChange = { updateOpen = it })
+
                 AddToPlaylistSheet(
                     state = addToPlaylist,
                     backdrop = overlayBackdrop,
@@ -2333,7 +2341,10 @@ private fun Player.cycleRepeatMode() {
  * asked for, so a failure is not something to tell them about.
  */
 @Composable
-private fun UpdatePrompt() {
+private fun UpdatePrompt(
+    backdrop: dev.lelonio.square.ui.glass.backdrop.Backdrop,
+    onOpenChange: (Boolean) -> Unit,
+) {
     val context = LocalContext.current
     val updater = remember(context) {
         (context.applicationContext as dev.lelonio.square.SquareApplication).updater
@@ -2352,10 +2363,16 @@ private fun UpdatePrompt() {
         runCatching { updater.check() }
     }
 
-    val available = state as? Updater.State.Available ?: return
-    // Already offered, and turned down. The version is remembered rather than
-    // a flag, so the next release is news again.
-    if (available.version == prefs.skippedUpdate()) return
+    // Held while the download runs: the state moves on from Available the
+    // moment the fetch starts, and the sheet has to stay to show it happening.
+    var offered by remember { mutableStateOf<Updater.State.Available?>(null) }
+    var dismissed by remember { mutableStateOf(false) }
+    (state as? Updater.State.Available)?.let { found ->
+        // Already offered, and turned down. The version is remembered rather
+        // than a flag, so the next release is news again.
+        if (found.version != prefs.skippedUpdate()) offered = found
+    }
+    val available = offered ?: return
 
     // Held across the trip to the system settings, so granting the permission
     // continues the install instead of dropping it.
@@ -2365,24 +2382,39 @@ private fun UpdatePrompt() {
     ) {
         val update = pending ?: return@rememberLauncherForActivityResult
         pending = null
-        scope.launch { if (updater.canInstall()) updater.install(update) }
+        if (updater.canInstall()) updater.install(update)
     }
 
-    UpdateDialog(
+    val downloading = state is Updater.State.Downloading
+    val installing = state is Updater.State.Installing
+
+    // What the layer below is recorded for; see [sheetsOpen].
+    val showing = !dismissed && !installing
+    LaunchedEffect(showing) { onOpenChange(showing) }
+    DisposableEffect(Unit) { onDispose { onOpenChange(false) } }
+
+    UpdateSheet(
         version = available.version,
         size = available.bytes.takeIf { it > 0 }?.let { "%.1f MB".format(it / 1_000_000.0) },
+        notes = available.notes,
+        progress = (state as? Updater.State.Downloading)?.progress,
+        downloading = downloading,
         onInstall = {
-            prefs.setSkippedUpdate(available.version)
-            scope.launch {
-                if (updater.canInstall()) {
-                    updater.install(available)
-                } else {
-                    pending = available
-                    permission.launch(updater.permissionIntent())
-                }
+            if (updater.canInstall()) {
+                updater.install(available)
+            } else {
+                pending = available
+                permission.launch(updater.permissionIntent())
             }
         },
-        onDismiss = { prefs.setSkippedUpdate(available.version) },
+        onDismiss = {
+            prefs.setSkippedUpdate(available.version)
+            dismissed = true
+        },
+        backdrop = backdrop,
+        // Gone once the system installer has it: what happens next is Android's
+        // dialog, and two things asking about the same install is one too many.
+        visible = showing,
     )
 }
 
