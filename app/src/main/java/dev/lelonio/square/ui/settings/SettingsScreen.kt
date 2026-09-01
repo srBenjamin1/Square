@@ -605,8 +605,11 @@ private fun YouTubeAccountSection(onSignIn: () -> Unit, onChannelChange: () -> U
                             ?: channel.name,
                         selected = channel.pageId == pageId,
                     ) {
-                        account.useChannel(channel)
-                        onChannelChange()
+                        scope.launch {
+                            // Only a switch that Google accepted is worth
+                            // reloading a library for.
+                            if (account.useChannel(channel)) onChannelChange()
+                        }
                     }
                 }
             }

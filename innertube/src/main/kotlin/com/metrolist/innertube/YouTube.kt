@@ -83,6 +83,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
@@ -3363,22 +3364,27 @@ object YouTube {
      */
     suspend fun accounts(): Result<List<YouTubeChannel>> =
         runCatching {
-            val raw = innerTube.accountsList(WEB_REMIX).bodyAsText()
-            val parsed = Json { ignoreUnknownKeys = true }
-                .decodeFromString<AccountsListResponse>(raw)
-            val channels = parsed
-                .contents
-                ?.accountSectionListRenderer
-                ?.contents
-                .orEmpty()
-                .mapNotNull { it.accountItemSectionRenderer }
-                .flatMap { it.contents.orEmpty() }
-                .mapNotNull { it.accountItem }
+            val raw = innerTube.accountsList(YouTubeClient.WEB_ACCOUNTS).bodyAsText()
+            // Found wherever they are, rather than walked down a path.
+            //
+            // Two attempts at that path both missed: the response is a popup
+            // menu whose nesting differs between accounts, and each wrong guess
+            // cost a build, an install and someone opening a settings page. The
+            // items themselves are unambiguous — an `accountItem` is an account
+            // and nothing else is called that — so the whole document is
+            // searched for them and the shape around them stops mattering.
+            val channels = accountItems(Json.parseToJsonElement(raw))
+                .mapNotNull { item ->
+                    runCatching {
+                        Json { ignoreUnknownKeys = true }
+                            .decodeFromJsonElement<AccountsListResponse.AccountItem>(item)
+                    }.getOrNull()
+                }
                 .mapNotNull { item ->
                     val tokens = item.serviceEndpoint?.selectActiveIdentityEndpoint?.supportedTokens
                     YouTubeChannel(
-                        name = item.accountName?.runs?.firstOrNull()?.text ?: return@mapNotNull null,
-                        handle = item.accountByline?.runs?.firstOrNull()?.text,
+                        name = item.accountName?.text ?: return@mapNotNull null,
+                        handle = item.accountByline?.text,
                         thumbnailUrl = item.accountPhoto?.thumbnails?.lastOrNull()?.url,
                         pageId = tokens?.firstNotNullOfOrNull { it.pageIdToken?.pageId },
                         dataSyncId = tokens?.firstNotNullOfOrNull { it.datasyncIdToken?.datasyncIdToken },
@@ -3386,19 +3392,36 @@ object YouTube {
                     )
                 }
             if (channels.isEmpty()) {
-                // Which renderers came back, so a response shaped differently
-                // from the one this was written against can be read from a log
-                // rather than guessed at. Names only: the values are the
-                // account's own.
-                val renderers = Regex("\"([A-Za-z]+Renderer)\"")
-                    .findAll(raw)
-                    .map { it.groupValues[1] }
-                    .distinct()
-                    .joinToString(", ")
-                Timber.d("accounts(): none parsed; ${raw.length} bytes, renderers: $renderers")
+                Timber.d("accounts(): the response listed no channels")
             }
             channels
         }
+
+    /**
+     * Every account in a response, found by what it holds rather than by name.
+     *
+     * The document nests them differently from one client to the next, and the
+     * key they sit under is not `accountItem` here at all — the response
+     * carries three of them and a search by that name found none. What does not
+     * vary is the shape of an account: a name, and an endpoint that selects the
+     * identity. Nothing else in the document has both, so that pair is what
+     * identifies one.
+     */
+    private fun accountItems(
+        element: kotlinx.serialization.json.JsonElement,
+    ): List<kotlinx.serialization.json.JsonElement> = buildList {
+        when (element) {
+            is kotlinx.serialization.json.JsonObject -> {
+                val looksLikeAccount = element.containsKey("accountName") &&
+                    element.containsKey("serviceEndpoint")
+                if (looksLikeAccount) add(element)
+                element.values.forEach { addAll(accountItems(it)) }
+            }
+
+            is kotlinx.serialization.json.JsonArray -> element.forEach { addAll(accountItems(it)) }
+            else -> Unit
+        }
+    }
 
     /** Which channel of the account calls are made as; see [accounts]. */
     var pageId: String?

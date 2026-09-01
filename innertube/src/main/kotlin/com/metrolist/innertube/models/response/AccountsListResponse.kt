@@ -1,6 +1,5 @@
 package com.metrolist.innertube.models.response
 
-import com.metrolist.innertube.models.Runs
 import com.metrolist.innertube.models.Thumbnails
 import kotlinx.serialization.Serializable
 
@@ -13,55 +12,100 @@ import kotlinx.serialization.Serializable
  * the active one, so a session opened on the wrong identity showed the wrong
  * library with no way to change it.
  *
- * Each entry carries the tokens that select it: a page id for a brand channel,
- * and the datasync id that tells the rest of the API which library to read.
+ * The shape is the account menu's, not a page's: `account/accounts_list`
+ * answers with an action that opens a popup, and the accounts are sections
+ * inside it. Read off a real response — the first attempt at this assumed a
+ * `contents` at the root and failed before it could say so.
+ *
+ * Every field is optional. This is read for what it happens to carry, and a
+ * branch that is missing on some accounts must not fail the whole parse.
  */
 @Serializable
 data class AccountsListResponse(
-    val contents: Contents?,
+    val actions: List<Action>? = null,
 ) {
     @Serializable
-    data class Contents(
-        val accountSectionListRenderer: AccountSectionListRenderer?,
+    data class Action(
+        val openPopupAction: OpenPopupAction? = null,
+    )
+
+    @Serializable
+    data class OpenPopupAction(
+        val popup: Popup? = null,
+    )
+
+    @Serializable
+    data class Popup(
+        val multiPageMenuRenderer: MultiPageMenuRenderer? = null,
+    )
+
+    @Serializable
+    data class MultiPageMenuRenderer(
+        val sections: List<Section>? = null,
+    )
+
+    @Serializable
+    data class Section(
+        val accountSectionListRenderer: AccountSectionListRenderer? = null,
     )
 
     @Serializable
     data class AccountSectionListRenderer(
-        val contents: List<Content>?,
-    ) {
-        @Serializable
-        data class Content(
-            val accountItemSectionRenderer: AccountItemSectionRenderer?,
-        )
-    }
+        val contents: List<SectionContent>? = null,
+    )
+
+    @Serializable
+    data class SectionContent(
+        val accountItemSectionRenderer: AccountItemSectionRenderer? = null,
+    )
 
     @Serializable
     data class AccountItemSectionRenderer(
-        val contents: List<Content>?,
+        val contents: List<ItemContent>? = null,
+    )
+
+    @Serializable
+    data class ItemContent(
+        val accountItem: AccountItem? = null,
+    )
+
+    /**
+     * A piece of text, written either way.
+     *
+     * YouTube says the same thing in two shapes — `simpleText` for a plain
+     * string, `runs` for one built out of segments — and this endpoint uses the
+     * first while most of the module uses the second. Declaring these as `Runs`
+     * is what made every account fail to decode, quietly, leaving a list that
+     * looked empty when the response held three.
+     */
+    @Serializable
+    data class Label(
+        val simpleText: String? = null,
+        val runs: List<Run>? = null,
     ) {
-        @Serializable
-        data class Content(
-            val accountItem: AccountItem?,
-        )
+        val text: String? get() = simpleText ?: runs?.firstOrNull()?.text
     }
 
     @Serializable
+    data class Run(val text: String? = null)
+
+    @Serializable
     data class AccountItem(
-        val accountName: Runs?,
-        val accountByline: Runs?,
-        val accountPhoto: Thumbnails?,
+        val accountName: Label? = null,
+        val accountByline: Label? = null,
+        val accountPhoto: Thumbnails? = null,
         val isSelected: Boolean = false,
-        val serviceEndpoint: ServiceEndpoint?,
+        val serviceEndpoint: ServiceEndpoint? = null,
     )
 
     @Serializable
     data class ServiceEndpoint(
-        val selectActiveIdentityEndpoint: SelectActiveIdentityEndpoint?,
+        val selectActiveIdentityEndpoint: SelectActiveIdentityEndpoint? = null,
     )
 
     @Serializable
     data class SelectActiveIdentityEndpoint(
-        val supportedTokens: List<SupportedToken>?,
+        val supportedTokens: List<SupportedToken>? = null,
     )
 
     @Serializable

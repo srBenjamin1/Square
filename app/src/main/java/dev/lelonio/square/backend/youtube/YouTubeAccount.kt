@@ -97,14 +97,50 @@ class YouTubeAccount(context: Context) {
      * channel the request is for, the second which library to sync it against,
      * and a mismatched pair reads the right name over the wrong music.
      */
-    fun useChannel(channel: YouTubeChannel) {
+    suspend fun useChannel(channel: YouTubeChannel): Boolean {
+        val previousPageId = prefs.getString(KEY_PAGE_ID, null)
+        val previousSyncId = prefs.getString(KEY_DATA_SYNC_ID, null)
+        val previousName = prefs.getString(KEY_NAME, null)
+
+        // Lengths, not values: these two are what let a request act as this
+        // channel, and a log is not the place for them. Whether they are there
+        // at all is the whole question when a switch is refused.
+        android.util.Log.i(
+            TAG,
+            "switching channel: pageId=${channel.pageId?.length ?: 0} chars," +
+                " dataSyncId=${channel.dataSyncId?.length ?: 0} chars",
+        )
+
+        applyChannel(channel.pageId, channel.dataSyncId.orEmpty(), channel.name)
+
+        // Tried before it is believed. The two tokens have to be the pair
+        // Google issued together, and a mismatched one is refused — which used
+        // to leave the app claiming the session had expired, when the session
+        // was fine and it was this switch that was not.
+        val attempt = YouTube.accountInfo()
+        val worked = attempt.isSuccess
+        if (!worked) {
+            // The message, not just the outcome: "refused" covers a wrong token
+            // pair, a client that does not accept the header, and a session
+            // that was already gone, and those want three different answers.
+            android.util.Log.w(
+                TAG,
+                "channel refused: ${attempt.exceptionOrNull()?.message?.take(400)}",
+            )
+            android.util.Log.w(TAG, "channel refused, going back to the previous one")
+            applyChannel(previousPageId, previousSyncId.orEmpty(), previousName.orEmpty())
+        }
+        return worked
+    }
+
+    private fun applyChannel(pageId: String?, dataSyncId: String, name: String) {
         prefs.edit()
-            .putString(KEY_PAGE_ID, channel.pageId)
-            .putString(KEY_DATA_SYNC_ID, channel.dataSyncId.orEmpty())
-            .putString(KEY_NAME, channel.name)
+            .putString(KEY_PAGE_ID, pageId)
+            .putString(KEY_DATA_SYNC_ID, dataSyncId)
+            .putString(KEY_NAME, name)
             .apply()
-        _pageId.value = channel.pageId
-        _accountName.value = channel.name
+        _pageId.value = pageId
+        _accountName.value = name
         applyToInnerTube()
     }
 
@@ -141,12 +177,16 @@ class YouTubeAccount(context: Context) {
     suspend fun revalidate() {
         if (!isSignedIn) return
 
-        webViewCookie()?.let { fresh ->
-            if (fresh != prefs.getString(KEY_COOKIE, null)) {
-                prefs.edit().putString(KEY_COOKIE, fresh).apply()
-                applyToInnerTube()
-            }
-        }
+        // The cookie is left exactly as the sign-in left it.
+        //
+        // This used to be copied from the web view's store on every check, on
+        // the theory that Google renews a session there and the saved copy goes
+        // stale. It cost this account its session twice: the web view collects
+        // cookies from any page of music.youtube.com it loads, and those are
+        // not the signed-in session — the first time they lacked SAPISID
+        // entirely, the second they carried one that answered 401. A saved
+        // session that Google still accepts must not be replaced by a guess
+        // about a better one.
 
         if (YouTube.visitorData.isNullOrBlank()) {
             YouTube.visitorData()
@@ -175,17 +215,6 @@ class YouTubeAccount(context: Context) {
                 _expired.value = refused
             }
     }
-
-    /**
-     * What the web view holds for `music.youtube.com` right now.
-     *
-     * That store is the one Google writes to, and it survives restarts, so it
-     * is where a renewed cookie shows up first.
-     */
-    private fun webViewCookie(): String? =
-        runCatching { android.webkit.CookieManager.getInstance().getCookie(MUSIC_URL) }
-            .getOrNull()
-            ?.takeIf { it.isNotBlank() }
 
     fun signOut() {
         prefs.edit().clear().apply()

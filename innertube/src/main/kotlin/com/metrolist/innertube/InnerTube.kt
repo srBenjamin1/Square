@@ -174,7 +174,17 @@ class InnerTube {
                     // Vendored: the channel within that account, where one was
                     // chosen. Absent for the personal channel, which is what
                     // the account answers as by default.
-                    pageId?.takeIf { it.isNotBlank() }?.let { append("X-Goog-PageId", it) }
+                    //
+                    // The two travel together. `X-Goog-PageId` says which
+                    // channel to act as, and `X-Goog-AuthUser` says which of
+                    // the signed-in accounts that channel belongs to — sent on
+                    // its own, the first was answered with 401 and the words
+                    // "missing required authentication credential", which reads
+                    // as a dead session and is really an incomplete request.
+                    pageId?.takeIf { it.isNotBlank() }?.let {
+                        append("X-Goog-PageId", it)
+                        append("X-Goog-AuthUser", "0")
+                    }
                 }
             }
         }

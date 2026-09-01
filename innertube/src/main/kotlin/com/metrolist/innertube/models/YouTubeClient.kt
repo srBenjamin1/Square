@@ -59,6 +59,24 @@ data class YouTubeClient(
             userAgent = USER_AGENT_WEB,
         )
 
+        /**
+         * Vendored addition: youtube.com's own client, with the session sent.
+         *
+         * Only for `account/accounts_list`. Asked as WEB_REMIX — YouTube Music
+         * — that endpoint answers with the account sections present but empty:
+         * the identities belong to YouTube proper, and the music client is not
+         * shown them. Plain [WEB] cannot be used instead because it does not
+         * carry a login, so the request would be anonymous and answer for
+         * nobody.
+         */
+        val WEB_ACCOUNTS = YouTubeClient(
+            clientName = "WEB",
+            clientVersion = "2.20260114.08.00",
+            clientId = "1",
+            userAgent = USER_AGENT_WEB,
+            loginSupported = true,
+        )
+
         val WEB_REMIX = YouTubeClient(
             clientName = "WEB_REMIX",
             clientVersion = "1.20260114.03.00",
