@@ -17,7 +17,9 @@ import androidx.compose.foundation.background
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.Color
 import com.adamglin.PhosphorIcons
+import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.Regular
+import com.adamglin.phosphoricons.fill.ArrowCircleDown
 import com.adamglin.phosphoricons.regular.FolderSimple
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -56,7 +58,9 @@ fun Artwork(
     val density = LocalDensity.current
 
     Box(modifier.clip(shape), contentAlignment = Alignment.Center) {
-        if (url == dev.lelonio.square.data.LocalLibrary.COVER) {
+        if (url == DOWNLOADS_COVER) {
+            DownloadsCover()
+        } else if (url == dev.lelonio.square.data.LocalLibrary.COVER) {
             LocalFilesCover()
         } else if (url != null) {
             val request = remember(url, decodeSize) {
@@ -125,6 +129,26 @@ private fun LocalFilesCover() {
 }
 
 /** The two colours of that tile, deep enough to sit in a grid of covers. */
+/** The shelf of songs downloaded on their own; see DownloadStore.SINGLES. */
+const val DOWNLOADS_COVER = "square:downloads-cover"
+
+@Composable
+private fun DownloadsCover() {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(LocalFilesTile),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            PhosphorIcons.Fill.ArrowCircleDown,
+            contentDescription = null,
+            tint = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+            modifier = Modifier.fillMaxSize(0.44f),
+        )
+    }
+}
+
 private val LocalFilesTile = Color(0xFF20306E)
 private val LocalFilesGlyph = Color(0xFF2ECC57)
 

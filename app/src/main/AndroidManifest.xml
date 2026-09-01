@@ -101,6 +101,16 @@
           The download of a new version, which has to be allowed to finish:
           see UpdateService.
         -->
+        <!--
+          Its own service, not a second job for the player's: a playlist can be
+          downloading with nothing playing, and music can play with nothing left
+          to fetch. Not exported — only this app ever starts it.
+        -->
+        <service
+            android:name=".download.DownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <service
             android:name=".update.UpdateService"
             android:exported="false"

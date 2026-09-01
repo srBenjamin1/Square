@@ -94,6 +94,20 @@ data class CatalogPlaylist(
     val name: String,
     /** Null when the playlist has no custom cover; the UI draws a tile instead. */
     val artworkUrl: String? = null,
+    /**
+     * Who it is by, or what it is: the line a home shelf writes under the name.
+     *
+     * Null in the account's own library, where every row is the user's and the
+     * line would say nothing.
+     */
+    val subtitle: String? = null,
+    /**
+     * An artist rather than a record.
+     *
+     * The only thing the tile does differently, and it does matter: a round
+     * portrait among square covers is how a shelf says "these are people".
+     */
+    val isArtist: Boolean = false,
 )
 
 /** One credited artist: what to write, and where it leads. */

@@ -7,6 +7,7 @@ import dev.lelonio.square.data.ContextCacheStore
 import dev.lelonio.square.data.LanguageStore
 import dev.lelonio.square.data.PlaylistOrderStore
 import dev.lelonio.square.data.PreferencesStore
+import kotlinx.coroutines.launch
 import dev.lelonio.square.data.RecentStore
 import dev.lelonio.square.playback.EffectPresetStore
 import dev.lelonio.square.data.ApiFactory
@@ -23,11 +24,38 @@ class SquareApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // The vendored InnerTube module logs through Timber, and with nothing
+        // planted every one of those lines went nowhere — which is why a
+        // YouTube page that came back in an unexpected shape could only be
+        // guessed at. Debug builds only: a release build has no business
+        // writing what the account is doing to the system log.
+        if (BuildConfig.DEBUG || BuildConfig.VERBOSE_LOG) {
+            timber.log.Timber.plant(timber.log.Timber.DebugTree())
+        }
         // Before anything can read or write them. The service used to do this on
         // creation, which is late: the player screen and the media session both
         // exist by then and either can announce a default that would be saved
         // over what the listener had set.
         dev.lelonio.square.playback.AudioEffects.load(this)
+
+        // Where the extras live, and which tracks are worth keeping them for.
+        // Attached here rather than in the service: Catalog reaches for it on
+        // any thread and long before anything has started playing.
+        dev.lelonio.square.download.DownloadExtras.attach(downloads.root) {
+            downloads.isDownloaded(it)
+        }
+
+        // The listener's own offline switch is persisted, so it has to be put
+        // back before anything reads it. Collected rather than read once: it is
+        // the one input to OfflineMode that can change without the service
+        // being involved.
+        kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+        ).launch {
+            downloadSettings.offlineMode.collect(
+                dev.lelonio.square.playback.OfflineMode::setManual,
+            )
+        }
 
         // Not a feature: a line in the log saying whether this install has been
         // compiled ahead of time yet. See reportProfileStatus.
@@ -37,6 +65,27 @@ class SquareApplication : Application() {
     }
 
     val tokenStore: TokenStore by lazy { TokenStore(this) }
+
+    /**
+     * What is downloaded and who asked for it.
+     *
+     * One instance, like the token store and for the same reason: the index is
+     * a file, and two of these would write over each other. The audio it points
+     * at belongs to the engine, which finds it without going through here.
+     */
+    val downloads: dev.lelonio.square.data.DownloadStore by lazy {
+        dev.lelonio.square.data.DownloadStore(this)
+    }
+
+    /** Download quality, Wi-Fi only, the offline switch. */
+    val downloadSettings: dev.lelonio.square.data.DownloadSettingsStore by lazy {
+        dev.lelonio.square.data.DownloadSettingsStore(this)
+    }
+
+    /** Works through what [downloads] says is still owed. */
+    val downloadQueue: dev.lelonio.square.download.DownloadQueue by lazy {
+        dev.lelonio.square.download.DownloadQueue(this, downloads, downloadSettings)
+    }
 
     /**
      * Whether Spotify can be used, which is not the same as holding a token.

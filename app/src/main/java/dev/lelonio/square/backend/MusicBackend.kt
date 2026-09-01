@@ -3,6 +3,7 @@ package dev.lelonio.square.backend
 import androidx.media3.common.Player
 import dev.lelonio.square.data.CatalogPlaylist
 import dev.lelonio.square.data.CatalogTrack
+import dev.lelonio.square.data.SearchItem
 import dev.lelonio.square.data.SearchResults
 import kotlinx.coroutines.flow.StateFlow
 
@@ -41,9 +42,39 @@ data class HomeRow(
     val tracks: List<CatalogTrack> = emptyList(),
     /** Playlists, albums and artists alike: all of them open a track list. */
     val items: List<CatalogPlaylist> = emptyList(),
+    /**
+     * The small line above the title — "MIX", an artist's name, a genre.
+     *
+     * YouTube writes it for about half its shelves and it is most of what tells
+     * two rows called "Radio" apart.
+     */
+    val strapline: String? = null,
 ) {
     val isEmpty: Boolean get() = tracks.isEmpty() && items.isEmpty()
 }
+
+/**
+ * One of the filters above a home page: "Relax", "Workout", "Feel good".
+ *
+ * [params] is the service's own token for that view, passed straight back when
+ * the chip is picked. Null on the chip that clears the filter.
+ */
+data class HomeChip(val title: String, val params: String?)
+
+/**
+ * A home page as it arrives: some shelves, and where the next ones are.
+ *
+ * The page is paged on purpose. YouTube's home opens with four or five shelves
+ * and holds the other twenty behind a continuation token, which is why a home
+ * read in one call looks like an app with nothing in it.
+ */
+data class HomeFeed(
+    val rows: List<HomeRow> = emptyList(),
+    /** Opaque, and handed back to fetch what comes after these rows. */
+    val cursor: String? = null,
+    /** Only on the first page; a continuation carries no chips of its own. */
+    val chips: List<HomeChip> = emptyList(),
+)
 
 /**
  * A source of music: catalogue reads plus a [Player] that can play what the
@@ -91,8 +122,22 @@ interface MusicBackend {
      *
      * Empty by default: a backend whose home is assembled from the account's
      * own data elsewhere has no use for it.
+     *
+     * @param cursor from a previous [HomeFeed], to read the next shelves.
+     * @param params the token of a chip the user picked, to read that view.
      */
-    suspend fun homeRows(): List<HomeRow> = emptyList()
+    suspend fun homeFeed(cursor: String? = null, params: String? = null): HomeFeed = HomeFeed()
+
+    /**
+     * The albums the account has saved, for the library's own shelf of them.
+     *
+     * Apart from [playlists] because the library filters by kind, and a shelf
+     * that cannot say which is which has nothing to filter by.
+     */
+    suspend fun savedAlbums(): List<CatalogPlaylist> = emptyList()
+
+    /** The artists the account follows, for the same shelf's artists chip. */
+    suspend fun followedArtists(): List<SearchItem> = emptyList()
 
     /** Tracks of a playlist, album, or artist URI this backend owns. */
     suspend fun tracksOf(uri: String): List<CatalogTrack>

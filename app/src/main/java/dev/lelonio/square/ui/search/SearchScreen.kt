@@ -87,6 +87,8 @@ fun SearchScreen(
      */
     history: List<CatalogTrack>,
     onClearHistory: () -> Unit,
+    /** No connection: the catalogue cannot be searched at all. */
+    offline: Boolean = false,
     onEnqueue: (CatalogTrack) -> Unit,
     /** Opens the same track sheet the library rows open. */
     onTrackMenu: (CatalogTrack) -> Unit,
@@ -113,6 +115,13 @@ fun SearchScreen(
         }
 
         when {
+            // Nothing here can be answered without a connection: the catalogue
+            // is Spotify's and none of it is on the phone. Said plainly rather
+            // than left to a query that returns an error a moment later.
+            offline -> item(contentType = "status") {
+                StatusBox { Message(stringResource(R.string.search_offline)) }
+            }
+
             state.needsSetup -> item(contentType = "setup") {
                 WebApiSetup(webApi, backdrop, onClientIdChange, onConnectWebApi)
             }

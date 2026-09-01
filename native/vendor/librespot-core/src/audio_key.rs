@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io::Write,
+    sync::Mutex,
     time::{Duration, Instant},
 };
 
@@ -64,6 +65,32 @@ component! {
 ///
 /// So a refusal puts the whole session on hold, doubling until the cap, and one
 /// key that comes back clears it.
+/// LOCAL PATCH: when playback last asked for a key.
+///
+/// Spotify limits audio keys per session, and a download queue asking for one
+/// spends the same allowance a track starting needs. Without somewhere to look
+/// this up, a library being downloaded quietly starved playback: the queue took
+/// the refusals, the session-wide hold that follows them applied to everything,
+/// and pressing play did nothing for half a minute.
+///
+/// Only playback writes here. Downloads read it and wait; see `downloads.rs`.
+static PLAYBACK_AT: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// Called by the player before it asks for a key.
+pub fn note_playback_request() {
+    if let Ok(mut at) = PLAYBACK_AT.lock() {
+        *at = Some(Instant::now());
+    }
+}
+
+/// How long ago playback last asked, or `None` if it never has.
+pub fn since_playback_request() -> Option<Duration> {
+    PLAYBACK_AT
+        .lock()
+        .ok()?
+        .map(|at| Instant::now().saturating_duration_since(at))
+}
+
 const FIRST_COOL_OFF: Duration = Duration::from_secs(3);
 const MAX_COOL_OFF: Duration = Duration::from_secs(30);
 

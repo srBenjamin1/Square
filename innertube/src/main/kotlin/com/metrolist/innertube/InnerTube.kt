@@ -48,6 +48,15 @@ class InnerTube {
     )
     var visitorData: String? = null
     var dataSyncId: String? = null
+    /**
+     * Vendored addition: which channel of the account is being asked about.
+     *
+     * A brand channel is reached by sending its page id alongside the same
+     * cookie; without it every call answers as the personal channel, whatever
+     * the listener picked.
+     */
+    var pageId: String? = null
+
     var cookie: String? = null
         set(value) {
             field = value
@@ -162,6 +171,10 @@ class InnerTube {
                     val currentTime = System.currentTimeMillis() / 1000
                     val sapisidHash = sha1("$currentTime ${cookieMap["SAPISID"]} ${YouTubeClient.ORIGIN_YOUTUBE_MUSIC}")
                     append("Authorization", "SAPISIDHASH ${currentTime}_${sapisidHash}")
+                    // Vendored: the channel within that account, where one was
+                    // chosen. Absent for the personal channel, which is what
+                    // the account answers as by default.
+                    pageId?.takeIf { it.isNotBlank() }?.let { append("X-Goog-PageId", it) }
                 }
             }
         }
@@ -394,6 +407,14 @@ class InnerTube {
 
     suspend fun accountMenu(client: YouTubeClient) = withRetry {
         httpClient.post("account/account_menu") {
+            ytClient(client, setLogin = true)
+            setBody(AccountMenuBody(client.toContext(locale, visitorData, dataSyncId)))
+        }
+    }
+
+    /** Vendored: the channels this account can act as; see AccountsListResponse. */
+    suspend fun accountsList(client: YouTubeClient) = withRetry {
+        httpClient.post("account/accounts_list") {
             ytClient(client, setLogin = true)
             setBody(AccountMenuBody(client.toContext(locale, visitorData, dataSyncId)))
         }

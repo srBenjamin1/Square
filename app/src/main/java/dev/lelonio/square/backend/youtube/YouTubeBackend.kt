@@ -21,9 +21,14 @@ import kotlinx.coroutines.withContext
 import com.metrolist.innertube.YouTube
 import com.metrolist.innertube.models.AlbumItem
 import com.metrolist.innertube.models.ArtistItem
+import com.metrolist.innertube.models.EpisodeItem
+import com.metrolist.innertube.models.PodcastItem
 import com.metrolist.innertube.models.PlaylistItem
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.models.YTItem
+import com.metrolist.innertube.pages.HomePage
+import dev.lelonio.square.backend.HomeChip
+import dev.lelonio.square.backend.HomeFeed
 import dev.lelonio.square.backend.HomeRow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -58,6 +63,9 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
     override val isReady = true
 
     override suspend fun refreshAuth() {
+        // Brings the stored cookie up to date and finds out whether it still
+        // works; see [YouTubeAccount.revalidate].
+        account.revalidate()
         _authState.value = account.accountName.value?.let(BackendAuthState::LoggedIn) ?: ANONYMOUS
     }
 
@@ -148,6 +156,49 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
     }
 
     /**
+     * The albums in the account's library.
+     *
+     * Its own browse page rather than a filter over the playlists: YouTube
+     * keeps saved albums on a page of their own, exactly as it keeps saved
+     * playlists on theirs.
+     */
+    override suspend fun savedAlbums(): List<CatalogPlaylist> = withContext(Dispatchers.IO) {
+        if (!account.isSignedIn) return@withContext emptyList()
+        runCatching {
+            YouTube.library(SAVED_ALBUMS_BROWSE_ID)
+                .getOrThrow()
+                .items
+                .filterIsInstance<AlbumItem>()
+                .mapNotNull(::toCatalogPlaylist)
+        }.getOrElse {
+            android.util.Log.w(LOG_TAG, "saved albums unavailable: $it")
+            emptyList()
+        }
+    }
+
+    /** The artists the account subscribed to, from the library page of them. */
+    override suspend fun followedArtists(): List<SearchItem> = withContext(Dispatchers.IO) {
+        if (!account.isSignedIn) return@withContext emptyList()
+        runCatching {
+            YouTube.library(FOLLOWED_ARTISTS_BROWSE_ID)
+                .getOrThrow()
+                .items
+                .filterIsInstance<ArtistItem>()
+                .map { artist ->
+                    SearchItem(
+                        uri = "$ARTIST_PREFIX${artist.id}",
+                        title = artist.title,
+                        subtitle = "",
+                        artworkUrl = artist.thumbnail?.atSize(COVER_SIZE),
+                    )
+                }
+        }.getOrElse {
+            android.util.Log.w(LOG_TAG, "followed artists unavailable: $it")
+            emptyList()
+        }
+    }
+
+    /**
      * YouTube Music's own home page, shelf by shelf.
      *
      * `FEmusic_home` is the page the app itself opens on, and it is the only
@@ -155,24 +206,45 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
      * around what the account listens to, signed out it is charts and moods.
      * Either way the shelves arrive already titled, so nothing here has to
      * invent a name for them.
+     *
+     * A page at a time, because that is how it is served. The first response
+     * carries four or five shelves and a token; the twenty that follow — the
+     * mixes, the artists, the charts, the moods — only exist behind it. Reading
+     * one response and stopping is what made this page look like an app with
+     * nothing in it.
      */
-    override suspend fun homeRows(): List<HomeRow> = withContext(Dispatchers.IO) {
-        YouTube.home()
-            .getOrThrow()
-            .sections
-            .map { section ->
-                val songs = section.items.filterIsInstance<SongItem>()
-                HomeRow(
-                    title = section.title,
-                    tracks = songs.map(::toCatalogTrack),
-                    // Everything that is not a song opens something: an album,
-                    // a playlist, an artist. They travel as one list because
-                    // the row draws them identically.
-                    items = section.items.filterNot { it is SongItem }
-                        .mapNotNull(::toCatalogPlaylist),
-                )
-            }
-            .filterNot { it.isEmpty }
+    override suspend fun homeFeed(cursor: String?, params: String?): HomeFeed =
+        withContext(Dispatchers.IO) {
+            val page = YouTube.home(continuation = cursor, params = params).getOrThrow()
+            HomeFeed(
+                rows = page.sections.map(::toHomeRow).filterNot { it.isEmpty },
+                cursor = page.continuation,
+                chips = page.chips.orEmpty().map { chip ->
+                    HomeChip(
+                        title = chip.title,
+                        // The chip that clears the filter has no view of its
+                        // own: it is the home page, which is what null asks for.
+                        params = chip.endpoint?.params,
+                    )
+                },
+            )
+        }
+
+    private fun toHomeRow(section: HomePage.Section): HomeRow {
+        val songs = section.items.filterIsInstance<SongItem>()
+        // An episode plays like a song and is listed like one; the only
+        // difference the queue would notice is its length.
+        val episodes = section.items.filterIsInstance<EpisodeItem>()
+        return HomeRow(
+            title = section.title,
+            strapline = section.label,
+            tracks = songs.map(::toCatalogTrack) + episodes.map(::toCatalogTrack),
+            // Everything that is not a song opens something: an album, a
+            // playlist, an artist. They travel as one list because the row
+            // draws them identically.
+            items = section.items.filterNot { it is SongItem || it is EpisodeItem }
+                .mapNotNull(::toCatalogPlaylist),
+        )
     }
 
     private fun toCatalogPlaylist(item: YTItem): CatalogPlaylist? {
@@ -180,14 +252,40 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
             is AlbumItem -> "$PLAYLIST_PREFIX${item.playlistId}"
             is PlaylistItem -> "$PLAYLIST_PREFIX${item.id}"
             is ArtistItem -> "$ARTIST_PREFIX${item.id}"
+            // A show is a playlist of episodes, and opens as one.
+            is PodcastItem -> "$PLAYLIST_PREFIX${item.id}"
             else -> return null
         }
         return CatalogPlaylist(
             uri = uri,
             name = item.title,
             artworkUrl = item.thumbnail?.atSize(COVER_SIZE),
+            // What the official app writes under the name: who made it, or how
+            // many listen to it. Without it half a shelf of mixes is a column
+            // of covers with interchangeable titles.
+            subtitle = when (item) {
+                is AlbumItem -> item.artists?.joinToString(", ") { it.name }
+                is PlaylistItem -> item.author?.name
+                is PodcastItem -> item.author?.name
+                // An artist has no line worth writing: the portrait and the
+                // name are the whole of it, and YouTube's own shelf says the
+                // same nothing under theirs.
+                is ArtistItem -> null
+                else -> null
+            }?.takeIf { it.isNotBlank() },
+            isArtist = item is ArtistItem,
         )
     }
+
+    private fun toCatalogTrack(item: EpisodeItem) = CatalogTrack(
+        uri = "$TRACK_PREFIX${item.id}",
+        name = item.title,
+        artist = item.author?.name.orEmpty(),
+        album = item.podcast?.name.orEmpty(),
+        durationMs = item.duration?.takeIf { it > 0 }?.times(1000L) ?: 0L,
+        explicit = item.explicit,
+        artworkUrl = item.thumbnail,
+    )
 
     private fun toCatalogTrack(item: SongItem) = CatalogTrack(
         uri = "$TRACK_PREFIX${item.id}",
@@ -271,7 +369,10 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
         const val ARTIST_PREFIX = "ytmusic:artist:"
 
         /** YouTube Music's own browse id for the account's playlist library. */
+        private const val LOG_TAG = "SquareYouTube"
         private const val LIKED_PLAYLISTS_BROWSE_ID = "FEmusic_liked_playlists"
+        private const val SAVED_ALBUMS_BROWSE_ID = "FEmusic_liked_albums"
+        private const val FOLLOWED_ARTISTS_BROWSE_ID = "FEmusic_library_corpus_track_artists"
 
         /** The `list=` id of a playlist URL. */
         private fun playlistIdOf(url: String?): String? =

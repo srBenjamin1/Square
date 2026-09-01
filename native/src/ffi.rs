@@ -4,7 +4,7 @@
 //! `java.lang.IllegalStateException` with the engine's error message. Kotlin
 //! therefore never has to check return codes.
 
-use crate::{catalog, engine, sink};
+use crate::{catalog, downloads, engine, sink};
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::{jboolean, jint, jlong, jstring, JNI_FALSE, JNI_TRUE};
 use jni::JNIEnv;
@@ -733,4 +733,90 @@ pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeShu
     _class: JClass,
 ) {
     let _ = std::panic::catch_unwind(engine::shutdown);
+}
+
+/// True when the engine came up with no connection and is running on the
+/// downloads alone; see `engine::is_offline`.
+#[no_mangle]
+pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeIsOffline(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jboolean {
+    if engine::is_offline() { JNI_TRUE } else { JNI_FALSE }
+}
+
+// --------------------------------------------------------------- downloads
+
+/// Where downloads are kept. Called before anything is downloaded, and again
+/// if the listener moves the store to a memory card.
+#[no_mangle]
+pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeSetDownloadRoot(
+    mut env: JNIEnv,
+    _class: JClass,
+    path: JString,
+) {
+    let path = read_string(&mut env, &path);
+    guard(&mut env, "SetDownloadRoot", || downloads::set_root(&path?));
+}
+
+/// Downloads one track and answers with the sidecar that was written.
+///
+/// Blocks for as long as the download takes, which is why the Kotlin side calls
+/// it from the download queue's own worker rather than from anything the
+/// listener is waiting on.
+#[no_mangle]
+pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeDownloadTrack(
+    mut env: JNIEnv,
+    _class: JClass,
+    track_uri: JString,
+    bitrate_kbps: jint,
+) -> jstring {
+    let uri = match read_string(&mut env, &track_uri) {
+        Ok(value) => value,
+        Err(message) => {
+            let _ = env.throw_new(EXCEPTION, message);
+            return JObject::null().into_raw() as jstring;
+        }
+    };
+    guard_string(&mut env, "DownloadTrack", || {
+        downloads::download_track(&uri, bitrate_kbps)
+    })
+}
+
+/// The sidecar of a downloaded track as JSON, or `null` if it is not here.
+#[no_mangle]
+pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeDownloadState(
+    mut env: JNIEnv,
+    _class: JClass,
+    track_uri: JString,
+) -> jstring {
+    let uri = match read_string(&mut env, &track_uri) {
+        Ok(value) => value,
+        Err(message) => {
+            let _ = env.throw_new(EXCEPTION, message);
+            return JObject::null().into_raw() as jstring;
+        }
+    };
+    guard_string(&mut env, "DownloadState", || downloads::stored(&uri))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeRemoveDownload(
+    mut env: JNIEnv,
+    _class: JClass,
+    track_uri: JString,
+) {
+    let uri = read_string(&mut env, &track_uri);
+    guard(&mut env, "RemoveDownload", || downloads::remove_track(&uri?));
+}
+
+/// Asks a download in progress to stop at the end of its current chunk.
+#[no_mangle]
+pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeCancelDownload(
+    mut env: JNIEnv,
+    _class: JClass,
+    track_uri: JString,
+) {
+    let uri = read_string(&mut env, &track_uri);
+    guard(&mut env, "CancelDownload", || downloads::cancel(&uri?));
 }

@@ -6,7 +6,9 @@ import com.metrolist.innertube.models.Artist
 import com.metrolist.innertube.models.ArtistItem
 import com.metrolist.innertube.models.BrowseEndpoint
 import com.metrolist.innertube.models.EpisodeItem
+import com.metrolist.innertube.models.GridRenderer
 import com.metrolist.innertube.models.MusicCarouselShelfRenderer
+import com.metrolist.innertube.models.MusicShelfRenderer
 import com.metrolist.innertube.models.MusicMultiRowListItemRenderer
 import com.metrolist.innertube.models.MusicResponsiveListItemRenderer
 import com.metrolist.innertube.models.MusicTwoRowItemRenderer
@@ -99,6 +101,43 @@ data class HomePage(
                     endpoint = renderer.header.musicCarouselShelfBasicHeaderRenderer.moreContentButton?.buttonRenderer?.navigationEndpoint?.browseEndpoint,
                     items = items
                 )
+            }
+
+            /**
+             * A shelf laid out as a grid rather than a carousel.
+             *
+             * Vendored addition. The music home is carousels, but several of
+             * the chips above it — Podcasts first among them — answer with
+             * grids, and a parser that only knew carousels returned an empty
+             * page for those: the chip looked broken when the response was
+             * fine.
+             */
+            fun fromGridRenderer(renderer: GridRenderer): Section? {
+                val title = renderer.header?.gridHeaderRenderer?.title?.runs?.firstOrNull()?.text
+                    ?: return null
+                val items = renderer.items
+                    .mapNotNull { it.musicTwoRowItemRenderer }
+                    .mapNotNull { fromMusicTwoRowItemRenderer(it) }
+                if (items.isEmpty()) return null
+                return Section(title = title, label = null, thumbnail = null, endpoint = null, items = items)
+            }
+
+            /**
+             * A shelf laid out as a list of rows.
+             *
+             * Vendored addition, and the other half of the same problem: the
+             * episode and song shelves under a chip arrive this way.
+             */
+            fun fromMusicShelfRenderer(renderer: MusicShelfRenderer): Section? {
+                val title = renderer.title?.runs?.firstOrNull()?.text ?: return null
+                val items = renderer.contents.orEmpty().let { contents ->
+                    contents.mapNotNull { it.musicResponsiveListItemRenderer }
+                        .mapNotNull { fromMusicResponsiveListItemRenderer(it) } +
+                        contents.mapNotNull { it.musicMultiRowListItemRenderer }
+                            .mapNotNull { fromMusicMultiRowListItemRenderer(it) }
+                }
+                if (items.isEmpty()) return null
+                return Section(title = title, label = null, thumbnail = null, endpoint = null, items = items)
             }
 
             private fun fromMusicMultiRowListItemRenderer(renderer: MusicMultiRowListItemRenderer): EpisodeItem? {

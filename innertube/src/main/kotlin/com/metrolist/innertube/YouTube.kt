@@ -1,6 +1,8 @@
 package com.metrolist.innertube
 
 import com.metrolist.innertube.models.AccountInfo
+import com.metrolist.innertube.models.YouTubeChannel
+import com.metrolist.innertube.models.response.AccountsListResponse
 import com.metrolist.innertube.models.AlbumItem
 import com.metrolist.innertube.models.Artist
 import com.metrolist.innertube.models.ArtistItem
@@ -1570,13 +1572,13 @@ object YouTube {
                     ?.content
                     ?.sectionListRenderer
             Timber.d("home() sectionListRender contents size: ${sectionListRender?.contents?.size ?: 0}")
-            val carousels = sectionListRender?.contents?.mapNotNull { it.musicCarouselShelfRenderer } ?: emptyList()
-            Timber.d("home() carousels count: ${carousels.size}")
-            val sections =
-                carousels
-                    .mapNotNull {
-                        HomePage.Section.fromMusicCarouselShelfRenderer(it)
-                    }.toMutableList()
+            // Vendored change: not only carousels. The music home is built of
+            // them, but the chips above it answer with grids and list shelves,
+            // and reading just one kind returned an empty page for those.
+            val sections = sectionListRender?.contents.orEmpty()
+                .mapNotNull { it.toHomeSection() }
+                .toMutableList()
+            Timber.d("home() sections from contents: ${sections.size}")
             Timber.d("home() sections parsed: ${sections.size}")
             val chips =
                 sectionListRender
@@ -1587,6 +1589,18 @@ object YouTube {
             Timber.d("home() chips: ${chips?.size ?: 0}")
             HomePage(chips, sections, continuation)
         }
+
+    /**
+     * Vendored addition: one shelf, whatever renderer it arrived as.
+     *
+     * The home page is carousels and the chip pages are grids and list
+     * shelves; both are shelves with a title and some items, which is all a
+     * home row is.
+     */
+    private fun SectionListRenderer.Content.toHomeSection(): HomePage.Section? =
+        musicCarouselShelfRenderer?.let { HomePage.Section.fromMusicCarouselShelfRenderer(it) }
+            ?: gridRenderer?.let { HomePage.Section.fromGridRenderer(it) }
+            ?: musicShelfRenderer?.let { HomePage.Section.fromMusicShelfRenderer(it) }
 
     private suspend fun homeContinuation(continuation: String): Result<HomePage> =
         runCatching {
@@ -1602,10 +1616,8 @@ object YouTube {
                 response.continuationContents
                     ?.sectionListContinuation
                     ?.contents
-                    ?.mapNotNull { it.musicCarouselShelfRenderer }
-                    ?.mapNotNull {
-                        HomePage.Section.fromMusicCarouselShelfRenderer(it)
-                    }.orEmpty(),
+                    ?.mapNotNull { it.toHomeSection() }
+                    .orEmpty(),
                 continuation,
             )
         }
@@ -3340,6 +3352,59 @@ object YouTube {
                         VISITOR_DATA_REGEX.containsMatchIn(candidate)
                     } ?: false
                 }.jsonPrimitive.content
+        }
+
+    /**
+     * Vendored addition: every channel the signed-in account can act as.
+     *
+     * The personal channel, then any brand channels — the same list the
+     * official app's account switcher shows. [YouTubeChannel.pageId] is what
+     * selects one; the personal channel has none.
+     */
+    suspend fun accounts(): Result<List<YouTubeChannel>> =
+        runCatching {
+            val raw = innerTube.accountsList(WEB_REMIX).bodyAsText()
+            val parsed = Json { ignoreUnknownKeys = true }
+                .decodeFromString<AccountsListResponse>(raw)
+            val channels = parsed
+                .contents
+                ?.accountSectionListRenderer
+                ?.contents
+                .orEmpty()
+                .mapNotNull { it.accountItemSectionRenderer }
+                .flatMap { it.contents.orEmpty() }
+                .mapNotNull { it.accountItem }
+                .mapNotNull { item ->
+                    val tokens = item.serviceEndpoint?.selectActiveIdentityEndpoint?.supportedTokens
+                    YouTubeChannel(
+                        name = item.accountName?.runs?.firstOrNull()?.text ?: return@mapNotNull null,
+                        handle = item.accountByline?.runs?.firstOrNull()?.text,
+                        thumbnailUrl = item.accountPhoto?.thumbnails?.lastOrNull()?.url,
+                        pageId = tokens?.firstNotNullOfOrNull { it.pageIdToken?.pageId },
+                        dataSyncId = tokens?.firstNotNullOfOrNull { it.datasyncIdToken?.datasyncIdToken },
+                        selected = item.isSelected,
+                    )
+                }
+            if (channels.isEmpty()) {
+                // Which renderers came back, so a response shaped differently
+                // from the one this was written against can be read from a log
+                // rather than guessed at. Names only: the values are the
+                // account's own.
+                val renderers = Regex("\"([A-Za-z]+Renderer)\"")
+                    .findAll(raw)
+                    .map { it.groupValues[1] }
+                    .distinct()
+                    .joinToString(", ")
+                Timber.d("accounts(): none parsed; ${raw.length} bytes, renderers: $renderers")
+            }
+            channels
+        }
+
+    /** Which channel of the account calls are made as; see [accounts]. */
+    var pageId: String?
+        get() = innerTube.pageId
+        set(value) {
+            innerTube.pageId = value
         }
 
     suspend fun accountInfo(): Result<AccountInfo> =

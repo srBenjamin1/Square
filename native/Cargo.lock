@@ -2333,6 +2333,7 @@ dependencies = [
  "bytes",
  "futures-util",
  "http",
+ "http-body-util",
  "jni",
  "librespot-audio",
  "librespot-connect",

@@ -92,6 +92,7 @@ import java.util.concurrent.TimeUnit
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.Regular
+import com.adamglin.phosphoricons.fill.ArrowCircleDown
 import com.adamglin.phosphoricons.fill.Check
 import com.adamglin.phosphoricons.fill.MagnifyingGlass
 import com.adamglin.phosphoricons.fill.Play
@@ -100,6 +101,7 @@ import com.adamglin.phosphoricons.regular.ArrowLeft
 import com.adamglin.phosphoricons.regular.ArrowsDownUp
 import com.adamglin.phosphoricons.regular.Check
 import com.adamglin.phosphoricons.regular.DotsThree
+import com.adamglin.phosphoricons.regular.Download
 import com.adamglin.phosphoricons.regular.Export
 import com.adamglin.phosphoricons.regular.LinkSimple
 import com.adamglin.phosphoricons.regular.Plus
@@ -144,6 +146,29 @@ fun PlaylistScreen(
     onOpenItem: (dev.lelonio.square.data.SearchItem) -> Unit = {},
     /** Follows or unfollows the artist this page is about. */
     onToggleFollow: () -> Unit = {},
+    /** Whether this page is kept on the phone, and how far along that is. */
+    downloadState: dev.lelonio.square.data.OwnerState = dev.lelonio.square.data.OwnerState.None,
+    onToggleDownload: () -> Unit = {},
+    /** False where a download makes no sense: the local files shelf, YouTube. */
+    canDownload: Boolean = false,
+    /**
+     * No connection, so only what is on the phone can be played.
+     *
+     * Rows for tracks that are not downloaded stay visible and go quiet: a
+     * playlist that silently lost half its songs would be a worse answer than
+     * one that shows what it has and what it is missing.
+     */
+    offline: Boolean = false,
+    /**
+     * What each row should say about itself.
+     *
+     * A lambda rather than a map, because the map changes several times a
+     * second while a playlist downloads and threading a new one through the
+     * screen would recompose the whole list for one row's ring.
+     */
+    trackDownload: (CatalogTrack) -> dev.lelonio.square.data.DownloadState = {
+        dev.lelonio.square.data.DownloadState.None
+    },
     /** Hands the page's own link to whoever wants it. */
     onShare: () -> Unit = {},
     /**
@@ -166,12 +191,26 @@ fun PlaylistScreen(
 ) {
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
+    // Asked before a downloaded page is given back to the network. Pressing the
+    // button that says "this is on your phone" is how a listener takes it off
+    // again — the same control both ways — so the question is what stops a
+    // mis-tap from deleting a hundred songs.
+    var confirmingRemoval by remember { mutableStateOf(false) }
     // Seeded from the stored choice and written back on change: picking an
     // order and finding it gone on the next playlist is the kind of thing that
     // makes a setting feel like it did not take.
-    var sort by remember(storedSort) {
+    // A station is the one list whose order is the whole of it: Spotify built
+    // this sequence for this listener a minute ago, and sorting it by title
+    // throws away the only thing that made it a radio rather than a bag of
+    // songs. So the stored preference does not reach it.
+    val isStation = state.uri?.startsWith("spotify:station:") == true
+    var sort by remember(storedSort, isStation) {
         mutableStateOf(
-            TrackSort.entries.firstOrNull { it.name == storedSort } ?: TrackSort.ORIGINAL,
+            if (isStation) {
+                TrackSort.ORIGINAL
+            } else {
+                TrackSort.entries.firstOrNull { it.name == storedSort } ?: TrackSort.ORIGINAL
+            },
         )
     }
     var descending by remember(storedSortDescending) { mutableStateOf(storedSortDescending) }
@@ -311,6 +350,13 @@ fun PlaylistScreen(
                 state.kind == MainViewModel.DetailKind.ARTIST
             },
             onToggleFollow = onToggleFollow,
+            download = downloadState,
+            onToggleDownload = {
+                val kept = downloadState is dev.lelonio.square.data.OwnerState.Complete ||
+                    downloadState is dev.lelonio.square.data.OwnerState.Partial
+                if (kept) confirmingRemoval = true else onToggleDownload()
+            },
+            canDownload = canDownload,
             trackCount = state.tracks.size,
             totalMs = state.tracks.sumOf { it.durationMs },
             backdrop = pageBackdrop,
@@ -452,6 +498,13 @@ fun PlaylistScreen(
                             isCurrent = track.uri == nowPlayingUri,
                             onClick = { onPlay(visible, index, asContext) },
                             onMenu = { onTrackMenu(track) },
+                            download = trackDownload(track),
+                            // The phone's own files play offline like anything
+                            // else — they were never coming over the network.
+                            unavailable = offline &&
+                                !track.uri.startsWith("local:") &&
+                                trackDownload(track) !=
+                                dev.lelonio.square.data.DownloadState.Done,
                         )
                     }
                 }
@@ -628,6 +681,25 @@ fun PlaylistScreen(
                 onSortDescendingChange(descending)
             }
         }
+
+        // Last inside the page, so it is drawn over it. Mounted before the
+        // Box it used to sit above, where the page covered it completely:
+        // the question never appeared, and with nothing to answer, nothing
+        // was ever removed either.
+        dev.lelonio.square.ui.components.ConfirmSheet(
+            visible = confirmingRemoval,
+            title = stringResource(R.string.remove_download),
+            message = stringResource(R.string.remove_download_confirm, state.name),
+            confirmLabel = stringResource(R.string.remove_download_confirm_action),
+            cancelLabel = stringResource(R.string.cancel),
+            backdrop = pageBackdrop,
+            destructive = true,
+            onConfirm = {
+                confirmingRemoval = false
+                onToggleDownload()
+            },
+            onDismiss = { confirmingRemoval = false },
+        )
     }
 }
 
@@ -673,6 +745,10 @@ private fun DetailHeader(
      */
     following: Boolean?,
     onToggleFollow: () -> Unit,
+    /** Kept on the phone, being kept, or not; see the button below. */
+    download: dev.lelonio.square.data.OwnerState,
+    onToggleDownload: () -> Unit,
+    canDownload: Boolean,
     trackCount: Int,
     totalMs: Long,
     backdrop: Backdrop,
@@ -734,9 +810,18 @@ private fun DetailHeader(
                 modifier = Modifier.padding(top = 4.dp),
             )
 
+            // Three controls and two labels do not fit across a phone, so the
+            // row tightens once there is more than one thing beside Play.
+            // Counted rather than asked of any one control: this used to key
+            // off the follow pill alone, and adding the download button let a
+            // playlist overflow — the button went off the edge and the tap
+            // landed on Play, which started the music instead.
+            val extras = listOfNotNull(saved, following).size + if (canDownload) 1 else 0
+            val tight = extras >= 2
+
             Row(
                 Modifier.padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(if (following != null) 10.dp else 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (tight) 10.dp else 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CircleAction(
@@ -759,7 +844,7 @@ private fun DetailHeader(
                         // and two labels do not fit across a phone at the width
                         // this has to itself on every other page.
                         .padding(
-                            horizontal = if (following != null) 26.dp else 40.dp,
+                            horizontal = if (tight) 26.dp else 40.dp,
                             vertical = 14.dp,
                         ),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -798,6 +883,18 @@ private fun DetailHeader(
                 // — so this stands where that one would.
                 if (following != null) {
                     FollowPill(following = following, onClick = onToggleFollow)
+                }
+
+                // Keeping the music itself, next to keeping the page. Always
+                // present where a download is possible, unlike the two above:
+                // its off state is what starts one, so hiding it until there
+                // was something to show would leave no way in.
+                if (canDownload) {
+                    DownloadAction(
+                        state = download,
+                        backdrop = backdrop,
+                        onClick = onToggleDownload,
+                    )
                 }
             }
 
@@ -1003,6 +1100,61 @@ private fun CapsuleAction(
     }
 }
 
+/**
+ * Keeping the page on the phone, in one control.
+ *
+ * Three answers rather than a toggle, because a download has a middle: not
+ * kept, being kept, kept. The middle one draws its own progress around the
+ * icon — the ring is the only thing on the page that says the fetching is
+ * still happening, since it runs in a service with the screen off.
+ *
+ * Partial is drawn as done deliberately. It means every track that could be
+ * fetched was, and the rest are not available to this account at all; a page
+ * that sat forever at nine tenths with no way to finish would be a fault the
+ * listener cannot act on.
+ */
+@Composable
+private fun DownloadAction(
+    state: dev.lelonio.square.data.OwnerState,
+    backdrop: Backdrop,
+    onClick: () -> Unit,
+) {
+    val kept = state is dev.lelonio.square.data.OwnerState.Complete ||
+        state is dev.lelonio.square.data.OwnerState.Partial
+    val running = state as? dev.lelonio.square.data.OwnerState.Running
+
+    Box(contentAlignment = Alignment.Center) {
+        CircleAction(
+            // The filled arrow-in-a-circle, which is what every music app
+            // means by "this is on your phone". A tick says "done", which is
+            // about the act rather than about the song.
+            icon = if (kept) {
+                PhosphorIcons.Fill.ArrowCircleDown
+            } else {
+                PhosphorIcons.Regular.Download
+            },
+            description = stringResource(
+                if (kept) R.string.remove_download else R.string.download,
+            ),
+            size = 52.dp,
+            backdrop = backdrop,
+            onClick = onClick,
+        )
+        // Around the button rather than inside it: the icon still has to be
+        // legible while this turns.
+        running?.let {
+            CircularProgressIndicator(
+                progress = { it.progress },
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.22f),
+                strokeWidth = 2.dp,
+                gapSize = 0.dp,
+                modifier = Modifier.size(52.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun CircleAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -1141,6 +1293,80 @@ private val PageFloor = Color(0xFF0A0A0C)
 private fun pageColorFor(accent: Color?): Color =
     accent?.let { lerp(it, PageFloor, 0.78f) } ?: PageFloor
 
+/**
+ * The little mark in a row that says this song is here.
+ *
+ * Nothing at all until a download exists for the track. That is the whole rule:
+ * an ordinary playlist reads exactly as it did before this feature, and the
+ * mark appearing is itself the news. There is no "not downloaded" state to draw
+ * because a row full of empty placeholders would be worse than no marks.
+ */
+@Composable
+private fun DownloadMark(state: dev.lelonio.square.data.DownloadState) {
+    val running = state as? dev.lelonio.square.data.DownloadState.Running
+    // Queued deliberately draws nothing. A playlist of four hundred songs would
+    // otherwise sprout four hundred marks the instant the button is pressed,
+    // which says "all downloaded" a good ten minutes before it is true.
+    if (state !is dev.lelonio.square.data.DownloadState.Done && running == null) return
+
+    val accent = MaterialTheme.colorScheme.primary
+    Box(
+        modifier = Modifier
+            .padding(end = 6.dp)
+            .size(14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (state is dev.lelonio.square.data.DownloadState.Done) {
+            Icon(
+                PhosphorIcons.Fill.ArrowCircleDown,
+                contentDescription = stringResource(R.string.downloaded),
+                tint = accent,
+                modifier = Modifier.size(14.dp),
+            )
+        } else {
+            // A thin ring rather than the app's spinner: at fourteen density
+            // pixels inside a scrolling list, anything with a label or a fill
+            // is a smudge.
+            val progress by animateFloatAsState(
+                targetValue = running?.progress ?: 0f,
+                animationSpec = tween(320),
+                label = "row download",
+            )
+            androidx.compose.foundation.Canvas(Modifier.size(12.dp)) {
+                val stroke = 1.6.dp.toPx()
+                val inset = androidx.compose.ui.geometry.Offset(stroke / 2f, stroke / 2f)
+                val ring = androidx.compose.ui.geometry.Size(
+                    this.size.width - stroke,
+                    this.size.height - stroke,
+                )
+                drawArc(
+                    color = accent.copy(alpha = 0.28f),
+                    startAngle = 0f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = inset,
+                    size = ring,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
+                )
+                drawArc(
+                    color = accent,
+                    startAngle = -90f,
+                    // A stub of ring even at zero, so a track that has only
+                    // just started still reads as busy.
+                    sweepAngle = (360f * progress).coerceAtLeast(24f),
+                    useCenter = false,
+                    topLeft = inset,
+                    size = ring,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = stroke,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    ),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun TrackRow(
     track: CatalogTrack,
@@ -1148,8 +1374,22 @@ private fun TrackRow(
     isCurrent: Boolean,
     onClick: () -> Unit,
     onMenu: () -> Unit,
+    /** Nothing is drawn until a download for this track exists; see below. */
+    download: dev.lelonio.square.data.DownloadState =
+        dev.lelonio.square.data.DownloadState.None,
+    /**
+     * Offline, and this one is not on the phone.
+     *
+     * Dimmed and inert rather than hidden: a playlist that quietly loses two
+     * songs in three is a playlist the listener no longer recognises, and the
+     * missing ones are exactly what they might want to download later.
+     */
+    unavailable: Boolean = false,
 ) {
     val shape = RoundedCornerShape(14.dp)
+    // Everything in the row fades together, artwork included, so it reads as
+    // one thing being unavailable rather than a list of greyed-out words.
+    val dim = if (unavailable) 0.38f else 1f
     // Eased rather than snapped: rows change state on every track advance, and
     // a hard cut in the middle of a list draws the eye more than the change
     // deserves.
@@ -1174,7 +1414,14 @@ private fun TrackRow(
                     alpha = MaterialTheme.colorScheme.surface.alpha * highlight,
                 ),
             )
-            .pressable(onClick, shape = shape, pressedScale = 0.985f)
+            .then(
+                if (unavailable) {
+                    Modifier
+                } else {
+                    Modifier.pressable(onClick, shape = shape, pressedScale = 0.985f)
+                },
+            )
+            .graphicsLayer { alpha = dim }
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1225,17 +1472,27 @@ private fun TrackRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                // Artist and length on one line, as the reference has it: two
-                // stacked grey lines under every title turn the list into a wall
-                // of secondary text.
-                text = "${track.artist} · ${formatDuration(track.durationMs)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(top = 2.dp),
-            )
+            ) {
+                // The mark, and only once there is something to mark. A row for
+                // a track nobody has asked for looks exactly as it did before
+                // downloads existed — no greyed-out placeholder, nothing to
+                // read past. Starting a download is the row menu's job, so this
+                // never needs to be a target.
+                DownloadMark(download)
+                Text(
+                    // Artist and length on one line, as the reference has it:
+                    // two stacked grey lines under every title turn the list
+                    // into a wall of secondary text.
+                    text = "${track.artist} · ${formatDuration(track.durationMs)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
 
         IconButton(onClick = onMenu, modifier = Modifier.size(32.dp)) {

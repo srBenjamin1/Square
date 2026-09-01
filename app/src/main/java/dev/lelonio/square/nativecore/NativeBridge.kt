@@ -488,6 +488,60 @@ object NativeBridge {
     private external fun nativeRemoteCommand(deviceId: String, body: String)
     private external fun nativeRemoteVolume(deviceId: String, volume: Int)
     private external fun nativeShutdown()
+    /**
+     * True when the handshake could not be made and there were downloads to
+     * play instead.
+     *
+     * The engine still exists in that state, and so does the player: what is
+     * missing is the session and the Connect device, which is why nothing can
+     * be streamed and everything already on the phone still plays.
+     */
+    val isOffline: Boolean get() = nativeIsOffline()
+
+    /**
+     * Where downloaded tracks are kept.
+     *
+     * Call before downloading anything, and again if the listener moves the
+     * store to a memory card. Until it is called the engine simply has no
+     * downloads, so playback is unaffected by the order this happens in.
+     */
+    fun setDownloadRoot(path: String) = nativeSetDownloadRoot(path)
+
+    /**
+     * Downloads one track and returns the sidecar JSON that was written.
+     *
+     * **Blocks for the length of the download.** Call it from the download
+     * queue's worker, never from the main thread or from anything holding the
+     * player. Throws with `cancelled` if [cancelDownload] was called for this
+     * track, and with a message worth showing for anything else.
+     *
+     * Doing nothing is a valid outcome: a track already downloaded at this
+     * quality or better returns its existing sidecar immediately, which is what
+     * lets two playlists share a track without fetching it twice.
+     *
+     * @param bitrateKbps the quality to ask for; 96, 160 or 320
+     */
+    fun downloadTrack(trackUri: String, bitrateKbps: Int): String =
+        nativeDownloadTrack(trackUri, bitrateKbps)
+
+    /**
+     * The sidecar of a downloaded track as JSON, or the string `null` when the
+     * track is not downloaded.
+     */
+    fun downloadState(trackUri: String): String = nativeDownloadState(trackUri)
+
+    /** Deletes a download. Not being there is not an error. */
+    fun removeDownload(trackUri: String) = nativeRemoveDownload(trackUri)
+
+    /**
+     * Asks a download in progress to stop at the end of its current chunk.
+     *
+     * What has already been fetched is kept, so resuming later costs only the
+     * remainder — cancelling a queue because it started on mobile data should
+     * not throw away what it already paid for.
+     */
+    fun cancelDownload(trackUri: String) = nativeCancelDownload(trackUri)
+
     private external fun nativeUsername(): String
     private external fun nativeCollectionUri(): String
     private external fun nativeRootlist(): String
@@ -496,4 +550,10 @@ object NativeBridge {
     private external fun nativeLyrics(trackUri: String): String
     private external fun nativeTrackRelatives(trackUri: String): String
     private external fun nativeCanvas(trackUri: String): String
+    private external fun nativeIsOffline(): Boolean
+    private external fun nativeSetDownloadRoot(path: String)
+    private external fun nativeDownloadTrack(trackUri: String, bitrateKbps: Int): String
+    private external fun nativeDownloadState(trackUri: String): String
+    private external fun nativeRemoveDownload(trackUri: String)
+    private external fun nativeCancelDownload(trackUri: String)
 }

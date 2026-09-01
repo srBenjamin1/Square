@@ -1,7 +1,53 @@
-use std::{mem, path::PathBuf, str::FromStr, time::Duration};
+use std::{mem, path::PathBuf, str::FromStr, sync::Arc, time::Duration};
+
+use librespot_core::SpotifyId;
+use librespot_metadata::audio::AudioFileFormat;
 
 pub use crate::dither::{DithererBuilder, TriangularDitherer, mk_ditherer};
 use crate::{convert::i24, player::duration_to_coefficient};
+
+/// LOCAL PATCH: a copy of a track kept on disk, to be played instead of fetched.
+///
+/// The bytes are the file exactly as the CDN served it — still encrypted with
+/// the per-file AES key, which travels here beside them. Keeping it that way is
+/// not caution for its own sake: it means the loader can hand the file to the
+/// same `AudioDecrypt` the streaming path uses, and everything after that point
+/// — the Ogg header offset, the normalisation packet, the decoder, the
+/// crossfade — is byte for byte the code that already runs. A decrypted file
+/// would have needed a second path through all of it.
+///
+/// Everything except `path` and `key` is metadata the loader would otherwise
+/// have asked the network for. It is here so a downloaded track can be loaded
+/// with no connection at all.
+#[derive(Clone)]
+pub struct DownloadedTrack {
+    pub path: PathBuf,
+    /// `None` for the rare unencrypted file, matching `AudioDecrypt`'s own
+    /// convention that a missing key means "pass the bytes through".
+    pub key: Option<[u8; 16]>,
+    pub format: AudioFileFormat,
+    pub name: String,
+    pub duration_ms: u32,
+    pub is_explicit: bool,
+    pub album: String,
+    pub album_artists: Vec<String>,
+    pub number: u32,
+    pub disc_number: u32,
+}
+
+/// LOCAL PATCH: how the player asks whether a track has been downloaded.
+///
+/// A closure rather than a map because the answer lives on disk, and disk is
+/// the only place it can be correct: downloads are written by another thread,
+/// finished with an atomic rename, and removed while the player is running. A
+/// map handed over at build time would go stale within seconds of the first
+/// download, and keeping one in step would mean a lock on the hot path of every
+/// load. Reading a small file is cheaper than being wrong.
+///
+/// Owning the closure also keeps the sidecar format in one place — the engine
+/// writes it and the engine parses it — instead of teaching this crate a JSON
+/// schema it has no other reason to know.
+pub type DownloadLookup = Arc<dyn Fn(&SpotifyId) -> Option<DownloadedTrack> + Send + Sync>;
 
 #[derive(Clone, Copy, Debug, Hash, PartialOrd, Ord, PartialEq, Eq, Default)]
 pub enum Bitrate {
@@ -130,6 +176,11 @@ pub struct PlayerConfig {
     /// Zero, the default, is upstream behaviour: tracks follow one another with
     /// nothing between them. See `player.rs`.
     pub crossfade_duration_ms: u32,
+
+    /// LOCAL PATCH: where the loader asks whether a track is already on disk.
+    ///
+    /// `None`, the default, is upstream behaviour: every track is fetched.
+    pub download_lookup: Option<DownloadLookup>,
 }
 
 impl Default for PlayerConfig {
@@ -150,6 +201,7 @@ impl Default for PlayerConfig {
             position_update_interval: None,
             local_file_directories: Vec::new(),
             crossfade_duration_ms: 0,
+            download_lookup: None,
         }
     }
 }

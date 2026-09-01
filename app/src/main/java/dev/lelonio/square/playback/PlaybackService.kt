@@ -967,6 +967,18 @@ class PlaybackService : MediaLibraryService() {
         val engine = librespot ?: return@launch
         engineStarted = true
 
+        // Before the engine plays anything. The player asks this store on every
+        // load, and setting it later would leave a window in which a downloaded
+        // track streamed instead of playing from the phone.
+        withContext(Dispatchers.IO) {
+            container.downloads.load()
+            runCatching {
+                NativeBridge.setDownloadRoot(container.downloads.root.absolutePath)
+            }.onFailure {
+                android.util.Log.w(TAG, "downloads have no home: $it")
+            }
+        }
+
         runCatching {
             // Empty is a real answer here. The engine keeps the credential the
             // access point issued and prefers it, so a token is only needed by a
@@ -1036,7 +1048,14 @@ class PlaybackService : MediaLibraryService() {
                 ).show()
             }
         }.onSuccess {
-            android.util.Log.i(TAG, "engine connected")
+            // Started is not the same as connected any more. With music on the
+            // phone the engine comes up even when the handshake failed, with a
+            // player and no session, and the app has to know which of the two
+            // it got: everything that streams is unavailable in the second, and
+            // the downloads play exactly as they always did.
+            val offline = runCatching { NativeBridge.isOffline }.getOrDefault(false)
+            dev.lelonio.square.playback.OfflineMode.setNoSession(offline)
+            android.util.Log.i(TAG, if (offline) "engine started offline" else "engine connected")
             if (restoreQueue) restoreQueue()
             observeForSaving()
         }

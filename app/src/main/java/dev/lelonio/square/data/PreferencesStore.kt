@@ -108,6 +108,25 @@ class PreferencesStore(context: Context) {
     val backendChosen: StateFlow<Boolean> = _backendChosen.asStateFlow()
 
     /** When GitHub was last asked about a newer release. See [UpdateChecker]. */
+    /**
+     * The account's name and picture, as they were last read.
+     *
+     * Kept because they are the one part of the library that has nothing to do
+     * with the network and was being fetched anyway: offline the header used to
+     * go blank, which reads as being signed out of an app that is doing exactly
+     * what it was asked to. The picture is a URL, and the copy of it saved
+     * beside the downloads is what Artwork actually draws; see DownloadExtras.
+     */
+    fun profile(): Pair<String, String?> =
+        prefs.getString(KEY_PROFILE_NAME, null).orEmpty() to prefs.getString(KEY_PROFILE_ART, null)
+
+    fun setProfile(name: String, artworkUrl: String?) {
+        prefs.edit()
+            .putString(KEY_PROFILE_NAME, name)
+            .putString(KEY_PROFILE_ART, artworkUrl)
+            .apply()
+    }
+
     fun lastUpdateCheck(): Long = prefs.getLong(KEY_LAST_UPDATE_CHECK, 0L)
 
     fun setLastUpdateCheck(value: Long) {
@@ -134,6 +153,8 @@ class PreferencesStore(context: Context) {
         const val KEY_ONBOARDED = "onboarded"
         const val KEY_PLAYER_OPEN = "player_open"
         const val KEY_BACKEND = "backend"
+        const val KEY_PROFILE_NAME = "profile_name"
+        const val KEY_PROFILE_ART = "profile_art"
         const val KEY_LAST_UPDATE_CHECK = "last_update_check"
         const val KEY_SKIPPED_UPDATE = "skipped_update"
     }

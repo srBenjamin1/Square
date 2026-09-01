@@ -52,6 +52,7 @@ android {
         targetSdk = 35
         versionCode = 23
         versionName = "2.0.1"
+        buildConfigField("boolean", "VERBOSE_LOG", "false")
 
         ndk {
             abiFilters += nativeAbis
@@ -108,6 +109,11 @@ android {
             initWith(getByName("release"))
             isMinifyEnabled = false
             isShrinkResources = false
+            // This build type is release-shaped, so BuildConfig.DEBUG is false
+            // here and anything gated on it stays off — including the log the
+            // vendored InnerTube module writes through Timber, which is the
+            // only view there is of a page that came back in the wrong shape.
+            buildConfigField("boolean", "VERBOSE_LOG", "true")
             // The real key when there is one: a build signed with a different
             // key than the copy already on the phone cannot replace it, and
             // uninstalling first would take the login and the saved queue with
@@ -161,6 +167,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.timber)
     implementation(libs.androidx.core.ktx)
     // Installs baseline-prof.txt on first run, so the code the bar and the
     // player use is compiled before it is needed rather than while it runs.

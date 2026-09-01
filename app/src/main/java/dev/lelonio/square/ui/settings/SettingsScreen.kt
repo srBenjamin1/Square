@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,6 +98,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     /** Opens the Google sign-in web view; see YouTubeLoginScreen. */
     onYouTubeSignIn: () -> Unit = {},
+    /** After switching channel: the library and the home belong to the new one. */
+    onYouTubeChannelChange: () -> Unit = {},
 ) {
     val ready = state as? MainViewModel.UiState.Ready
     val context = LocalContext.current
@@ -246,7 +249,17 @@ fun SettingsScreen(
         }
 
         if (open == SettingsPage.Account) item("youtube-account") {
-            YouTubeAccountSection(onSignIn = onYouTubeSignIn)
+            YouTubeAccountSection(
+                onSignIn = onYouTubeSignIn,
+                onChannelChange = onYouTubeChannelChange,
+            )
+        }
+
+        // What is kept on the phone. Under Playback rather than Account: it is
+        // about how the music arrives, and it belongs beside the bitrate it
+        // shares its wording with.
+        if (open == SettingsPage.Playback && showSpotify) item("downloads") {
+            DownloadsSection(backdrop)
         }
 
         // The bitrate is librespot's; ExoPlayer takes what YouTube serves.
@@ -502,7 +515,7 @@ private fun BackendSection() {
  * without it; what it adds is the user's own playlists.
  */
 @Composable
-private fun YouTubeAccountSection(onSignIn: () -> Unit) {
+private fun YouTubeAccountSection(onSignIn: () -> Unit, onChannelChange: () -> Unit) {
     val context = LocalContext.current
     val app = remember(context) {
         context.applicationContext as dev.lelonio.square.SquareApplication
@@ -512,7 +525,18 @@ private fun YouTubeAccountSection(onSignIn: () -> Unit) {
 
     val account = remember(app) { app.youtubeAccount }
     val name by account.accountName.collectAsStateWithLifecycle()
+    val expired by account.expired.collectAsStateWithLifecycle()
+    val pageId by account.pageId.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+
+    // Asked for once the account is there, and only then: it is a signed-in
+    // call, and there is nothing to switch between while signed out.
+    var channels by remember {
+        mutableStateOf<List<com.metrolist.innertube.models.YouTubeChannel>>(emptyList())
+    }
+    LaunchedEffect(name) {
+        channels = if (name == null) emptyList() else account.channels()
+    }
 
     Section(stringResource(R.string.youtube_account)) {
         if (name == null) {
@@ -535,13 +559,56 @@ private fun YouTubeAccountSection(onSignIn: () -> Unit) {
                     .padding(horizontal = 18.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    name.orEmpty(),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 1,
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        name.orEmpty(),
+                        style = MaterialTheme.typography.titleMedium,
+                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
+                    )
+                    // A cookie Google has stopped accepting. Said here rather
+                    // than left to be guessed from a library that went empty.
+                    if (expired) {
+                        Text(
+                            stringResource(R.string.youtube_session_expired),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = InkDim,
+                        )
+                    }
+                }
+            }
+            if (expired) {
+                RowDivider()
+                ChoiceRow(
+                    label = stringResource(R.string.youtube_sign_in_again),
+                    selected = false,
+                    onClick = onSignIn,
                 )
+            }
+
+            // The channels this Google account owns. One of them is the
+            // personal account nobody uses and another is the channel with the
+            // subscriptions on it, and until this list existed there was no
+            // way to say which one the app was reading.
+            if (channels.size > 1) {
+                RowDivider()
+                Text(
+                    stringResource(R.string.youtube_channel),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = InkDim,
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp),
+                )
+                channels.forEach { channel ->
+                    ChoiceRow(
+                        label = channel.handle?.takeIf { it.isNotBlank() }
+                            ?.let { "${channel.name} · $it" }
+                            ?: channel.name,
+                        selected = channel.pageId == pageId,
+                    ) {
+                        account.useChannel(channel)
+                        onChannelChange()
+                    }
+                }
             }
             RowDivider()
             ChoiceRow(
@@ -765,6 +832,164 @@ private fun Licences() {
             }
             Spacer(Modifier.height(12.dp))
         }
+    }
+}
+
+/**
+ * What is kept on the phone, and the rules for keeping it.
+ *
+ * The numbers first, because the question a downloads screen is opened with is
+ * almost always how much room this is taking.
+ */
+@Composable
+private fun DownloadsSection(backdrop: Backdrop) {
+    val context = LocalContext.current
+    val app = remember(context) {
+        context.applicationContext as dev.lelonio.square.SquareApplication
+    }
+    val store = app.downloads
+    val settings = app.downloadSettings
+
+    val files by store.files.collectAsStateWithLifecycle()
+    val failures by store.failures.collectAsStateWithLifecycle()
+    val quality by settings.quality.collectAsStateWithLifecycle()
+    val wifiOnly by settings.wifiOnly.collectAsStateWithLifecycle()
+    val offline by settings.offlineMode.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+
+    // Two taps rather than a dialog, and the row says so in between: deleting a
+    // library is worth a moment's thought, and a page of settings is the wrong
+    // place to grow a modal.
+    var confirmingClear by remember { mutableStateOf(false) }
+
+    Section(stringResource(R.string.downloads)) {
+        // The audio plus everything kept beside it. Counted rather than summed
+        // from the index, because the Canvases are video and a library of them
+        // is not a rounding error next to the music.
+        val extrasBytes by androidx.compose.runtime.produceState(0L, files.size) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                dev.lelonio.square.download.DownloadExtras.bytes()
+            }
+        }
+        InfoRow(
+            stringResource(R.string.download_storage),
+            stringResource(
+                R.string.download_storage_used,
+                android.text.format.Formatter.formatShortFileSize(
+                    context,
+                    files.values.sumOf { it.bytes } + extrasBytes,
+                ),
+            ),
+        )
+        RowDivider()
+        InfoRow(stringResource(R.string.downloaded_tracks), files.size.toString())
+
+        RowDivider()
+        Text(
+            stringResource(R.string.download_quality),
+            style = MaterialTheme.typography.labelLarge,
+            color = InkDim,
+            modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp),
+        )
+        dev.lelonio.square.data.DownloadQuality.entries.forEach { entry ->
+            ChoiceRow(
+                label = stringResource(entry.label),
+                selected = entry == quality,
+            ) { settings.setQuality(entry) }
+        }
+        Text(
+            stringResource(R.string.download_quality_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = InkDim,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+        )
+
+        RowDivider()
+        DownloadSwitch(
+            label = stringResource(R.string.download_wifi_only),
+            note = stringResource(R.string.download_wifi_only_note),
+            checked = wifiOnly,
+            backdrop = backdrop,
+            onChange = settings::setWifiOnly,
+        )
+
+        RowDivider()
+        DownloadSwitch(
+            label = stringResource(R.string.offline_mode),
+            note = stringResource(R.string.offline_mode_note),
+            checked = offline,
+            backdrop = backdrop,
+            onChange = settings::setOfflineMode,
+        )
+
+        // Only when there is something to say. A row reporting zero failures is
+        // a row about nothing, on a screen that is already long.
+        val givenUp = failures.count {
+            it.value.attempts >= dev.lelonio.square.data.DownloadStore.MAX_ATTEMPTS
+        }
+        if (givenUp > 0) {
+            RowDivider()
+            InfoRow(
+                stringResource(R.string.downloads),
+                stringResource(R.string.download_failed_count, givenUp),
+            )
+            ActionRow(stringResource(R.string.download_retry_failed), destructive = false) {
+                scope.launch {
+                    store.retryFailed()
+                    dev.lelonio.square.download.DownloadService.start(context)
+                }
+            }
+        }
+
+        if (files.isNotEmpty()) {
+            RowDivider()
+            ActionRow(
+                if (confirmingClear) {
+                    stringResource(R.string.remove_all_downloads_confirm)
+                } else {
+                    stringResource(R.string.remove_all_downloads)
+                },
+                destructive = true,
+            ) {
+                if (confirmingClear) {
+                    confirmingClear = false
+                    scope.launch { store.clearAll() }
+                } else {
+                    confirmingClear = true
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DownloadSwitch(
+    label: String,
+    note: String?,
+    checked: Boolean,
+    backdrop: Backdrop,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onChange(!checked) }
+            .padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            if (note != null) {
+                Text(note, style = MaterialTheme.typography.bodySmall, color = InkDim)
+            }
+        }
+        dev.lelonio.square.ui.glass.LiquidToggle(
+            selected = { checked },
+            onSelect = onChange,
+            backdrop = backdrop,
+            accent = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

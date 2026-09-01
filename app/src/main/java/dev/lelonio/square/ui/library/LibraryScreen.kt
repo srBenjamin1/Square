@@ -129,6 +129,8 @@ fun LibraryScreen(
     onOpenArtist: (dev.lelonio.square.data.SearchItem) -> Unit = {},
     /** The albums the account has saved; see MainViewModel.savedAlbums. */
     albums: List<CatalogPlaylist> = emptyList(),
+    /** Tries the servers again from the offline banner; null hides the button. */
+    onRetryOnline: (suspend () -> Boolean)? = null,
     backdrop: Backdrop,
 ) {
     when (state) {
@@ -271,6 +273,13 @@ fun LibraryScreen(
                             .fillMaxSize()
                             .layerBackdrop(listBackdrop),
                     ) {
+                        // Why the library is shorter than usual, at the top
+                        // of the library. Nothing at all when there is a
+                        // connection; see OfflineNotice.
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "offline") {
+                            dev.lelonio.square.ui.components.OfflineNotice(onRetry = onRetryOnline)
+                        }
+
                         if (artists.isNotEmpty() && filter == Filter.ALL) {
                             item(span = { GridItemSpan(maxLineSpan) }, key = "artists") {
                                 ArtistShelf(artists, onOpenArtist)
@@ -298,6 +307,10 @@ fun LibraryScreen(
                             .fillMaxSize()
                             .layerBackdrop(listBackdrop),
                     ) {
+                        item(key = "offline") {
+                            dev.lelonio.square.ui.components.OfflineNotice(onRetry = onRetryOnline)
+                        }
+
                         if (artists.isNotEmpty() && filter == Filter.ALL) {
                             item(key = "artists") { ArtistShelf(artists, onOpenArtist) }
                         }

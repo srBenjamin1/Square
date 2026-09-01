@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -55,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.unit.lerp
 import dev.lelonio.square.ui.glass.backdrop.Backdrop
 import com.adamglin.PhosphorIcons
@@ -63,6 +65,7 @@ import com.adamglin.phosphoricons.regular.SpotifyLogo
 import com.adamglin.phosphoricons.regular.YoutubeLogo
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material3.Icon
@@ -143,8 +146,14 @@ fun HomeScreen(
      * what it genuinely has instead.
      */
     youtubeMode: Boolean = false,
+    /** Tries the servers again from the offline banner; null hides the button. */
+    onRetryOnline: (suspend () -> Boolean)? = null,
     youtubeHome: MainViewModel.YouTubeHomeState = MainViewModel.YouTubeHomeState(),
     onPlayTrending: (List<CatalogTrack>, Int) -> Unit = { _, _ -> },
+    /** One of YouTube's own filters above the page, or null to clear it. */
+    onPickYouTubeChip: (dev.lelonio.square.backend.HomeChip?) -> Unit = {},
+    /** Called from the bottom of the page: the next shelves, if there are any. */
+    onLoadMoreYouTube: () -> Unit = {},
     /**
      * Spotify's own personalised shelves, empty when the gateway said nothing.
      *
@@ -165,6 +174,8 @@ fun HomeScreen(
             onPlayTrending = onPlayTrending,
             onOpenPlaylist = onOpenPlaylist,
             onOpenSettings = onOpenSettings,
+            onPickChip = onPickYouTubeChip,
+            onLoadMore = onLoadMoreYouTube,
         )
         return
     }
@@ -234,6 +245,9 @@ fun HomeScreen(
             // untouched. Past the first item the header is simply fully
             // collapsed — asking for the exact offset of something scrolled far
             // off screen means measuring items that no longer exist.
+            val offline by dev.lelonio.square.playback.OfflineMode.active
+                .collectAsStateWithLifecycle()
+
             val collapse by remember {
                 derivedStateOf {
                     if (listState.firstVisibleItemIndex > 0) 1f
@@ -330,6 +344,19 @@ fun HomeScreen(
                         bottom = contentPadding.calculateBottomPadding(),
                     ),
                 ) {
+                // Why the page is shorter than usual, before the page.
+                //
+                // Added to the list only while it is actually offline, not
+                // added always and left to draw nothing: an item of zero height
+                // is still an item, so the first scrolled pixel moved the list
+                // past it and the header — which reads its collapse off the
+                // first visible item — snapped shut instead of easing.
+                if (offline) {
+                    item(key = "offline") {
+                        dev.lelonio.square.ui.components.OfflineNotice(onRetry = onRetryOnline)
+                    }
+                }
+
                 // Spotify's own shelves come first, because they are what the
                 // listener recognises as their home and the only rows here that
                 // this app could not have built itself. What the account has
@@ -861,6 +888,9 @@ private fun ArtistTile(artist: SearchItem, onClick: () -> Unit) {
 
 @Composable
 private fun PlaylistTile(playlist: CatalogPlaylist, onClick: () -> Unit) {
+    // A portrait among covers: the one shape difference a shelf of people
+    // needs, and the reason an artist row reads as people at a glance.
+    val corner = if (playlist.isArtist) 76.dp else 20.dp
     Column(
         Modifier
             .width(152.dp)
@@ -871,16 +901,28 @@ private fun PlaylistTile(playlist: CatalogPlaylist, onClick: () -> Unit) {
             title = playlist.name,
             modifier = Modifier
                 .size(152.dp)
-                .softShadow(RoundedCornerShape(20.dp), elevation = 18.dp),
-            corner = 20.dp,
+                .softShadow(RoundedCornerShape(corner), elevation = 18.dp),
+            corner = corner,
         )
         Text(
             playlist.name,
             style = MaterialTheme.typography.titleMedium,
-            maxLines = 2,
+            // One line where there is something written under it, or the two
+            // together push the next shelf off its own baseline.
+            maxLines = if (playlist.subtitle == null) 2 else 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 10.dp, start = 2.dp, end = 2.dp),
         )
+        playlist.subtitle?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = InkDim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 2.dp, end = 2.dp),
+            )
+        }
     }
 }
 
@@ -1043,12 +1085,127 @@ private fun <T> Carousel(
 }
 
 @Composable
-private fun Heading(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.headlineLarge,
-        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 30.dp),
-    )
+private fun Heading(text: String, strapline: String? = null) {
+    Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 30.dp)) {
+        // Above the title, smaller and quieter, the way the service writes it:
+        // "MIX", "START RADIO FROM A SONG", an artist's name. It is most of
+        // what tells two shelves with the same title apart.
+        strapline?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                it.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                color = InkDim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = 2.dp),
+            )
+        }
+        Text(text, style = MaterialTheme.typography.headlineLarge)
+    }
+}
+
+/**
+ * A shelf of songs as a block rather than a row.
+ *
+ * Four to a column, and the columns scroll a screen at a time — the shape the
+ * official app gives its longest shelves. A song here is a line, not a tile:
+ * small art, the title, who it is by. Twenty of these as tiles would be a
+ * carousel nobody reaches the end of.
+ */
+@Composable
+private fun QuickPicks(tracks: List<CatalogTrack>, onPlay: (Int) -> Unit) {
+    val columns = tracks.chunked(QUICK_PICK_ROWS)
+    val width = LocalConfiguration.current.screenWidthDp.dp - 44.dp
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        flingBehavior = rememberSnapFlingBehavior(rememberLazyListState()),
+        modifier = Modifier.padding(top = 14.dp),
+    ) {
+        itemsIndexed(columns, key = { _, column -> column.first().uri }) { columnIndex, column ->
+            Column(
+                Modifier.width(width),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                column.forEachIndexed { rowIndex, track ->
+                    QuickPickRow(track) {
+                        onPlay(columnIndex * QUICK_PICK_ROWS + rowIndex)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickPickRow(track: CatalogTrack, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .pressable(onClick)
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Artwork(
+            url = track.artworkUrl,
+            title = track.name,
+            modifier = Modifier.size(52.dp),
+            corner = 10.dp,
+            decodeSize = 52.dp,
+        )
+        Column(Modifier.padding(start = 12.dp)) {
+            Text(
+                track.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                track.artist,
+                style = MaterialTheme.typography.bodySmall,
+                color = InkDim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** The service's own filters, drawn as the app's own chips. */
+@Composable
+private fun ChipRow(
+    chips: List<dev.lelonio.square.backend.HomeChip>,
+    selected: String?,
+    backdrop: Backdrop,
+    onPick: (dev.lelonio.square.backend.HomeChip?) -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(top = 16.dp),
+    ) {
+        items(chips, key = { it.title }) { chip ->
+            val isSelected = chip.title == selected
+            LiquidButton(
+                // Pressing the chip that is already on takes the filter off,
+                // which is what the service's own deselect does.
+                onClick = { onPick(if (isSelected) null else chip) },
+                backdrop = backdrop,
+                flat = true,
+                contentHeight = 38.dp,
+                contentPadding = 18.dp,
+                surfaceColor = if (isSelected) SelectedFilm else Color.Unspecified,
+                wash = dev.lelonio.square.ui.glass.chipWash(isSelected),
+            ) {
+                Text(
+                    chip.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isSelected) Ink else InkDim,
+                )
+            }
+        }
+    }
 }
 
 /** A glass pill, for the handful of places that need a button at all. */
@@ -1087,6 +1244,8 @@ private fun YouTubeHome(
     onPlayTrending: (List<CatalogTrack>, Int) -> Unit,
     onOpenPlaylist: (CatalogPlaylist) -> Unit,
     onOpenSettings: () -> Unit,
+    onPickChip: (dev.lelonio.square.backend.HomeChip?) -> Unit,
+    onLoadMore: () -> Unit,
 ) {
     val empty = home.rows.isEmpty() && recent.isEmpty()
     if (empty) {
@@ -1166,20 +1325,43 @@ private fun YouTubeHome(
                 bottom = contentPadding.calculateBottomPadding(),
             ),
         ) {
+        // YouTube's own filters, where it sent any: each is a page in its own
+        // right rather than a sieve over this one.
+        if (home.chips.isNotEmpty()) {
+            item(key = "chips") {
+                ChipRow(
+                    chips = home.chips,
+                    selected = home.chip,
+                    backdrop = backdrop,
+                    onPick = onPickChip,
+                )
+            }
+        }
+
         // Whatever shelves YouTube sent, in its own order and under its own
         // titles. Not reshaped into a fixed set of rows: the page is different
         // signed in and signed out, and it changes on its own besides.
-        home.rows.forEach { row ->
-            item(key = "head-${row.title}") { Heading(row.title) }
+        home.rows.forEachIndexed { index, row ->
+            item(key = "head-$index-${row.title}") { Heading(row.title, row.strapline) }
 
             if (row.tracks.isNotEmpty()) {
-                item(key = "tracks-${row.title}") {
-                    TrackRow(row.tracks) { index -> onPlayTrending(row.tracks, index) }
+                item(key = "tracks-$index-${row.title}") {
+                    // A shelf of songs long enough to be a list is drawn as
+                    // one: four rows deep, scrolling sideways a screen at a
+                    // time, which is what "quick picks" is in the app this
+                    // page is copying. A handful of songs stays a row of
+                    // tiles, because three of these stacked would be a
+                    // column with two holes in it.
+                    if (row.tracks.size >= QUICK_PICK_MINIMUM) {
+                        QuickPicks(row.tracks) { i -> onPlayTrending(row.tracks, i) }
+                    } else {
+                        TrackRow(row.tracks) { i -> onPlayTrending(row.tracks, i) }
+                    }
                 }
             }
 
             if (row.items.isNotEmpty()) {
-                item(key = "items-${row.title}") {
+                item(key = "items-$index-${row.title}") {
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 20.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1189,6 +1371,25 @@ private fun YouTubeHome(
                             PlaylistTile(entry) { onOpenPlaylist(entry) }
                         }
                     }
+                }
+            }
+        }
+
+        // The end of the page, which is where the next one is asked for.
+        if (home.hasMore) {
+            item(key = "more") {
+                LaunchedEffect(home.rows.size) { onLoadMore() }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 28.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        color = InkDim,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(22.dp),
+                    )
                 }
             }
         }
@@ -1333,3 +1534,9 @@ private fun FriendFaces(
 /** One face, and how much of the one behind it is left showing. */
 private val FACE = 30.dp
 private val FACE_PEEK = 20.dp
+
+/** A shelf of at least this many songs is drawn as a block; see [QuickPicks]. */
+private const val QUICK_PICK_MINIMUM = 8
+
+/** How deep that block goes before it starts a new column. */
+private const val QUICK_PICK_ROWS = 4

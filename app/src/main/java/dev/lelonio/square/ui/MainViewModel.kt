@@ -8,10 +8,13 @@ import dev.lelonio.square.SquareApplication
 import dev.lelonio.square.auth.SpotifyOAuth
 import dev.lelonio.square.backend.BackendAuthState
 import dev.lelonio.square.backend.BackendId
+import dev.lelonio.square.backend.HomeChip
 import dev.lelonio.square.backend.HomeRow
 import dev.lelonio.square.backend.SearchLabels
 import dev.lelonio.square.R
 import dev.lelonio.square.data.Catalog
+import dev.lelonio.square.data.DownloadStore
+import dev.lelonio.square.download.DownloadService
 import dev.lelonio.square.data.AddTracksRequestDto
 import dev.lelonio.square.data.RemoveTracksRequestDto
 import dev.lelonio.square.data.TrackUriDto
@@ -197,12 +200,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val feed: StateFlow<FeedState> = _feed.asStateFlow()
     private var feedJob: Job? = null
 
-    /** YouTube Music's own home page, as it laid it out; see [MusicBackend.homeRows]. */
+    /** YouTube Music's own home page, as it laid it out; see [MusicBackend.homeFeed]. */
     data class YouTubeHomeState(
         val rows: List<HomeRow> = emptyList(),
+        val chips: List<HomeChip> = emptyList(),
+        /** Which filter is on, by title; null is the home page itself. */
+        val chip: String? = null,
         val loading: Boolean = false,
+        /** A page after the first, on its way. */
+        val loadingMore: Boolean = false,
         val error: String? = null,
-    )
+        /** Where the next shelves are; null when the page has run out. */
+        val cursor: String? = null,
+    ) {
+        /** True while there are more shelves to ask for. */
+        val hasMore: Boolean get() = cursor != null
+    }
 
     private val _youtubeHome = MutableStateFlow(YouTubeHomeState())
     val youtubeHome: StateFlow<YouTubeHomeState> = _youtubeHome.asStateFlow()
@@ -221,15 +234,85 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (youtubeHomeJob?.isActive == true) return
         if (!force && _youtubeHome.value.rows.isNotEmpty()) return
 
-        _youtubeHome.value = _youtubeHome.value.copy(loading = true, error = null)
-        youtubeHomeJob = viewModelScope.launch {
-            runCatching { backend.homeRows() }
-                .onSuccess { _youtubeHome.value = YouTubeHomeState(rows = it, loading = false) }
-                .onFailure {
-                    android.util.Log.e(TAG, "youtube home failed: ${chain(it)}", it)
-                    _youtubeHome.value = YouTubeHomeState(loading = false, error = describe(it))
-                }
+        youtubeParams = null
+        _youtubeHome.value = _youtubeHome.value.copy(loading = true, error = null, chip = null)
+        youtubeHomeJob = viewModelScope.launch { readYouTubeHome(replace = true) }
+    }
+
+    /**
+     * The next shelves, asked for as the page runs out.
+     *
+     * The home page is served four or five shelves at a time and the list is
+     * what says when more are wanted, so this is called from the bottom of it
+     * rather than on a timer: what the listener never scrolls to is never
+     * fetched.
+     */
+    fun loadMoreYouTubeHome() {
+        val state = _youtubeHome.value
+        if (!state.hasMore || state.loading || state.loadingMore) return
+        if (youtubeHomeJob?.isActive == true) return
+
+        _youtubeHome.value = state.copy(loadingMore = true)
+        youtubeHomeJob = viewModelScope.launch { readYouTubeHome(replace = false) }
+    }
+
+    /**
+     * Picks one of the filters above the page, or clears it.
+     *
+     * The chips are the service's own views of the same home — "Relax",
+     * "Workout" — and each is a page in its own right, continuation and all,
+     * so choosing one starts over rather than filtering what is already here.
+     */
+    fun selectYouTubeChip(chip: HomeChip?) {
+        if (chip?.title == _youtubeHome.value.chip) return
+        youtubeHomeJob?.cancel()
+        youtubeParams = chip?.params
+        _youtubeHome.value = _youtubeHome.value.copy(
+            rows = emptyList(),
+            chip = chip?.title,
+            loading = true,
+            loadingMore = false,
+            error = null,
+        )
+        youtubeHomeJob = viewModelScope.launch { readYouTubeHome(replace = true) }
+    }
+
+    private var youtubeParams: String? = null
+
+    private suspend fun readYouTubeHome(replace: Boolean) {
+        val backend = container.activeBackend
+        val before = _youtubeHome.value
+        runCatching {
+            backend.homeFeed(
+                cursor = if (replace) null else before.cursor,
+                params = youtubeParams,
+            )
         }
+            .onSuccess { feed ->
+                val rows = if (replace) feed.rows else before.rows + feed.rows
+                _youtubeHome.value = before.copy(
+                    rows = rows,
+                    // A continuation carries no chips, so the ones already on
+                    // screen stay where they are.
+                    chips = feed.chips.ifEmpty { before.chips },
+                    loading = false,
+                    loadingMore = false,
+                    error = null,
+                    cursor = feed.cursor,
+                )
+            }
+            .onFailure {
+                if (it is kotlinx.coroutines.CancellationException) throw it
+                android.util.Log.e(TAG, "youtube home failed: ${chain(it)}", it)
+                _youtubeHome.value = before.copy(
+                    loading = false,
+                    loadingMore = false,
+                    // A page that failed after the first leaves what is already
+                    // read on screen: the shelves above it are still good.
+                    error = if (before.rows.isEmpty()) describe(it) else null,
+                    cursor = if (replace) null else before.cursor,
+                )
+            }
     }
 
     /**
@@ -1296,6 +1379,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // No access point to wait for and no Premium account to check: this
             // backend is usable at once, and signing in only adds the library.
             _state.value = UiState.Loading
+            // Before the library is asked for: a session that has come loose
+            // reads as an empty library otherwise, with nothing on screen to
+            // say the account is the thing that needs attention.
+            runCatching { backend.refreshAuth() }
             val name = (backend.authState.value as? BackendAuthState.LoggedIn)?.displayName
             runCatching { backend.playlists() }
                 .onSuccess { playlists ->
@@ -1312,6 +1399,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _state.value =
                         UiState.Ready(displayName = name.orEmpty(), playlists = withLocalFiles(emptyList()))
                 }
+            // The other two shelves of the same library. They read the active
+            // backend and empty themselves for one that keeps neither, which is
+            // also what clears Spotify's off the screen when the source changes.
+            loadSavedAlbums()
+            loadFollowedArtists()
             return@launch
         }
 
@@ -1322,6 +1414,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         _state.value = UiState.Connecting
         if (!awaitEngine()) {
+            // A library with no session is not an empty library. Everything
+            // that was downloaded is still here and still playable, and the
+            // shelf for it is the one thing the listener came for.
+            offlineLibrary()?.let {
+                _state.value = it
+                return@launch
+            }
             _state.value = if (container.spotifySignedIn) {
                 UiState.Failed(string(R.string.cannot_connect))
             } else {
@@ -1344,7 +1443,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             .onFailure {
                 android.util.Log.e(TAG, "library load failed: ${chain(it)}", it)
-                _state.value = UiState.Failed(describe(it))
+                // The same fallback: the session came up but the catalogue
+                // could not be read, and the downloads are unaffected by that.
+                _state.value = offlineLibrary() ?: UiState.Failed(describe(it))
             }
     }
 
@@ -1355,6 +1456,46 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * already on screen with the account name by the time this runs, and an
      * account with no Web API application connected simply keeps it.
      */
+    /**
+     * The library as the download index knows it, for when Spotify cannot be
+     * asked.
+     *
+     * Built from the labels stored beside every download — name, cover, kind —
+     * rather than from the context cache, which expires and holds only the last
+     * few things opened. A download is meant to outlive both, and a phone in a
+     * tunnel should find its playlists exactly where it left them.
+     *
+     * Null when there is nothing downloaded, which is the one case where an
+     * error really is the honest answer.
+     */
+    private suspend fun offlineLibrary(): UiState.Ready? {
+        container.downloads.load()
+        val owners = container.downloads.owners.value
+        val labelled = owners.keys.mapNotNull { uri ->
+            container.downloads.labelOf(uri)?.let {
+                CatalogPlaylist(uri = uri, name = it.name, artworkUrl = it.artworkUrl)
+            }
+        }
+        val singles = owners[DownloadStore.SINGLES].orEmpty()
+        val shelf = singles.takeIf { it.isNotEmpty() }?.let {
+            CatalogPlaylist(
+                uri = DownloadStore.SINGLES,
+                name = string(R.string.downloaded_tracks),
+                artworkUrl = dev.lelonio.square.ui.components.DOWNLOADS_COVER,
+            )
+        }
+        val everything = listOfNotNull(shelf) + labelled
+        if (everything.isEmpty()) return null
+
+        android.util.Log.i(TAG, "offline library: ${everything.size} downloaded")
+        // The name and the picture from the last time there was a connection.
+        // They cost nothing to keep and their absence reads as being signed
+        // out, which is not what has happened.
+        val (name, avatar) = container.preferences.profile()
+        // The phone's own files belong here as much as they do online.
+        return UiState.Ready(name, withLocalFiles(everything), avatarUrl = avatar)
+    }
+
     /**
      * The account's library, as the active backend assembles it.
      *
@@ -1437,6 +1578,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // list mine. The id, not the display name — two accounts can
                 // be called the same thing and only one of them owns it.
                 meId = profile.id
+                // And kept on disk, for the next time there is no network to
+                // ask with; see [offlineLibrary].
+                container.preferences.setProfile(
+                    _state.value.let { (it as? UiState.Ready)?.displayName.orEmpty() },
+                    profile.images.lastOrNull()?.url,
+                )
+                // The picture itself, beside the downloads, so it is a file
+                // rather than a URL that cannot be fetched.
+                profile.images.lastOrNull()?.url?.let {
+                    launch { dev.lelonio.square.download.DownloadExtras.keep(it, "art") }
+                }
             }
             .onFailure { android.util.Log.w(TAG, "profile unavailable: ${describe(it)}") }
     }
@@ -1663,6 +1815,67 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .getOrNull()
     }
 
+    /**
+     * Shows a station that has already been resolved.
+     *
+     * The radio button asks for the tracks before it does anything else — it
+     * has to, since an empty station is a button that should do nothing — so
+     * this publishes what is already in hand rather than sending the page off
+     * to fetch the same list a second time. A station is not a context that can
+     * be reopened later anyway: ask twice and Spotify builds two different ones.
+     */
+    /**
+     * Tries to reach Spotify again, and says whether it worked.
+     *
+     * The switch first, because a listener who turned offline on and then asks
+     * to go back online means the switch: leaving it set and rebuilding the
+     * session would reconnect an app that immediately declares itself offline
+     * again.
+     *
+     * Then the handshake. A failure is not an error worth showing — the banner
+     * is already saying the thing it would say — so this reports it by leaving
+     * the app exactly as it was.
+     */
+    suspend fun retryOnline(): Boolean {
+        container.downloadSettings.setOfflineMode(false)
+        withContext(Dispatchers.IO) {
+            runCatching { NativeBridge.reconnect() }
+                .onFailure { android.util.Log.w(TAG, "retry failed: ${describe(it)}") }
+        }
+        val offline = runCatching { NativeBridge.isOffline }.getOrDefault(true)
+        dev.lelonio.square.playback.OfflineMode.setNoSession(offline)
+        if (!offline) {
+            // The library was built from the download index while there was no
+            // session; now there is one, and it is a different library.
+            refresh()
+            loadHomeShelves()
+        }
+        return !offline
+    }
+
+    fun showStation(
+        uri: String,
+        name: String,
+        artworkUrl: String?,
+        tracks: List<CatalogTrack>,
+    ) {
+        playlistJob?.cancel()
+        // Kept so the source line in the player can come back to it. Asking
+        // Spotify for the same station again would build a different one, and
+        // the page would then disagree with what is playing.
+        lastStation = PlaylistState(
+            uri = uri,
+            name = name,
+            artworkUrl = artworkUrl,
+            kind = DetailKind.PLAYLIST,
+            tracks = tracks,
+        )
+        lastStation?.let(::publishPlaylist)
+    }
+
+    /** The station last shown, so the player's source line can reopen it. */
+    private var lastStation: PlaylistState? = null
+
     fun openContext(uri: String, name: String, artworkUrl: String? = null) =
         openPlaylist(CatalogPlaylist(uri = uri, name = name, artworkUrl = artworkUrl))
 
@@ -1865,7 +2078,145 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 size > CONTEXT_CACHE_SIZE
         }
 
+    // ------------------------------------------------------------ downloads
+
+    /** What is on the phone, per track; see DownloadStore. */
+    val downloadedFiles = container.downloads.files
+
+    /** What is being fetched right now, 0f..1f per track. */
+    val downloadProgress = container.downloads.progress
+
+    /** Per playlist, album or artist: whether it is kept, and how far along. */
+    val downloadOwners = container.downloads.ownerStates
+
+    /**
+     * Tracks downloaded on their own rather than as part of a page.
+     *
+     * The difference matters to the track menu: a song kept because a playlist
+     * wants it cannot be removed by itself — the file is still owed to that
+     * playlist — so offering to remove it there would be offering something
+     * that does nothing.
+     */
+    val downloadSingles: StateFlow<Set<String>> =
+        container.downloads.owners
+            .map { it[DownloadStore.SINGLES].orEmpty().toSet() }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    /**
+     * Keeps a whole page on the phone, or stops keeping it.
+     *
+     * The page is the unit rather than the track because that is how a listener
+     * thinks about it — a playlist goes on the plane, not forty songs — and
+     * because it is what lets a shared track cost nothing: the store records
+     * who wanted each file, so a song two playlists both keep is fetched once
+     * and only leaves when the last of them lets go of it.
+     */
+    fun toggleDownload(page: PlaylistState) {
+        val uri = page.uri ?: return
+        if (page.tracks.isEmpty()) return
+        viewModelScope.launch {
+            if (container.downloads.owners.value.containsKey(uri)) {
+                // Only what is actually being fetched. Cancelling every track
+                // of the playlist would work — the engine clears the mark
+                // before each download — but it would also be several hundred
+                // JNI calls to stop the one or two that are running.
+                val inFlight = container.downloads.progress.value.keys.toList()
+                container.downloads.removeOwner(uri)
+                inFlight.forEach { runCatching { NativeBridge.cancelDownload(it) } }
+                sweepOrphans()
+            } else {
+                container.downloads.setOwner(
+                    ownerUri = uri,
+                    tracks = page.tracks,
+                    label = DownloadStore.OwnerLabel(
+                        name = page.name,
+                        artworkUrl = page.artworkUrl,
+                        kind = when (page.kind) {
+                            DetailKind.ALBUM -> DownloadStore.KIND_ALBUM
+                            DetailKind.ARTIST -> DownloadStore.KIND_ARTIST
+                            DetailKind.PLAYLIST -> DownloadStore.KIND_PLAYLIST
+                        },
+                    ),
+                )
+                DownloadService.start(getApplication())
+            }
+        }
+    }
+
+    /**
+     * One track, kept on its own.
+     *
+     * Filed under a owner of its own so that the answer to "why is this here"
+     * stays honest: a song downloaded by itself does not disappear because a
+     * playlist it also belongs to was let go of.
+     */
+    fun toggleTrackDownload(track: CatalogTrack) {
+        viewModelScope.launch {
+            val singles = container.downloads.owners.value[DownloadStore.SINGLES].orEmpty()
+            if (track.uri in singles) {
+                container.downloads.removeSingle(track.uri)
+                runCatching { NativeBridge.cancelDownload(track.uri) }
+                sweepOrphans()
+            } else {
+                container.downloads.addSingle(track)
+                DownloadService.start(getApplication())
+            }
+        }
+    }
+
+    /** Everything, gone. The files first, then what pointed at them. */
+    /**
+     * Deletes the files nothing wants any more.
+     *
+     * Letting go of a playlist only says the playlist no longer wants its
+     * songs; it does not say the songs can go, because another playlist may
+     * want the same ones. So the two halves are separate: the index works out
+     * what is now unclaimed, and this is what takes those off the disk.
+     *
+     * Without it the index kept every file it had ever fetched — the rows went
+     * on showing the download mark for a playlist that had just been let go of,
+     * and the space was never given back.
+     */
+    private suspend fun sweepOrphans() {
+        container.downloads.pruneOrphans().forEach {
+            runCatching { NativeBridge.removeDownload(it) }
+            dev.lelonio.square.download.DownloadExtras.forget(it)
+        }
+        // And whatever is left in the extras that no surviving track can
+        // explain: covers, words and Canvases of songs that are gone.
+        withContext(Dispatchers.IO) {
+            val tracks = container.downloads.files.value.keys
+            dev.lelonio.square.download.DownloadExtras.sweep(
+                trackUris = tracks,
+                coverUrls = tracks.mapNotNull { container.downloads.trackOf(it)?.artworkUrl },
+            )
+        }
+    }
+
+    fun clearDownloads() {
+        viewModelScope.launch {
+            container.downloads.progress.value.keys.forEach {
+                runCatching { NativeBridge.cancelDownload(it) }
+            }
+            container.downloads.clearAll()
+        }
+    }
+
+    fun retryFailedDownloads() {
+        viewModelScope.launch {
+            container.downloads.retryFailed()
+            DownloadService.start(getApplication())
+        }
+    }
+
     fun openPlaylist(playlist: CatalogPlaylist) {
+        // A station reopens as the list it already is; see [showStation].
+        lastStation?.takeIf { it.uri == playlist.uri }?.let {
+            playlistJob?.cancel()
+            publishPlaylist(it)
+            return
+        }
+
         // Reopening one counts as opening it, and that is exactly the playlist
         // the home page should keep at the front.
         container.playlistOrder.record(playlist.uri)
@@ -1876,6 +2227,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (LocalLibrary.isLocalContext(playlist.uri)) {
             openLocalFiles(playlist)
             return
+        }
+
+        // Offline, a downloaded playlist is answered from the index too. Not a
+        // fallback after a failed request but instead of one: with no session
+        // the request cannot even be attempted, and the whole list is already
+        // here — in the order the playlist had when it was downloaded, which is
+        // the order it should still be in.
+        if (dev.lelonio.square.playback.OfflineMode.active.value) {
+            val wanted = container.downloads.owners.value[playlist.uri]
+            if (wanted != null) {
+                openDownloadedContext(playlist, wanted)
+                return
+            }
         }
 
         val kind = kindOf(playlist.uri)
@@ -2007,6 +2371,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * it is the only case in the app where an empty list is something to act
      * on rather than to report.
      */
+    /** A downloaded list, read out of the index rather than off the network. */
+    private fun openDownloadedContext(playlist: CatalogPlaylist, wanted: List<String>) {
+        playlistJob?.cancel()
+        val label = container.downloads.labelOf(playlist.uri)
+        publishPlaylist(
+            PlaylistState(
+                uri = playlist.uri,
+                name = playlist.name.ifEmpty { label?.name.orEmpty() },
+                artworkUrl = playlist.artworkUrl ?: label?.artworkUrl,
+                kind = when (label?.kind) {
+                    DownloadStore.KIND_ALBUM -> DetailKind.ALBUM
+                    DownloadStore.KIND_ARTIST -> DetailKind.ARTIST
+                    else -> DetailKind.PLAYLIST
+                },
+                tracks = wanted.mapNotNull(container.downloads::trackOf),
+            ),
+        )
+    }
+
     private fun openLocalFiles(playlist: CatalogPlaylist) {
         playlistJob?.cancel()
         val base = PlaylistState(
@@ -2542,7 +2925,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val savedAlbums: StateFlow<List<CatalogPlaylist>> = _savedAlbums.asStateFlow()
 
     fun loadSavedAlbums() = viewModelScope.launch {
-        if (!container.webApi.isReady || container.activeBackend.id != BackendId.SPOTIFY) {
+        // Whichever service is on. What follows is Spotify's own paging; every
+        // other backend answers for itself, and one that keeps no albums
+        // answers with none.
+        if (container.activeBackend.id != BackendId.SPOTIFY) {
+            _savedAlbums.value = runCatching { container.activeBackend.savedAlbums() }
+                .getOrDefault(emptyList())
+            return@launch
+        }
+        if (!container.webApi.isReady) {
             _savedAlbums.value = emptyList()
             return@launch
         }
@@ -2575,7 +2966,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val followedArtists: StateFlow<List<SearchItem>> = _followedArtists.asStateFlow()
 
     fun loadFollowedArtists() = viewModelScope.launch {
-        if (!container.webApi.isReady || container.activeBackend.id != BackendId.SPOTIFY) {
+        if (container.activeBackend.id != BackendId.SPOTIFY) {
+            _followedArtists.value = runCatching { container.activeBackend.followedArtists() }
+                .getOrDefault(emptyList())
+            return@launch
+        }
+        if (!container.webApi.isReady) {
             _followedArtists.value = emptyList()
             return@launch
         }
@@ -2631,6 +3027,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // and then report a connection problem, when the real answer is
             // that the user has to log in again.
             if (!container.spotifySignedIn) return@withTimeoutOrNull false
+            // An engine that came up offline is never going to report itself
+            // connected, and waiting for it to is thirty seconds of spinner on
+            // a phone that has the music already. There is a player behind this
+            // — see build_offline_bundle — so the answer is "ready", and what
+            // it is ready for is what the library below works out.
+            if (runCatching { NativeBridge.isOffline }.getOrDefault(false)) {
+                return@withTimeoutOrNull false
+            }
             delay(POLL_INTERVAL_MS)
         }
         true

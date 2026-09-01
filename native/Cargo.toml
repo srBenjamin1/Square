@@ -32,6 +32,8 @@ log = "0.4"
 once_cell = "1"
 # Same major as librespot-core, so `Method` is the type spclient expects.
 http = "1.3"
+# Reading a CDN response body in chunks; see src/downloads.rs.
+http-body-util = "0.1"
 # The body type librespot's own HTTP client takes.
 bytes = "1"
 serde_json = "1"

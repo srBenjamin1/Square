@@ -1112,6 +1112,23 @@ impl PlayerTrackLoader {
     ) -> Option<PlayerLoadedTrackData> {
         match track_uri {
             SpotifyUri::Track { .. } | SpotifyUri::Episode { .. } => {
+                // LOCAL PATCH: a downloaded track is played from disk.
+                //
+                // Before anything else, because the point of the branch is that
+                // it touches nothing: no metadata request, no storage resolve,
+                // no audio key, no CDN. That is what makes a downloaded track
+                // start instantly on a bad connection and play at all on none.
+                //
+                // A failure here falls through to the network rather than
+                // failing the load. The file could have been removed between
+                // the lookup and the open, or be a truncated leftover from a
+                // crash mid-write; either way the track is still playable the
+                // ordinary way, and the alternative is a song that refuses to
+                // play because of a housekeeping problem the listener cannot
+                // see.
+                if let Some(loaded) = self.load_downloaded_track(&track_uri, position_ms) {
+                    return Some(loaded);
+                }
                 self.load_remote_track(track_uri, position_ms).await
             }
             SpotifyUri::Local { .. } => self.load_local_track(track_uri, position_ms).await,
@@ -1120,6 +1137,179 @@ impl PlayerTrackLoader {
                 None
             }
         }
+    }
+
+    /// LOCAL PATCH: loads a track from the copy the engine has downloaded.
+    ///
+    /// Deliberately not `async`: there is nothing here to await. Every step is
+    /// a local file operation, which is the whole reason this path exists.
+    ///
+    /// Below the first few lines it is the streaming path, unchanged — and it
+    /// is unchanged on purpose. The downloaded file is the file the CDN served,
+    /// still encrypted, so the same `AudioDecrypt` runs over it, the Ogg header
+    /// still ends at the same offset, and the normalisation packet is still
+    /// read out of the same place. Anything that behaved differently when a
+    /// track is downloaded would be a bug the listener hears.
+    ///
+    /// Returns `None` when there is no download for this track — the ordinary
+    /// answer — and also when there is one that cannot be read, so the caller
+    /// falls back to the network.
+    fn load_downloaded_track(
+        &self,
+        track_uri: &SpotifyUri,
+        position_ms: u32,
+    ) -> Option<PlayerLoadedTrackData> {
+        let lookup = self.config.download_lookup.as_ref()?;
+        let track_id: SpotifyId = track_uri.try_into().ok()?;
+        let downloaded = lookup(&track_id)?;
+
+        let began = Instant::now();
+
+        let file = match File::open(&downloaded.path) {
+            Ok(file) => file,
+            Err(e) => {
+                warn!(
+                    "download for <{}> could not be opened, fetching it instead: {e}",
+                    downloaded.name
+                );
+                return None;
+            }
+        };
+        let file_size = match file.metadata() {
+            Ok(meta) => meta.len(),
+            Err(e) => {
+                warn!("download for <{}> has no size: {e}", downloaded.name);
+                return None;
+            }
+        };
+
+        let key = downloaded.key.map(librespot_core::audio_key::AudioKey);
+        let mut decrypted_file = AudioDecrypt::new(key, file);
+
+        let is_ogg_vorbis = AudioFiles::is_ogg_vorbis(downloaded.format);
+        let (offset, mut normalisation_data) = if is_ogg_vorbis {
+            let normalisation_data = NormalisationData::parse_from_ogg(&mut decrypted_file).ok();
+            (SPOTIFY_OGG_HEADER_END, normalisation_data)
+        } else {
+            (0, None)
+        };
+
+        let audio_file = match Subfile::new(decrypted_file, offset, file_size) {
+            Ok(audio_file) => audio_file,
+            Err(e) => {
+                warn!("download for <{}> is too short to play: {e}", downloaded.name);
+                return None;
+            }
+        };
+
+        let mut hint = Hint::new();
+        if let Some(mime_type) = AudioFiles::mime_type(downloaded.format) {
+            hint.mime_type(mime_type);
+        }
+
+        let mut decoder: Decoder = match SymphoniaDecoder::new(audio_file, hint) {
+            Ok(mut decoder) => {
+                // Same as the streaming path: outside Ogg Vorbis the loudness
+                // comes from ReplayGain tags rather than Spotify's own packet.
+                if normalisation_data.is_none() {
+                    normalisation_data = decoder.normalisation_data();
+                }
+                Box::new(decoder)
+            }
+            Err(e) => {
+                // A file that will not decode is a broken download, not a
+                // broken track. Say so and let the caller stream it.
+                warn!(
+                    "download for <{}> will not decode, fetching it instead: {e}",
+                    downloaded.name
+                );
+                return None;
+            }
+        };
+
+        let duration_ms = downloaded.duration_ms;
+        let position_ms = if position_ms > duration_ms {
+            warn!(
+                "Invalid start position of {position_ms} ms exceeds track's duration of {duration_ms} ms, starting track from the beginning"
+            );
+            0
+        } else {
+            position_ms
+        };
+
+        // Unlike the streaming path this seek is cheap — symphonia's bisection
+        // reads from disk, not from the CDN — but it is still skipped at the
+        // start of a track, where a fresh decoder already sits on the first
+        // audio packet.
+        let stream_position_ms = if position_ms == 0 {
+            0
+        } else {
+            match decoder.seek(position_ms) {
+                Ok(new_position_ms) => new_position_ms,
+                Err(e) => {
+                    error!(
+                        "PlayerTrackLoader::load_downloaded_track error seeking to starting position {position_ms}: {e}"
+                    );
+                    return None;
+                }
+            }
+        };
+
+        // Only used to pace the fetcher, which has nothing to fetch here. Kept
+        // honest anyway because the sink reads it, and guarded because a
+        // sub-second track would divide by zero.
+        let bytes_per_second = if duration_ms > 0 {
+            (file_size as u128 * 1000 / duration_ms as u128) as usize
+        } else {
+            file_size as usize
+        };
+
+        info!(
+            "<{}> ({} ms) loaded in {} ms, from a download",
+            downloaded.name,
+            duration_ms,
+            began.elapsed().as_millis(),
+        );
+
+        Some(PlayerLoadedTrackData {
+            decoder,
+            normalisation_data: normalisation_data.unwrap_or_else(|| {
+                warn!("Unable to get normalisation data, continuing with defaults.");
+                NormalisationData::default()
+            }),
+            stream_loader_controller: StreamLoaderController::from_local_file(file_size),
+            bytes_per_second,
+            duration_ms,
+            stream_position_ms,
+            is_explicit: downloaded.is_explicit,
+            audio_item: AudioItem {
+                duration_ms,
+                uri: track_uri.to_uri().unwrap_or_default(),
+                track_id: track_uri.clone(),
+                // Empty because this item is never fetched: naming the files
+                // the track exists in would describe what is on the CDN, not
+                // what is being played.
+                files: Default::default(),
+                name: downloaded.name,
+                covers: vec![],
+                language: vec![],
+                is_explicit: downloaded.is_explicit,
+                availability: Ok(()),
+                alternatives: None,
+                unique_fields: UniqueFields::Track {
+                    // Names only, and the roles are not kept: the app draws its
+                    // track lists from its own catalogue rather than from the
+                    // player, and the one field anything downstream reads out
+                    // of an `AudioItem` is the duration.
+                    artists: Default::default(),
+                    album: downloaded.album,
+                    album_artists: downloaded.album_artists,
+                    popularity: 0,
+                    number: downloaded.number,
+                    disc_number: downloaded.disc_number,
+                },
+            },
+        })
     }
 
     async fn load_remote_track(
@@ -1258,6 +1448,11 @@ impl PlayerTrackLoader {
             // treated this way; any other key failure keeps upstream's
             // behaviour, since a file that is genuinely unencrypted has to go
             // on playing.
+            // LOCAL PATCH: said before asking, so a download queue running
+            // alongside knows to keep out of the way. Audio keys are limited
+            // per session, and a queue spending that allowance is a queue
+            // stopping the music from starting; see `downloads.rs`.
+            librespot_core::audio_key::note_playback_request();
             let key = match self.session.audio_key().request(track_id, file_id).await {
                 Ok(key) => Some(key),
                 Err(e) => {

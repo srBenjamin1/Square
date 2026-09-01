@@ -1156,6 +1156,12 @@ class LibrespotPlayer(
     // --- NativeEvents: arrives on a tokio worker thread ---
 
     override fun onEvent(type: String, uri: String, positionMs: Long) {
+        // Downloads travel on this channel because the engine has one listener
+        // and one JVM attachment, not because they have anything to do with
+        // what is playing. Taken off here rather than posted to the player's
+        // handler, where a progress tick several times a second would queue
+        // behind whatever the player is in the middle of.
+        if (dev.lelonio.square.download.DownloadEvents.accept(type, uri, positionMs)) return
         handler.post { applyEvent(type, uri, positionMs) }
     }
 
