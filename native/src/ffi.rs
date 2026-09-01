@@ -745,6 +745,17 @@ pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeIsO
     if engine::is_offline() { JNI_TRUE } else { JNI_FALSE }
 }
 
+/// Whether the player may only use what is on the phone; see
+/// `engine::set_offline_only`.
+#[no_mangle]
+pub extern "system" fn Java_dev_lelonio_square_nativecore_NativeBridge_nativeSetOfflineOnly(
+    _env: JNIEnv,
+    _class: JClass,
+    only: jboolean,
+) {
+    engine::set_offline_only(only == JNI_TRUE);
+}
+
 // --------------------------------------------------------------- downloads
 
 /// Where downloads are kept. Called before anything is downloaded, and again

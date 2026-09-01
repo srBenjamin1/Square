@@ -499,6 +499,15 @@ object NativeBridge {
     val isOffline: Boolean get() = nativeIsOffline()
 
     /**
+     * Whether the player may play anything that is not on the phone.
+     *
+     * Told rather than asked: the engine cannot see the listener's own offline
+     * switch, and a mode that still reaches for the network when a track is
+     * missing is a label rather than a mode.
+     */
+    fun setOfflineOnly(only: Boolean) = nativeSetOfflineOnly(only)
+
+    /**
      * Where downloaded tracks are kept.
      *
      * Call before downloading anything, and again if the listener moves the
@@ -551,6 +560,7 @@ object NativeBridge {
     private external fun nativeTrackRelatives(trackUri: String): String
     private external fun nativeCanvas(trackUri: String): String
     private external fun nativeIsOffline(): Boolean
+    private external fun nativeSetOfflineOnly(only: Boolean)
     private external fun nativeSetDownloadRoot(path: String)
     private external fun nativeDownloadTrack(trackUri: String, bitrateKbps: Int): String
     private external fun nativeDownloadState(trackUri: String): String

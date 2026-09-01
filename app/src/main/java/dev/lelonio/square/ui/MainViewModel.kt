@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -471,6 +472,47 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var devicesJob: Job? = null
 
     init {
+        // Offline and back, without a restart in between.
+        //
+        // The library and the home page are each built once, from whichever
+        // source was available at the time, and nothing rebuilt them when that
+        // changed: a phone that found signal again went on showing the handful
+        // of downloaded playlists, and one that lost it went on offering rows
+        // it could no longer fetch. Both directions are the same event, so both
+        // are handled here.
+        //
+        // The current value is skipped — the first load is already on its way
+        // when this starts, and running it twice would be two libraries built
+        // at once.
+        viewModelScope.launch {
+            dev.lelonio.square.playback.OfflineMode.active
+                .drop(1)
+                .distinctUntilChanged()
+                .collect { offline ->
+                    android.util.Log.i(TAG, "offline changed to $offline: rebuilding")
+                    if (offline) {
+                        // What needed a connection goes now rather than staying
+                        // as rows that answer nothing when tapped.
+                        _feed.value = FeedState()
+                        _homeShelves.value = emptyList()
+                        _friends.value = emptyList()
+                    }
+                    // Waited for, not merely started. The library load is
+                    // what waits for the session to come back up, and
+                    // everything below reads that session: fired alongside it
+                    // they all asked while the handshake was still in flight,
+                    // failed quietly, and were never tried again — which is why
+                    // coming back online left the app's own shelves on the home
+                    // page and none of Spotify's.
+                    refresh().join()
+                    if (!offline) {
+                        loadFeed()
+                        loadHomeShelves()
+                        loadFriends()
+                    }
+                }
+        }
+
         // The list, kept true by the engine rather than by asking.
         //
         // The Web API answers this too, but only when asked, so a sheet left
@@ -1412,6 +1454,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return@launch
         }
 
+        // Offline, there is nothing to wait for.
+        //
+        // The wait below is for a session to come up, and it ends either when
+        // one does or after thirty seconds. Neither happens with the network
+        // gone: the engine is up, it simply has no session, so the spinner sat
+        // there for several seconds before the downloads appeared — the one
+        // moment the app should be quickest, since everything it is about to
+        // show is already on the phone.
+        if (dev.lelonio.square.playback.OfflineMode.active.value) {
+            offlineLibrary()?.let {
+                _state.value = it
+                return@launch
+            }
+        }
+
         _state.value = UiState.Connecting
         if (!awaitEngine()) {
             // A library with no session is not an empty library. Everything
@@ -1476,8 +1533,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 CatalogPlaylist(uri = uri, name = it.name, artworkUrl = it.artworkUrl)
             }
         }
-        val singles = owners[DownloadStore.SINGLES].orEmpty()
-        val shelf = singles.takeIf { it.isNotEmpty() }?.let {
+        // Everything on the phone, not only the songs downloaded on their own.
+        //
+        // It was the loose ones at first, which is what the store calls them —
+        // and a shelf named "downloaded songs" holding one of the hundred and
+        // ninety on the phone is a shelf that lies. The playlists are listed
+        // beside it either way, so this is the one place that answers "what can
+        // I play right now" without picking through them.
+        val shelf = container.downloads.files.value.keys.takeIf { it.isNotEmpty() }?.let {
             CatalogPlaylist(
                 uri = DownloadStore.SINGLES,
                 name = string(R.string.downloaded_tracks),
@@ -2226,6 +2289,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // that are already on disk.
         if (LocalLibrary.isLocalContext(playlist.uri)) {
             openLocalFiles(playlist)
+            return
+        }
+
+        // The shelf of downloaded songs is not a context at all: its uri
+        // belongs to this app rather than to Spotify, and asking the access
+        // point to resolve it answered "invalid argument". This app keeps the
+        // list, so this app answers for it — online as much as offline, and
+        // with everything on the phone rather than only the loose songs.
+        if (playlist.uri == DownloadStore.SINGLES) {
+            // Newest first: a shelf of everything is read from the top, and
+            // what was just downloaded is what somebody came looking for.
+            openDownloadedContext(
+                playlist,
+                container.downloads.files.value
+                    .entries
+                    .sortedByDescending { it.value.downloadedAt }
+                    .map { it.key },
+            )
             return
         }
 

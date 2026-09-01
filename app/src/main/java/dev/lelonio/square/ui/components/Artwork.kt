@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.Color
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.Regular
-import com.adamglin.phosphoricons.fill.ArrowCircleDown
+import com.adamglin.phosphoricons.regular.ArrowCircleDown
 import com.adamglin.phosphoricons.regular.FolderSimple
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -140,10 +140,14 @@ private fun DownloadsCover() {
             .background(LocalFilesTile),
         contentAlignment = Alignment.Center,
     ) {
+        // Drawn like the local files shelf beside it: the same tile, the same
+        // size, an outlined glyph rather than a filled disc. The two are the
+        // same kind of thing — music that is already on the phone — and they
+        // should read as a pair rather than as one shelf and one badge.
         Icon(
-            PhosphorIcons.Fill.ArrowCircleDown,
+            PhosphorIcons.Regular.ArrowCircleDown,
             contentDescription = null,
-            tint = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+            tint = DownloadsGlyph,
             modifier = Modifier.fillMaxSize(0.44f),
         )
     }
@@ -151,6 +155,9 @@ private fun DownloadsCover() {
 
 private val LocalFilesTile = Color(0xFF20306E)
 private val LocalFilesGlyph = Color(0xFF2ECC57)
+
+/** The downloads shelf's own glyph colour; see [LocalFilesGlyph] beside it. */
+private val DownloadsGlyph = Color(0xFF35B7E8)
 
 @Composable
 private fun GeneratedCover(title: String, corner: Dp) {

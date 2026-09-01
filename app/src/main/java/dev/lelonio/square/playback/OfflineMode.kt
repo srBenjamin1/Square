@@ -50,15 +50,19 @@ object OfflineMode {
     val active: StateFlow<Boolean> = _active.asStateFlow()
 
     fun setManual(on: Boolean) {
-        if (_manual.value == on) return
-        _manual.value = on
+        synchronized(this) {
+            if (_manual.value == on) return
+            _manual.value = on
+        }
         recompute()
     }
 
     /** Told by the service once the engine has answered for itself. */
     fun setNoSession(on: Boolean) {
-        if (_noSession.value == on) return
-        _noSession.value = on
+        synchronized(this) {
+            if (_noSession.value == on) return
+            _noSession.value = on
+        }
         recompute()
     }
 
@@ -67,11 +71,25 @@ object OfflineMode {
      * already holds. See `PlaybackService.watchConnection`.
      */
     fun setSlow(on: Boolean) {
-        if (_slow.value == on) return
-        _slow.value = on
+        synchronized(this) {
+            if (_slow.value == on) return
+            _slow.value = on
+        }
         recompute()
     }
 
+    /**
+     * Worked out under a lock, because three things write to it.
+     *
+     * The switch, the network watch and the engine all report in, and two of
+     * them arriving together is not rare: a connection returning cancels the
+     * watch's timer at the same moment the timer fires. Read without one, each
+     * caller decided from a state the other had already moved on from, and the
+     * app settled into "offline, because there is no session" a few
+     * milliseconds after the session came back — off by exactly one update,
+     * with a reason that was no longer true.
+     */
+    @Synchronized
     private fun recompute() {
         val next = when {
             _manual.value -> Reason.MANUAL
@@ -80,6 +98,11 @@ object OfflineMode {
             else -> null
         }
         if (_reason.value == next) return
+        android.util.Log.i(
+            "SquareOffline",
+            "offline reason: ${_reason.value} -> $next" +
+                " (manual=${_manual.value}, noSession=${_noSession.value}, slow=${_slow.value})",
+        )
         _reason.value = next
         _active.value = next != null
     }

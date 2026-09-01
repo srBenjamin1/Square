@@ -1129,6 +1129,23 @@ impl PlayerTrackLoader {
                 if let Some(loaded) = self.load_downloaded_track(&track_uri, position_ms) {
                     return Some(loaded);
                 }
+                // LOCAL PATCH: offline, there is no second chance.
+                //
+                // Streaming this would be the app quietly using the network the
+                // listener asked it not to use — on a metered connection, or on
+                // none, where it fails after a wait instead. A track with no
+                // file simply does not load, and the queue was built out of the
+                // ones that have one.
+                if self
+                    .config
+                    .downloads_only
+                    .as_ref()
+                    .map(|only| only())
+                    .unwrap_or(false)
+                {
+                    warn!("<{track_uri}> is not downloaded and this player is offline");
+                    return None;
+                }
                 self.load_remote_track(track_uri, position_ms).await
             }
             SpotifyUri::Local { .. } => self.load_local_track(track_uri, position_ms).await,

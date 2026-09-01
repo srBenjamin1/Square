@@ -45,6 +45,20 @@ class SquareApplication : Application() {
             downloads.isDownloaded(it)
         }
 
+        // Two things feed the offline state, and one thing reads it out to the
+        // engine. The switch below is the listener's; the watch is the network
+        // going; and the engine has to be told either way, because it cannot
+        // see either of them and would otherwise go on fetching.
+        val offlineScope = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+        )
+        dev.lelonio.square.playback.NetworkWatch(this, offlineScope).start()
+        offlineScope.launch {
+            dev.lelonio.square.playback.OfflineMode.active.collect { offline ->
+                runCatching { dev.lelonio.square.nativecore.NativeBridge.setOfflineOnly(offline) }
+            }
+        }
+
         // The listener's own offline switch is persisted, so it has to be put
         // back before anything reads it. Collected rather than read once: it is
         // the one input to OfflineMode that can change without the service

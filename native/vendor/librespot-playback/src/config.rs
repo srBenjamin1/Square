@@ -49,6 +49,15 @@ pub struct DownloadedTrack {
 /// schema it has no other reason to know.
 pub type DownloadLookup = Arc<dyn Fn(&SpotifyId) -> Option<DownloadedTrack> + Send + Sync>;
 
+/// LOCAL PATCH: whether only downloaded tracks may be played, asked per load.
+///
+/// A function rather than a flag because the answer changes while the player
+/// lives: the listener turns offline on in Settings, or the network goes. When
+/// it says yes, a track with no file on disk fails to load instead of being
+/// fetched — which is the whole of what "offline" has to mean, or the mode is
+/// a label on a player that goes on using the network.
+pub type DownloadsOnly = Arc<dyn Fn() -> bool + Send + Sync>;
+
 #[derive(Clone, Copy, Debug, Hash, PartialOrd, Ord, PartialEq, Eq, Default)]
 pub enum Bitrate {
     Bitrate96,
@@ -181,6 +190,9 @@ pub struct PlayerConfig {
     ///
     /// `None`, the default, is upstream behaviour: every track is fetched.
     pub download_lookup: Option<DownloadLookup>,
+
+    /// LOCAL PATCH: asked before falling back to the network; see [`DownloadsOnly`].
+    pub downloads_only: Option<DownloadsOnly>,
 }
 
 impl Default for PlayerConfig {
@@ -202,6 +214,7 @@ impl Default for PlayerConfig {
             local_file_directories: Vec::new(),
             crossfade_duration_ms: 0,
             download_lookup: None,
+            downloads_only: None,
         }
     }
 }

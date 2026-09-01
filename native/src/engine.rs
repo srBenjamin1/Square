@@ -420,6 +420,12 @@ pub fn start(
         // than handed over as a list, since downloads come and go while the
         // player is running; see downloads::lookup.
         download_lookup: Some(crate::downloads::lookup()),
+        // And whether anything else may be played at all. Offline — by the
+        // listener's own switch, or because the engine has no session — a track
+        // with no file fails to load rather than being fetched.
+        downloads_only: Some(Arc::new(|| {
+            OFFLINE_ONLY.load(Ordering::SeqCst) || OFFLINE.load(Ordering::SeqCst)
+        })),
         // Chosen by the caller. The bitrate is read when a track is loaded but
         // the player owns its config for its whole life, so changing this means
         // building a new engine: see PlaybackService.
@@ -778,6 +784,20 @@ fn local_load(uris: &[String], index: u32, play: bool, position_ms: u32) -> Engi
     let parsed = SpotifyUri::from_uri(uri).map_err(|e| format!("bad uri {uri}: {e}"))?;
     log::info!("offline: loading {uri} at {position_ms}ms, play={play}");
     with_bundle(|e| e.player.load(parsed, play, position_ms))
+}
+
+/// Set by the app when only downloads may be played.
+///
+/// Distinct from [`OFFLINE`], which is about how the engine started: this is
+/// what the listener asked for, or what a connection that has gone means for a
+/// session that was built while it was there. Read on every load.
+static OFFLINE_ONLY: AtomicBool = AtomicBool::new(false);
+
+/// Says whether the player may reach for the network at all.
+pub fn set_offline_only(only: bool) {
+    if OFFLINE_ONLY.swap(only, Ordering::SeqCst) != only {
+        log::info!("playing {}", if only { "from downloads only" } else { "from anywhere" });
+    }
 }
 
 /// Whether the engine came up with no connection; see [`OFFLINE`].
@@ -1599,7 +1619,15 @@ pub fn load_queue(
     // back for the next one when this ends. Everything above still runs, so
     // what the app believes about the queue is unchanged either way — the only
     // difference is who advances it.
-    if with_bundle(|e| e.spirc.is_none())? {
+    //
+    // The same road is taken when there is a device but it cannot be reached,
+    // which is what a connection dropping mid-listen looks like. A load handed
+    // to Connect is resolved on Spotify's side before the player is ever asked,
+    // so with the network gone it died there — and a downloaded track, which
+    // needs nothing but the file, never got the chance to play. The player's
+    // own loader reads the disk first; it only has to be reached.
+    if with_bundle(|e| e.spirc.is_none())? || spirc_lost() {
+        log::info!("no usable connect device; loading through the player");
         return local_load(&uris, index, start_playing, position_ms);
     }
 
@@ -1876,6 +1904,15 @@ pub fn stop() -> EngineResult<()> {
 }
 
 pub fn seek(position_ms: u32) -> EngineResult<()> {
+    // The player itself when there is no device to ask.
+    //
+    // Every other command already had this fallback; seeking did not, so
+    // dragging or tapping the progress bar offline reached a Connect device
+    // that is not there and did nothing at all. What plays is the player's, and
+    // moving within a track is something it can do on its own.
+    if OFFLINE.load(Ordering::SeqCst) || spirc_lost() {
+        return with_bundle(|e| e.player.seek(position_ms));
+    }
     with_bundle(|e| e.spirc()?.set_position_ms(position_ms))?.map_err(|e| format!("seek failed: {e}"))
 }
 

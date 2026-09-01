@@ -288,9 +288,34 @@ class MainActivity : ComponentActivity() {
         positionMs: Long = 0L,
     ) {
         val player = controller ?: return
+
+        // Offline, the queue is only what can actually be played.
+        //
+        // The rows for the rest are already inert, so nothing here is being
+        // taken away that the listener could have chosen — but a queue is not
+        // only what was tapped. Left whole it would advance into a track that
+        // cannot be fetched, and the silence after a downloaded song would look
+        // like the download had failed rather than like the song after it was
+        // never here. Files on the phone play in every mode; they were never
+        // coming over the network.
+        val playable = if (!dev.lelonio.square.playback.OfflineMode.active.value) {
+            tracks
+        } else {
+            val here = (application as dev.lelonio.square.SquareApplication)
+                .downloads.files.value
+            tracks.filter { it.uri.startsWith("local:") || it.uri in here }
+        }
+        if (playable.isEmpty()) return
+
+        // The song that was tapped keeps its place, wherever the filtering left
+        // it; falling back to the top rather than to whatever now sits at the
+        // old index, which would be a different song entirely.
+        val wanted = tracks.getOrNull(index)?.uri
+        val start = playable.indexOfFirst { it.uri == wanted }.coerceAtLeast(0)
+
         player.setMediaItems(
-            tracks.map { toMediaItem(it, contextUri, asContext, contextLabel) },
-            index,
+            playable.map { toMediaItem(it, contextUri, asContext, contextLabel) },
+            start,
             positionMs,
         )
         player.prepare()
@@ -340,7 +365,21 @@ class MainActivity : ComponentActivity() {
                     // YouTube's shelves carry no length, and a zero here would
                     // win over the one the player works out from the stream.
                     .setDurationMs(track.durationMs.takeIf { it > 0 })
-                    .setArtworkUri(track.artworkUrl?.let(android.net.Uri::parse))
+                    // The copy saved beside the download, when there is one.
+                    //
+                    // Not a fallback but a preference, the same way the app's
+                    // own artwork reads it: the URL names the picture, so the
+                    // bytes cannot have changed, and a file plays offline while
+                    // a URL is a fetch that fails. The notification was the one
+                    // place still handed the URL, so a downloaded song played
+                    // with a blank tile on the lock screen.
+                    .setArtworkUri(
+                        track.artworkUrl?.let { url ->
+                            dev.lelonio.square.download.DownloadExtras.fileOf(url, "art")
+                                ?.let(android.net.Uri::fromFile)
+                                ?: android.net.Uri.parse(url)
+                        },
+                    )
                     // Where the queue came from, carried with the item because
                     // the engine lives in the service and this is the only
                     // channel between them that survives the session boundary.

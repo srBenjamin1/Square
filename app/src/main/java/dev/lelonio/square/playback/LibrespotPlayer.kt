@@ -419,8 +419,19 @@ class LibrespotPlayer(
     }
 
     /** Whether the engine says its Connect device is gone; false if it cannot answer. */
+    /**
+     * Whether a step command has anything to reach.
+     *
+     * Offline counts, and has to: the engine reports no lost device then —
+     * there is none to lose — so a skip took the ordinary road, was handed to a
+     * Connect device that does not exist, and fell through to the player, whose
+     * answer to a step it cannot make is to stop. Skipping simply stopped the
+     * music, while picking a song by hand worked, because that path rebuilds
+     * the queue instead of stepping through it.
+     */
     private val deviceGone: Boolean
-        get() = runCatching { NativeBridge.spircLost }.getOrDefault(false)
+        get() = OfflineMode.active.value ||
+            runCatching { NativeBridge.spircLost }.getOrDefault(false)
 
     /** Set while a reconnection is in flight, so a burst of taps starts one. */
     private var reconnecting = false
