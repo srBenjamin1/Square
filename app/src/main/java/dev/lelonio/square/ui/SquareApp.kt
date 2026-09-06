@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.luminance
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -77,6 +79,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -101,6 +104,8 @@ import dev.lelonio.square.ui.components.BlurTransformation
 import dev.lelonio.square.ui.glass.backdrop.Backdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.layerBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberLayerBackdrop
+import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberCombinedBackdrop
+import dev.lelonio.square.ui.glass.backdrop.drawBackdrop
 import dev.lelonio.square.R
 import dev.lelonio.square.data.CanvasClip
 import dev.lelonio.square.data.Catalog
@@ -110,7 +115,10 @@ import dev.lelonio.square.data.Lyrics
 import dev.lelonio.square.backend.youtube.YouTubeVideoMode
 import dev.lelonio.square.playback.AudioEffects
 import dev.lelonio.square.ui.glass.LiquidBottomTab
+import dev.lelonio.square.ui.browse.NewScreen
+import dev.lelonio.square.ui.browse.RadioScreen
 import dev.lelonio.square.ui.glass.LiquidBottomTabs
+import dev.lelonio.square.ui.glass.LiquidBottomTab
 import dev.lelonio.square.ui.glass.LiquidButton
 import dev.lelonio.square.ui.home.HomeScreen
 import dev.lelonio.square.ui.library.LibraryScreen
@@ -152,6 +160,15 @@ import dev.lelonio.square.ui.onboarding.BackendChoiceScreen
 import dev.lelonio.square.ui.onboarding.OnboardingScreen
 import dev.lelonio.square.ui.settings.SettingsScreen
 import dev.lelonio.square.ui.theme.Ink
+import dev.lelonio.square.ui.theme.pageColorFor
+import dev.lelonio.square.ui.theme.pageColorForHex
+import dev.lelonio.square.ui.theme.PageFloor
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.togetherWith
 import dev.lelonio.square.ui.theme.SquareTheme
 import dev.lelonio.square.ui.theme.rememberArtworkColor
 import kotlinx.coroutines.flow.first
@@ -161,10 +178,20 @@ import com.adamglin.phosphoricons.fill.ArrowCircleDown
 import com.adamglin.phosphoricons.fill.Check
 import com.adamglin.phosphoricons.fill.Play
 import com.adamglin.phosphoricons.Fill
+import com.adamglin.phosphoricons.Bold
 import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.fill.House
 import com.adamglin.phosphoricons.fill.MagnifyingGlass
 import com.adamglin.phosphoricons.fill.MusicNotes
+import com.adamglin.phosphoricons.bold.House
+import com.adamglin.phosphoricons.bold.MusicNotes
+import com.adamglin.phosphoricons.bold.SquaresFour
+import com.adamglin.phosphoricons.bold.Broadcast
+import com.adamglin.phosphoricons.bold.MagnifyingGlass
+import com.adamglin.phosphoricons.fill.SquaresFour
+import com.adamglin.phosphoricons.fill.Broadcast
+import com.adamglin.phosphoricons.regular.SquaresFour
+import com.adamglin.phosphoricons.regular.Broadcast
 import com.adamglin.phosphoricons.regular.House
 import com.adamglin.phosphoricons.regular.MagnifyingGlass
 import com.adamglin.phosphoricons.regular.MusicNotes
@@ -180,6 +207,8 @@ private data class TrackMenuRequest(
 
 object Routes {
     const val HOME = "home"
+    const val NEW = "new"
+    const val RADIO = "radio"
     const val SEARCH = "search"
     const val LIBRARY = "library"
     const val PLAYLIST = "playlist"
@@ -193,6 +222,100 @@ private val expandSpec = spring<Float>(
 )
 
 private val BottomBarHeight = 62.dp
+
+/**
+ * White, carrying a colour's hue.
+ *
+ * Mixing plain white with the colour itself is what a first version did, and on
+ * a page whose colour is a deep purple that gives grey: the darkness comes along
+ * with the hue. This takes the hue and the saturation, sets the brightness where
+ * a tint belongs, and only then mixes — so a purple page gives a purple-white and
+ * a green one a green-white, whatever the page's own colour was worth.
+ */
+private fun inkTintedBy(color: Color): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
+    if (hsv[1] < 0.06f) return Ink
+    hsv[1] = hsv[1].coerceIn(0.5f, 1f)
+    hsv[2] = 0.9f
+    return androidx.compose.ui.graphics.lerp(Ink, Color(android.graphics.Color.HSVToColor(hsv)), 0.3f)
+}
+
+/** Roughly what the search circle takes: the row's height, which is its own. */
+private val SearchCircle = 58.dp
+
+/**
+ * The bar's own inset, and the size of a glyph in it.
+ *
+ * Both measured off the reference: at its scale the bar holds its slots 3.9px
+ * clear of its ends and draws a 21px glyph in a 50px-tall bar, which is 5dp and
+ * 25dp at this one.
+ */
+private val BarInset = 6.dp
+private val TabIcon = 26.dp
+
+/**
+ * One place in the bar's tab row.
+ *
+ * A thin wrapper over the catalog's own tab so the four of them are not four
+ * copies of the same eight lines. The colours are the app's: the place you are
+ * takes the accent the cover gave the theme, and the rest are the bar's white
+ * with the page's colour in it.
+ */
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.BarTab(
+    @StringRes label: Int,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    selected: Boolean,
+    accent: Color,
+    ink: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    LiquidBottomTab(onClick = onClick, modifier = modifier) {
+        Icon(
+            icon,
+            contentDescription = stringResource(label),
+            tint = if (selected) accent else ink,
+            modifier = Modifier.size(TabIcon),
+        )
+        Text(
+            stringResource(label),
+            fontSize = 9.sp,
+            lineHeight = 11.sp,
+            style = LocalTextStyle.current.copy(
+                platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                    includeFontPadding = false,
+                ),
+                lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                    alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                    trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+                ),
+            ),
+            fontWeight = FontWeight.Bold,
+            color = if (selected) accent else ink,
+        )
+    }
+}
+
+/**
+ * The folded bar's search button.
+ *
+ * A key of its own rather than the search route's: the route belongs to the tab
+ * now, and a standalone sharing that key would be reported as the selected tab
+ * and light up beside itself.
+ */
+private const val SEARCH_CIRCLE = "search-circle"
+
+/** How tall the open bar stands; measured off the reference. See barMargin. */
+private val BarHeight = 61.dp
+
+/** The pages that are somewhere you are, rather than somewhere you went. */
+private val TAB_ROUTES =
+    setOf(Routes.HOME, Routes.NEW, Routes.RADIO, Routes.LIBRARY, Routes.SEARCH)
+
+/** How many stations the radio tab offers. Enough to scroll, few enough to read. */
+private const val RADIO_SEEDS = 14
 
 /**
  * Decode size of the page backdrop, in pixels.
@@ -368,6 +491,52 @@ fun SquareApp(
     val reverb by AudioEffects.reverb.collectAsStateWithLifecycle()
     val presets by viewModel.effectPresets.collectAsStateWithLifecycle()
     val feed by viewModel.feed.collectAsStateWithLifecycle()
+
+    /**
+     * What the radio tab builds its stations from.
+     *
+     * One song per artist: the account's most played tracks name the same
+     * handful of people over and over, and four cards saying "Radio of X" is
+     * not a page of stations. Spotify tracks only — a station is a context on
+     * Spotify's access point and means nothing on any other backend.
+     */
+    val newPage by viewModel.newPage.collectAsStateWithLifecycle()
+
+    // The playing record's own artwork, asked for once per track and cached.
+    val nowPlayingArt by viewModel.nowPlayingArt.collectAsStateWithLifecycle()
+    val nowPlayingArtPending by viewModel.nowPlayingArtPending.collectAsStateWithLifecycle()
+    LaunchedEffect(playback.mediaId, playback.title, playback.album, playback.artist) {
+        viewModel.loadNowPlayingArt(
+            uri = playback.mediaId,
+            title = playback.title,
+            album = playback.album,
+            artist = playback.artist,
+        )
+
+        // And the one after it, while there is time to spare. Read off the
+        // player's own timeline rather than the queue list: the media item
+        // carries the record's name, which is what the other catalogue is
+        // searched by, and the list does not. See prefetchArt.
+        val next = runCatching {
+            val at = player?.nextMediaItemIndex ?: androidx.media3.common.C.INDEX_UNSET
+            if (at == androidx.media3.common.C.INDEX_UNSET) null
+            else player?.getMediaItemAt(at)?.mediaMetadata
+        }.getOrNull()
+        if (next != null) {
+            viewModel.prefetchArt(
+                title = next.title?.toString().orEmpty(),
+                album = next.albumTitle?.toString().orEmpty(),
+                artist = next.artist?.toString().orEmpty(),
+            )
+        }
+    }
+
+    val radioSeeds = remember(feed.topTracks, feed.allTimeTracks) {
+        (feed.topTracks + feed.allTimeTracks)
+            .filter { it.uri.startsWith("spotify:track:") }
+            .distinctBy { it.artist.lowercase() }
+            .take(RADIO_SEEDS)
+    }
     val playlistOrder by viewModel.playlistOrder.collectAsStateWithLifecycle()
     val pinnedPlaylists by viewModel.pinnedPlaylists.collectAsStateWithLifecycle()
     val likedTracks by viewModel.likedTracks.collectAsStateWithLifecycle()
@@ -442,6 +611,8 @@ fun SquareApp(
     // What the menu may offer for the playlist it is open on. Defaults say yes,
     // because the library's own rows are the account's own library: only the
     // detail page, which can be a playlist belonging to anyone, ever says no.
+    /** The page whose downloads are about to be given back; see the menu. */
+    var unkeeping by remember { mutableStateOf<MainViewModel.PlaylistState?>(null) }
     var playlistMenuMine by remember { mutableStateOf(true) }
     var playlistMenuSaved by remember { mutableStateOf(true) }
     var deleting by remember { mutableStateOf<CatalogPlaylist?>(null) }
@@ -593,15 +764,33 @@ fun SquareApp(
     // ordinary answer and the player falls back to the cover.
     // Canvas is Spotify's own, served by its access point: on another source
     // there is nobody to ask.
-    LaunchedEffect(playback.mediaId, backend) {
+    // Turned off, no clip is ever asked for — which is the point of the switch:
+    // it saves the video as well as hiding it.
+    val canvasEnabled by preferences.canvasEnabled.collectAsStateWithLifecycle()
+
+    LaunchedEffect(playback.mediaId, backend, canvasEnabled, offlineNow) {
         val uri = playback.mediaId
         canvas = null
-        if (uri != null && backend == dev.lelonio.square.backend.BackendId.SPOTIFY) {
+        // Offline means offline, including for the things that are only
+        // decoration: nothing here is fetched with the mode on — whether the
+        // listener set it or the signal went — and what shows then is the copy
+        // that came down with the download.
+        if (uri != null &&
+            canvasEnabled &&
+            backend == dev.lelonio.square.backend.BackendId.SPOTIFY
+        ) {
             // After the song, not beside it: a Canvas is a video, and fetching
             // one while the track is still arriving takes the connection the
             // track needs. See awaitAudible.
             awaitAudible(localState)
-            canvas = Catalog.canvas(uri)
+            // The copy kept beside a download first, and not only offline: it
+            // is the same clip, it is already here, and playing it costs
+            // nothing. Offline it is the only one there is — the answer names a
+            // url on a CDN that cannot be reached, so without this a downloaded
+            // Canvas was a video sitting unplayed on the phone.
+            canvas = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                dev.lelonio.square.download.DownloadExtras.localCanvas(uri)
+            } ?: if (offlineNow) null else Catalog.canvas(uri)
         }
     }
 
@@ -690,6 +879,7 @@ fun SquareApp(
     // that start one are not composables of their own.
     val playAgainLabel = stringResource(R.string.play_again)
     val trendingLabel = stringResource(R.string.trending_now)
+    val newLabel = stringResource(R.string.tab_new)
     val searchLabel = stringResource(R.string.search)
     val radioLabel = stringResource(R.string.radio)
     // Resolved here rather than at the tap: a composable's resources are not
@@ -805,10 +995,36 @@ fun SquareApp(
         // What folds the bar, and what tells the glass the page is moving. Built
         // here rather than beside the bar because both of those are read at the
         // top of the app: the glass configuration is provided from this scope.
-        val tabBarScroll = rememberFloatingTabBarScrollConnection()
+        // The bar never folds itself: what folds it is the connection below,
+        // which knows something the library's own does not — whether the page
+        // has any more room above it.
+        val tabBarScroll = rememberFloatingTabBarScrollConnection(
+            inlineBehavior = dev.lelonio.square.ui.glass.floatingtabbar
+                .FloatingTabBarInlineBehavior.Never,
+        )
+        val foldThresholdPx = with(LocalDensity.current) { 50.dp.toPx() }
+        // Beside the bar's own rather than inside it; see ScrollActivity.
+        val scrollActivity = remember(tabBarScroll, foldThresholdPx) {
+            dev.lelonio.square.ui.glass.ScrollActivity(
+                onFold = { tabBarScroll.inline() },
+                // Only at the top. Scrolling up in the middle of a list leaves
+                // the bar where it is: it went away because the reader is
+                // reading, and it comes back when they have finished.
+                onTop = { tabBarScroll.expand() },
+                foldThresholdPx = foldThresholdPx,
+            )
+        }
         // Held as a lambda so a scroll starting or stopping costs no
         // recomposition of the app: the surfaces ask during draw.
-        val pageMoving = remember(tabBarScroll) { { tabBarScroll.scrolling } }
+        // And still again while a screen is arriving or leaving. A push is not a
+        // scroll, so the freeze above never covered it, and every navigation
+        // re-recorded the whole page for each frame of its own animation. Keyed
+        // on the route and on the open page, because the detail screen swaps its
+        // contents without the route changing at all.
+        val navFreeze = remember { dev.lelonio.square.ui.glass.NavTransitionFreeze() }
+        val pageMoving = remember(scrollActivity, navFreeze) {
+            { scrollActivity.scrolling || navFreeze.frozen() }
+        }
 
         CompositionLocalProvider(
             LocalContentColor provides Ink,
@@ -819,6 +1035,11 @@ fun SquareApp(
                 val navController = rememberNavController()
                 val currentEntry by navController.currentBackStackEntryAsState()
                 val route = currentEntry?.destination?.route
+
+                // Every arrival starts the freeze window above. Keyed on the
+                // page as well as the route: the detail screen changes what it
+                // is showing without the route changing at all.
+                LaunchedEffect(route, playlist.uri) { navFreeze.mark() }
 
                 // Which tab the bar shows as the current one.
                 //
@@ -836,13 +1057,29 @@ fun SquareApp(
                 // with the search key selected and no tab to put it on — nothing
                 // lit again, by a different route.
                 var activeTab by rememberSaveable { mutableStateOf(Routes.HOME) }
+                /**
+                 * Whether the bar is currently the search field.
+                 *
+                 * Not the same question as "is the search page on screen": the
+                 * page stays while the field goes, which is what tapping the
+                 * search tab a second time does — the results are still there to
+                 * read, the keyboard and the field are out of the way, and the
+                 * bar is a bar again. Reset on the way out of the page, so
+                 * coming back to search opens typing-ready as it did the first
+                 * time.
+                 */
+                var searchOpen by rememberSaveable { mutableStateOf(false) }
+
                 LaunchedEffect(route) {
-                    if (route == Routes.HOME || route == Routes.LIBRARY) {
-                        activeTab = route
-                    }
+                    if (route in TAB_ROUTES) activeTab = route.orEmpty()
+                    if (route != Routes.SEARCH) searchOpen = false
                 }
 
                 val focus = androidx.compose.ui.platform.LocalFocusManager.current
+                // Clearing the focus is usually enough to put the keyboard away,
+                // but not on every phone: this asks for it directly.
+                val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+
                 // Read here as well as at the bar: what the page does about the
                 // keyboard depends on it, and the bar is built much further down.
                 val searching = route == Routes.SEARCH
@@ -987,12 +1224,27 @@ fun SquareApp(
                             .fillMaxSize()
                             .layerBackdrop(artBackdrop),
                     ) {
-                        AppBackdrop(playback.artworkUrl)
+                        // The playing record as the other catalogue draws it:
+                        // its own page colour where there is one, and its own
+                        // picture to take a colour from where there is not. The
+                        // same two sources a record's page uses, so home and
+                        // library are tinted exactly as the page you reach from
+                        // them — instead of a duller colour off Spotify's
+                        // thumbnail, which is what made them look like a
+                        // different app's screens.
+                        AppBackdrop(
+                            artworkUrl = nowPlayingArt?.heroUrl
+                                ?: nowPlayingArt?.coverUrl
+                                ?: playback.artworkUrl,
+                            asColor = true,
+                            tintHex = nowPlayingArt?.bgColor,
+                        )
                     }
 
                     Box(
                         Modifier
                             .nestedScroll(tabBarScroll)
+                            .nestedScroll(scrollActivity)
                             // Touching the page puts the keyboard away.
                             //
                             // The field is in the bar at the bottom of the screen
@@ -1010,7 +1262,31 @@ fun SquareApp(
                                 }
                             },
                     ) {
-                    NavHost(navController, startDestination = Routes.HOME) {
+                    NavHost(
+                        navController,
+                        startDestination = Routes.HOME,
+                        // Two different movements, because there are two
+                        // different kinds of navigation here. Opening a page is
+                        // a push: it comes in from the edge and the page under
+                        // it stays put and dims, so the new one reads as having
+                        // arrived over the old. Changing tab is not a push —
+                        // neither place is on top of the other — so those
+                        // crossfade, which is what the reference does too.
+                        enterTransition = {
+                            if (targetState.destination.route in TAB_ROUTES ||
+                                targetState.destination.route == Routes.SEARCH
+                            ) {
+                                fadeIn(tween(180))
+                            } else {
+                                slideInHorizontally(tween(280)) { it / 5 } + fadeIn(tween(220))
+                            }
+                        },
+                        exitTransition = { fadeOut(tween(180)) },
+                        popEnterTransition = { fadeIn(tween(200)) },
+                        popExitTransition = {
+                            slideOutHorizontally(tween(260)) { it / 5 } + fadeOut(tween(200))
+                        },
+                    ) {
                         composable(Routes.HOME) {
                             HomeScreen(
                                 state = state,
@@ -1055,9 +1331,59 @@ fun SquareApp(
                             )
                         }
 
+                        composable(Routes.NEW) {
+                            LaunchedEffect(Unit) { viewModel.loadNewPage() }
+                            NewScreen(
+                                page = newPage,
+                                contentPadding = listPadding,
+                                onPlaySong = { tracks, index ->
+                                    onPlay(tracks, index, null, false, newLabel, 0L)
+                                },
+                                onOpen = { item ->
+                                    viewModel.openContext(
+                                        item.uri,
+                                        item.title,
+                                        item.artworkUrl,
+                                    )
+                                    navController.navigate(Routes.PLAYLIST)
+                                },
+                            )
+                        }
+
+                        composable(Routes.RADIO) {
+                            RadioScreen(
+                                seeds = radioSeeds,
+                                loading = feed.loading,
+                                contentPadding = listPadding,
+                                onOpen = { seed ->
+                                    scope.launch {
+                                        val tracks = viewModel.radioFor(seed.uri)
+                                        if (tracks.isEmpty()) return@launch
+                                        val station = "spotify:station:track:" +
+                                            seed.uri.substringAfterLast(':')
+                                        val name = radioOfTemplate.format(seed.artist)
+                                        // The station as a page and then as a
+                                        // queue, in that order: what the tab
+                                        // promises is a station to look at, not
+                                        // a shuffle that starts under a page
+                                        // the listener never sees.
+                                        viewModel.showStation(
+                                            uri = station,
+                                            name = name,
+                                            artworkUrl = seed.artworkUrl,
+                                            tracks = tracks,
+                                        )
+                                        navController.navigate(Routes.PLAYLIST)
+                                        onPlay(tracks, 0, station, true, name, 0L)
+                                    }
+                                },
+                            )
+                        }
+
                         composable(Routes.SEARCH) {
                             SearchScreen(
                                 state = search,
+                                onQuery = viewModel::onSearchQuery,
                                 webApi = webApi,
                                 contentPadding = listPadding,
                                 nowPlayingUri = playback.mediaId,
@@ -1142,33 +1468,62 @@ fun SquareApp(
                         }
 
                         composable(Routes.PLAYLIST) {
+                            // While this screen is up, a page opened from it is
+                            // opened *over* it; once it is gone, whatever it was
+                            // showing is not "the page you were on" any more.
+                            DisposableEffect(Unit) {
+                                viewModel.detailShown()
+                                onDispose { viewModel.detailClosed() }
+                            }
+
+                            // The system gesture, answered the same way as the
+                            // arrow: the page behind this one is usually inside
+                            // this screen rather than under it.
+                            val hasPreviousPage by viewModel.hasPreviousPage
+                                .collectAsStateWithLifecycle()
+                            androidx.activity.compose.BackHandler(
+                                enabled = hasPreviousPage,
+                            ) { viewModel.popPage() }
+
+                            // One destination holds every detail page, so a
+                            // page opening over another is not a navigation the
+                            // library can animate — it is the same screen with
+                            // different contents. This is that missing movement:
+                            // the page being left slides out the way it came,
+                            // the new one slides in from the other side, and the
+                            // depth says which side that is.
+                            val pageDepth by viewModel.pageDepth
+                                .collectAsStateWithLifecycle()
+                            androidx.compose.animation.AnimatedContent(
+                                targetState = playlist to pageDepth,
+                                contentKey = { (page, depth) -> page.uri to depth },
+                                transitionSpec = {
+                                    val deeper = targetState.second > initialState.second
+                                    val from = { width: Int ->
+                                        if (deeper) width / 4 else -width / 4
+                                    }
+                                    (
+                                        slideInHorizontally(tween(280)) { from(it) } +
+                                            fadeIn(tween(200))
+                                        ).togetherWith(
+                                        slideOutHorizontally(tween(280)) { -from(it) } +
+                                            fadeOut(tween(180)),
+                                    )
+                                },
+                                label = "detailPage",
+                            ) { (page, _) ->
                             // Re-seeded from the open playlist, album or artist.
                             // The rest of the app is themed after whatever is
                             // playing, which is right for the home page and
                             // wrong here: an album page tinted by an unrelated
                             // track reads as belonging to something else.
-                            val detailAccent by rememberArtworkColor(playlist.artworkUrl)
+                            val detailAccent by rememberArtworkColor(page.artworkUrl)
                             // Resolved here rather than inside the play
                             // callbacks: those are not composables.
-                            val source = playlist.sourceLabel()
+                            val source = page.sourceLabel()
                             SquareTheme(seed = detailAccent) {
                                 PlaylistScreen(
-                                    state = playlist,
-                                    downloadState = playlist.uri
-                                        ?.let { downloadOwners[it] }
-                                        ?: dev.lelonio.square.data.OwnerState.None,
-                                    onToggleDownload = { viewModel.toggleDownload(playlist) },
-                                    // The store belongs to the librespot
-                                    // engine, so only Spotify pages can be
-                                    // kept — and the local-files shelf is
-                                    // already on the phone.
-                                    canDownload = backend ==
-                                        dev.lelonio.square.backend.BackendId.SPOTIFY &&
-                                        playlist.uri?.startsWith("spotify:") == true &&
-                                        // Nothing can be fetched with no
-                                        // network, so the button would only
-                                        // ever queue work that cannot start.
-                                        !offlineNow,
+                                    state = page,
                                     offline = offlineNow,
                                     // Read per row rather than handed over as a
                                     // map: the progress map changes several
@@ -1187,7 +1542,13 @@ fun SquareApp(
                                     },
                                     contentPadding = listPadding,
                                     nowPlayingUri = playback.mediaId,
-                                    onBack = { navController.popBackStack() },
+                                    // One route holds every detail page, so
+                                    // back is the screen's own history first
+                                    // and the navigation stack only once that
+                                    // is empty; see MainViewModel.popPage.
+                                    onBack = {
+                                        if (!viewModel.popPage()) navController.popBackStack()
+                                    },
                                     onAskLocalPermission = { askLocalPermission() },
                                     onPlay = { tracks, index, asContext ->
                                         onPlay(
@@ -1245,7 +1606,20 @@ fun SquareApp(
                                             item.artworkUrl,
                                         )
                                     },
+                                    downloadState = playlist.uri
+                                        ?.let { downloadOwners[it] }
+                                        ?: dev.lelonio.square.data.OwnerState.None,
+                                    onToggleDownload = { viewModel.toggleDownload(playlist) },
+                                    // The store belongs to the librespot engine,
+                                    // so only Spotify pages can be kept — and
+                                    // with no network the button would only ever
+                                    // queue work that cannot start.
+                                    canDownload = backend ==
+                                        dev.lelonio.square.backend.BackendId.SPOTIFY &&
+                                        playlist.uri?.startsWith("spotify:") == true &&
+                                        !offlineNow,
                                     onToggleFollow = viewModel::toggleFollowArtist,
+                                    onToggleLatestSaved = viewModel::toggleLatestSaved,
                                     onToggleSaved = viewModel::toggleSaved,
                                     onShare = {
                                         val uri = playlist.uri ?: return@PlaylistScreen
@@ -1275,6 +1649,7 @@ fun SquareApp(
                                         )
                                     },
                                 )
+                            }
                             }
                         }
 
@@ -1468,7 +1843,88 @@ fun SquareApp(
                     // narrower capsule than its three do, and the row centres
                     // itself — which is the point of measuring the parts rather
                     // than the whole.
-                    val barMargin = if (tabBarScroll.isInline) 16.dp else 26.dp
+                    // Measured off the reference frame (314 px wide, bar 299 px
+                    // of it): the bar leaves about the same margin either side
+                    // as a tab is tall is wide — 17dp here once its own width is
+                    // taken off the screen. Folded it pulls in slightly, which
+                    // is what the reference does too.
+                    // Measured off the recording of the reference running on
+                    // this phone: 27 video pixels of a 720-wide capture, which
+                    // is 16dp here, and the same on both sides in both states.
+                    val barMargin = 16.dp
+
+                    // What one of the four gets, once the row's own margins and
+                    // the search circle beside it have been taken off. Measured
+                    // from the screen rather than fixed: four labels and a circle
+                    // on a narrow phone is exactly where a constant starts
+                    // pushing the last tab off the end.
+                    // The colour the current tab is drawn in: the artwork's
+                    // own, straight from the palette rather than through the
+                    // theme.
+                    //
+                    // The theme's primary is that colour after the material
+                    // scheme has had it — pulled toward its own tonal palette,
+                    // which is what made the lit tab a near-relative of the
+                    // cover rather than the cover's colour. This is the same
+                    // value the pages are tinted from, at full strength, which
+                    // is how the reference draws the place you are.
+                    // The app's accent, which is the cover's own: the theme is
+                    // seeded from it through ArtworkColor and every switch,
+                    // slider and progress bar in the app is drawn in it.
+                    //
+                    // This used to read the palette a second time here, and off
+                    // the *other* catalogue's picture — so the bar could be
+                    // violet while the rest of the app was orange, on the same
+                    // song. One accent, taken from where the app already keeps
+                    // it.
+                    val tabAccent = MaterialTheme.colorScheme.primary
+
+                    // And the white the rest of the bar is drawn in: never a
+                    // pure one. The reference tints its icons with the colour of
+                    // what is *behind* them — on a green page they are a green
+                    // white — which is most of why the bar reads as part of the
+                    // page rather than as a strip laid over it.
+                    //
+                    // Behind, and not what is playing. Those are two different
+                    // colours as soon as you open a record while something else
+                    // is on: a purple page under a pink bar is exactly the seam
+                    // this is meant to remove. So on a detail page the tint is
+                    // that page's own — the catalogue's colour for it where
+                    // there is one, and the colour of the picture where there is
+                    // not — and everywhere else it falls back to the playing
+                    // track, which is what those pages are tinted by.
+                    val onDetail = route == Routes.PLAYLIST
+                    val detailArt = playlist.heroUrl ?: playlist.coverUrl ?: playlist.artworkUrl
+                    val detailAccent by rememberArtworkColor(detailArt.takeIf { onDetail })
+                    val surfaceTint = when {
+                        // Off a detail page the bar is tinted by what is
+                        // playing, which is what those pages are tinted by too.
+                        !onDetail -> tabAccent
+                        playlist.tintHex != null -> runCatching {
+                            Color(android.graphics.Color.parseColor("#${playlist.tintHex}"))
+                        }.getOrDefault(tabAccent)
+                        else -> detailAccent ?: tabAccent
+                    }
+                    val barInk = inkTintedBy(surfaceTint)
+
+                    // What the lit slot is filled with. The listener's own glass
+                    // settings still own it — the puck was a surface of this
+                    // app's making before the library grew one — so an opacity of
+                    // zero leaves the row unmarked rather than drawing a shape
+                    // nobody asked for.
+                    // Darker than the bar, not lighter.
+                    //
+                    // The reference sinks its lit slot into the bar rather than
+                    // lifting it off: measured off it, the puck reads at about
+                    // three fifths of the brightness of the glass around it. A
+                    // white sticker was the older idea and it made the bar look
+                    // like it had a highlight stuck on it.
+                    //
+                    // The listener's own slider still sets how far it goes; only
+                    // the direction is fixed here.
+                    val puckWash = Color.Black.copy(
+                        alpha = (glassConfig.puckOpacity.coerceIn(0f, 1f) * 1.3f).coerceAtMost(0.5f),
+                    )
 
                     // Searching opens the bar and keeps it open.
                     //
@@ -1483,110 +1939,439 @@ fun SquareApp(
                     // fold is a bar whose scrolling is not allowed to change it.
                     val barFolds by glassStore.barFolds.collectAsStateWithLifecycle()
                     LaunchedEffect(searching, barFolds) {
-                        tabBarScroll.locked = searching || !barFolds
                         if (searching || !barFolds) tabBarScroll.expand()
                     }
 
                     FloatingTabBar(
-                        // Always the tab the page belongs to, search included.
-                        //
-                        // Naming the search circle here instead left the search
-                        // bar with no tab beside it: the bar keeps one tab in
-                        // search mode — the one you came from, so you can go
-                        // back by tapping it — and it finds it by matching this
-                        // key against the regular tabs. A key belonging to none
-                        // of them matched nothing and the tab disappeared,
-                        // leaving the back gesture as the only way out.
+                        // The page's own tab, search included — it is one of
+                        // them now. The bar keeps this tab when it folds and
+                        // finds it by matching this key.
                         selectedTabKey = activeTab,
                         scrollConnection = tabBarScroll,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = barMargin)
                             .padding(bottom = navBar + 8.dp),
-                        // The glass is the caller's to apply, and it is what the
-                        // bar is made of: transparent colours underneath, and
-                        // every surface sampling the page through this.
+                        // Where the glass goes in. The library applies this after
+                        // its own background and before its padding, which is
+                        // exactly the seam a pane of glass belongs in: the
+                        // surfaces below draw nothing of their own — see the
+                        // transparent colours — and this is what they are made
+                        // of.
                         tabBarContentModifier = barGlass,
                         colors = FloatingTabBarDefaults.colors(
-                            backgroundColor = Color.Transparent,
-                            accessoryBackgroundColor = Color.Transparent,
+                            // A film over the glass, not nothing.
+                            //
+                            // The bar was left transparent so the glass alone
+                            // made it, and over a dark page that is very nearly
+                            // black — which leaves a dark puck with nothing to be
+                            // darker than. The reference's bar is a lighter
+                            // surface for exactly this reason: it is what its lit
+                            // slot is cut out of.
+                            backgroundColor = GlassFilm,
+                            accessoryBackgroundColor = GlassFilm,
+                            selectedTabBackgroundColor = puckWash,
+                            selectedStandaloneTabBackgroundColor = puckWash,
                         ),
                         sizes = FloatingTabBarDefaults.sizes(
-                            tabBarContentPadding = PaddingValues(4.dp),
-                            tabExpandedContentPadding = PaddingValues(vertical = 6.dp, horizontal = 6.dp),
-                            tabInlineContentPadding = PaddingValues(8.dp),
-                            // The reference's capsule is 272dp wide whatever
-                            // is in it: three tabs at 88 there, two at 132
-                            // here. Keeping the tab width instead would have
-                            // made this app's bar visibly shorter than the one
-                            // it is copying — and the accessory above it, which
-                            // matches the row, shorter with it.
-                            tabWidth = (272.dp - 8.dp) / 2,
+                            // Measured off the reference running on this phone;
+                            // see the notes on barMargin.
+                            // What separates the lit slot from the bar's own
+                            // edge. Measured off the reference: its puck stands
+                            // four fifths of the bar's height, which is six
+                            // points of glass above and below it.
+                            tabBarContentPadding = PaddingValues(
+                                vertical = 6.dp,
+                                horizontal = 2.dp,
+                            ),
+                            // Measured off Music OS 26 on this phone, which is
+                            // the bar this one is trying to be: its row stands
+                            // 61dp, its glyphs are 26, and the circle beside the
+                            // pill is as tall as the pill is. The library sizes
+                            // that circle off the row for us, so the only
+                            // numbers here are the paddings that make the row
+                            // that tall.
+                            tabExpandedContentPadding = PaddingValues(
+                                vertical = 8.dp,
+                                horizontal = 14.dp,
+                            ),
+                            tabInlineContentPadding = PaddingValues(14.dp),
+                            componentSpacing = 14.dp,
                         ),
-                        inlineAccessory = accessory,
-                        expandedAccessory = accessory,
-                        backdrop = pageBackdrop,
-                        accentColor = Ink,
-                        searchMode = searching,
-                        searchBarContent = if (searching) {
+                        // The tab group is the catalog's own component, as it
+                        // ships it: the pill, the four tabs and the indicator
+                        // that can be dragged between them. The bar around it —
+                        // the fold, the mini player, the search circle — is
+                        // still the library's.
+                        expandedTabs = { tabsModifier, tabsVisibility ->
+                            // The bar's own configuration, not the app's.
+                            //
+                            // The component reads the glass settings from
+                            // composition, and the setting that governs this
+                            // surface is the one for the navigation bar — so a
+                            // listener who turns the glass off there gets a flat
+                            // bar, exactly as they do for the mini player and the
+                            // player's own panes.
+                            val tabRoutes = remember {
+                                listOf(
+                                    Routes.HOME,
+                                    Routes.NEW,
+                                    Routes.RADIO,
+                                    Routes.LIBRARY,
+                                    Routes.SEARCH,
+                                )
+                            }
+                            val here = tabRoutes.indexOf(activeTab).coerceAtLeast(0)
+                            // Stable, or the component throws away the state it
+                            // keys on this and the indicator stops animating.
+                            val hereState = rememberUpdatedState(here)
+                            val selectedTabIndex = remember { { hereState.value } }
+                            // The catalog's component as this app carries it:
+                            // same code, with its shell made of the app's own
+                            // glass so the bar answers the listener's settings
+                            // like every other pane. See LiquidBottomTabs.
+                            CompositionLocalProvider(
+                                dev.lelonio.square.ui.glass.LocalGlassEffectConfig provides barConfig,
+                            ) {
+                            LiquidBottomTabs(
+                                selectedTabIndex = selectedTabIndex,
+                                onTabSelected = { index ->
+                                    viewModel.clearPageHistory()
+                                    navController.switchTab(tabRoutes[index])
+                                },
+                                backdrop = pageBackdrop,
+                                tabsCount = tabRoutes.size,
+                                accentColor = tabAccent,
+                                containerColor = GlassFilm,
+                                // Darker than the bar, not lighter: the mark is
+                                // cut into the glass rather than stuck on it.
+                                // Still the listener's own slider — at zero the
+                                // row goes unmarked.
+                                indicatorColor = puckWash,
+                                height = BarHeight,
+                                // Under half the height, or the refraction from
+                                // the two long edges meets in the middle and
+                                // draws a seam across the capsule.
+                                lensDepth = 20.dp,
+                                // Nothing is lit while the page on screen is not
+                                // one of these four; search is a place of its
+                                // own.
+                                indicatorVisible = activeTab in TAB_ROUTES,
+                                modifier = tabsModifier,
+                            ) {
+                                BarTab(
+                                    R.string.home,
+                                    PhosphorIcons.Fill.House,
+                                    activeTab == Routes.HOME,
+                                    tabAccent,
+                                    barInk,
+                                ) {
+                                    viewModel.clearPageHistory()
+                                    navController.switchTab(Routes.HOME)
+                                }
+                                BarTab(
+                                    R.string.tab_new,
+                                    PhosphorIcons.Fill.SquaresFour,
+                                    activeTab == Routes.NEW,
+                                    tabAccent,
+                                    barInk,
+                                ) {
+                                    viewModel.clearPageHistory()
+                                    navController.switchTab(Routes.NEW)
+                                }
+                                BarTab(
+                                    R.string.tab_radio,
+                                    PhosphorIcons.Fill.Broadcast,
+                                    activeTab == Routes.RADIO,
+                                    tabAccent,
+                                    barInk,
+                                ) {
+                                    viewModel.clearPageHistory()
+                                    navController.switchTab(Routes.RADIO)
+                                }
+                                BarTab(
+                                    R.string.library,
+                                    PhosphorIcons.Fill.MusicNotes,
+                                    activeTab == Routes.LIBRARY,
+                                    tabAccent,
+                                    barInk,
+                                ) {
+                                    viewModel.clearPageHistory()
+                                    navController.switchTab(Routes.LIBRARY)
+                                }
+                                BarTab(
+                                    R.string.search,
+                                    // Heavy rather than solid: a filled
+                                    // magnifier reads as a blob at this size,
+                                    // and it is the one glyph here whose shape
+                                    // is the whole of its meaning.
+                                    PhosphorIcons.Bold.MagnifyingGlass,
+                                    activeTab == Routes.SEARCH,
+                                    tabAccent,
+                                    barInk,
+                                    // This slot is the folded bar's search
+                                    // circle standing in the row. Sharing its
+                                    // bounds is what keeps it at the right edge
+                                    // while the pill collapses to the left,
+                                    // instead of shrinking away with the pill
+                                    // and a circle fading in where it was — which
+                                    // is what the reference does: the first and
+                                    // last of the row survive the fold, the
+                                    // three in between go.
+                                    modifier = Modifier.sharedElement(
+                                        sharedContentState = rememberSharedContentState("standaloneTab"),
+                                        animatedVisibilityScope = tabsVisibility,
+                                        zIndexInOverlay = 2f,
+                                    ),
+                                ) {
+                                    viewModel.clearPageHistory()
+                                    searchOpen = true
+                                    navController.switchTab(Routes.SEARCH)
+                                }
+                            }
+                            }
+                        },
+                        // What the tabs are built out of, so the builder runs
+                        // again when it changes.
+                        //
+                        // The library remembers the scope and runs the content
+                        // lambda once — so the icons registered in it captured
+                        // the colours of the first composition and kept them for
+                        // ever. That is why the folded bar's circle stayed the
+                        // accent of whatever was playing at startup while the
+                        // open bar followed the song, and why the search icon
+                        // drifted from the rest.
+                        contentKey = listOf(activeTab, searching, searchOpen, tabAccent, barInk),
+                        expandedTabsHeight = BarHeight,
+                        // Search is one of the places now, so the circle beside
+                        // the pill would be the same control twice. It stays for
+                        // the folded bar, where there is no pill to hold it.
+                        standaloneInExpanded = false,
+                        // Tapping the search tab grows it into the field, and
+                        // the tabs fold away behind it. Tapping it again puts
+                        // the field away and leaves the results; see searchOpen.
+                        searchMode = searching && searchOpen,
+                        searchBarContent = if (searching && searchOpen) {
                             { fieldModifier ->
                                 BarSearchField(
                                     query = search.query,
                                     onQuery = viewModel::onSearchQuery,
                                     modifier = fieldModifier,
+                                    ink = barInk,
                                 )
                             }
                         } else {
                             null
                         },
+                        tabsFillWidth = true,
+                        inlineAccessory = accessory,
+                        expandedAccessory = accessory,
                     ) {
                         tab(
                             key = Routes.HOME,
-                            title = { Text(stringResource(R.string.home), fontSize = 10.sp) },
+                            title = {
+                                Text(
+                                    stringResource(R.string.home),
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    style = LocalTextStyle.current.copy(
+                                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                            includeFontPadding = false,
+                                        ),
+                                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+                                        ),
+                                    ),
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (activeTab == Routes.HOME) tabAccent else barInk,
+                                )
+                            },
                             icon = {
                                 Icon(
-                                    if (activeTab == Routes.HOME) PhosphorIcons.Fill.House
-                                    else PhosphorIcons.Regular.House,
+                                    PhosphorIcons.Fill.House,
                                     contentDescription = stringResource(R.string.home),
-                                    tint = Ink,
-                                    modifier = Modifier.size(30.dp),
-                                )
-                            },
-                            onClick = { navController.switchTab(Routes.HOME) },
-                        )
-                        tab(
-                            key = Routes.LIBRARY,
-                            title = { Text(stringResource(R.string.library), fontSize = 10.sp) },
-                            icon = {
-                                Icon(
-                                    if (activeTab == Routes.LIBRARY) PhosphorIcons.Fill.MusicNotes
-                                    else PhosphorIcons.Regular.MusicNotes,
-                                    contentDescription = stringResource(R.string.library),
-                                    tint = Ink,
-                                    modifier = Modifier.size(30.dp),
-                                )
-                            },
-                            onClick = { navController.switchTab(Routes.LIBRARY) },
-                        )
-                        // Search is a standalone circle rather than a third tab,
-                        // which is what lets it grow into the field: you go there
-                        // to do something and come back, and the bar treats it as
-                        // that kind of destination.
-                        standaloneTab(
-                            key = Routes.SEARCH,
-                            icon = {
-                                Icon(
-                                    PhosphorIcons.Regular.MagnifyingGlass,
-                                    contentDescription = stringResource(R.string.search),
-                                    tint = Ink,
-                                    modifier = Modifier.size(26.dp),
+                                    tint = if (activeTab == Routes.HOME) tabAccent else barInk,
+                                    modifier = Modifier.size(TabIcon),
                                 )
                             },
                             onClick = {
-                                if (searching) navController.switchTab(Routes.HOME)
-                                else navController.switchTab(Routes.SEARCH)
+                                viewModel.clearPageHistory()
+                                navController.switchTab(Routes.HOME)
                             },
                         )
+                        tab(
+                            key = Routes.NEW,
+                            title = {
+                                Text(
+                                    stringResource(R.string.tab_new),
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    style = LocalTextStyle.current.copy(
+                                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                            includeFontPadding = false,
+                                        ),
+                                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+                                        ),
+                                    ),
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (activeTab == Routes.NEW) tabAccent else barInk,
+                                )
+                            },
+                            icon = {
+                                Icon(
+                                    PhosphorIcons.Fill.SquaresFour,
+                                    contentDescription = stringResource(R.string.tab_new),
+                                    tint = if (activeTab == Routes.NEW) tabAccent else barInk,
+                                    modifier = Modifier.size(TabIcon),
+                                )
+                            },
+                            onClick = {
+                                viewModel.clearPageHistory()
+                                navController.switchTab(Routes.NEW)
+                            },
+                        )
+                        tab(
+                            key = Routes.RADIO,
+                            title = {
+                                Text(
+                                    stringResource(R.string.tab_radio),
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    style = LocalTextStyle.current.copy(
+                                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                            includeFontPadding = false,
+                                        ),
+                                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+                                        ),
+                                    ),
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (activeTab == Routes.RADIO) tabAccent else barInk,
+                                )
+                            },
+                            icon = {
+                                Icon(
+                                    PhosphorIcons.Fill.Broadcast,
+                                    contentDescription = stringResource(R.string.tab_radio),
+                                    tint = if (activeTab == Routes.RADIO) tabAccent else barInk,
+                                    modifier = Modifier.size(TabIcon),
+                                )
+                            },
+                            onClick = {
+                                viewModel.clearPageHistory()
+                                navController.switchTab(Routes.RADIO)
+                            },
+                        )
+                        tab(
+                            key = Routes.LIBRARY,
+                            title = {
+                                Text(
+                                    stringResource(R.string.library),
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    style = LocalTextStyle.current.copy(
+                                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                            includeFontPadding = false,
+                                        ),
+                                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+                                        ),
+                                    ),
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (activeTab == Routes.LIBRARY) tabAccent else barInk,
+                                )
+                            },
+                            icon = {
+                                Icon(
+                                    PhosphorIcons.Fill.MusicNotes,
+                                    contentDescription = stringResource(R.string.library),
+                                    tint = if (activeTab == Routes.LIBRARY) tabAccent else barInk,
+                                    modifier = Modifier.size(TabIcon),
+                                )
+                            },
+                            onClick = {
+                                viewModel.clearPageHistory()
+                                navController.switchTab(Routes.LIBRARY)
+                            },
+                        )
+                        // Search is one of the places, so it is registered like
+                        // one: this is the tab the folded bar shows when it is
+                        // where you are, and the key the search field grows out
+                        // of.
+                        tab(
+                            key = Routes.SEARCH,
+                            title = {
+                                Text(
+                                    stringResource(R.string.search),
+                                    fontSize = 9.sp,
+                                    lineHeight = 11.sp,
+                                    style = LocalTextStyle.current.copy(
+                                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(
+                                            includeFontPadding = false,
+                                        ),
+                                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+                                        ),
+                                    ),
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (activeTab == Routes.SEARCH) tabAccent else barInk,
+                                )
+                            },
+                            icon = {
+                                Icon(
+                                    // Heavy rather than solid: a filled magnifier
+                                    // reads as a blob at this size, and it is the
+                                    // one glyph here whose shape is the whole of
+                                    // its meaning.
+                                    PhosphorIcons.Bold.MagnifyingGlass,
+                                    contentDescription = stringResource(R.string.search),
+                                    tint = if (activeTab == Routes.SEARCH) tabAccent else barInk,
+                                    modifier = Modifier.size(TabIcon),
+                                )
+                            },
+                            onClick = {
+                                if (searching && searchOpen) {
+                                    // Already typing: this is the way out of it.
+                                    // The field goes and the keyboard with it,
+                                    // the results stay where they are.
+                                    searchOpen = false
+                                    focus.clearFocus()
+                                    keyboard?.hide()
+                                } else {
+                                    viewModel.clearPageHistory()
+                                    searchOpen = true
+                                    navController.switchTab(Routes.SEARCH)
+                                }
+                            },
+                        )
+                        // And still a circle beside the folded bar, so a reader
+                        // halfway down a list can search without opening it
+                        // first. Gone while search is where you are: the folded
+                        // tab is already this control.
+                        if (!searching) {
+                            standaloneTab(
+                                key = SEARCH_CIRCLE,
+                                icon = {
+                                    Icon(
+                                        PhosphorIcons.Bold.MagnifyingGlass,
+                                        contentDescription = stringResource(R.string.search),
+                                        tint = barInk,
+                                        modifier = Modifier.size(TabIcon),
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.clearPageHistory()
+                                    searchOpen = true
+                                    navController.switchTab(Routes.SEARCH)
+                                },
+                            )
+                        }
                     }
                     }
                 }
@@ -1608,6 +2393,31 @@ fun SquareApp(
                           ) {
                             PlayerScreen(
                                 state = playerState,
+                                // The title is the way onto the record. The
+                                // address travels with the queue where the
+                                // source gave one; where it did not — a list
+                                // resolved before the app kept it — it is
+                                // looked up on the tap rather than left inert.
+                                onOpenAlbum = playback.mediaId
+                                    ?.takeIf { it.startsWith("spotify:track:") }
+                                    ?.let { track ->
+                                        {
+                                            scope.launch {
+                                                val album = playback.albumUri?.let { uri ->
+                                                    CatalogPlaylist(
+                                                        uri = uri,
+                                                        name = playback.album,
+                                                        artworkUrl = playback.artworkUrl,
+                                                    )
+                                                } ?: viewModel.albumOf(track)
+                                                if (album != null) {
+                                                    expand.animateTo(0f, expandSpec)
+                                                    navController.openPlaylist(viewModel, album)
+                                                }
+                                            }
+                                            Unit
+                                        }
+                                    },
                                 positionMs = positionMs,
                                 videoFileId = videoFileId,
                                 videoMode = spotifyVideoOn,
@@ -1731,6 +2541,19 @@ fun SquareApp(
                                 onDeletePreset = viewModel::deleteEffectPreset,
                                 backdrop = artBackdrop,
                                 canvas = canvas,
+                                // The record's own artwork from the other
+                                // catalogue, where it has any: the tall picture
+                                // and the moving cover a song inherits from its
+                                // album. Null leaves the player with the square
+                                // cover it always had.
+                                coverHeroUrl = nowPlayingArt?.heroUrl,
+                                coverMotionUrl = nowPlayingArt?.motionUrl,
+                                coverSquareUrl = nowPlayingArt?.coverUrl,
+                                // Spotify's cover is the fallback, not the
+                                // first draft: while the catalogue is still
+                                // being asked, the player shows colour rather
+                                // than a picture it is about to replace.
+                                coverPending = nowPlayingArtPending,
                                 devices = devices,
                                 onAnotherDevice = remote != null,
                                 alreadySaved = playback.mediaId != null &&
@@ -1824,8 +2647,11 @@ fun SquareApp(
                                     backend == dev.lelonio.square.backend.BackendId.SPOTIFY,
                                 onWatchVideo = player
                                     ?.takeIf {
-                                        playback.mediaId
-                                            ?.startsWith("ytmusic:track:") == true
+                                        // A video is streamed, so there is
+                                        // nothing to offer offline.
+                                        !offlineNow &&
+                                            playback.mediaId
+                                                ?.startsWith("ytmusic:track:") == true
                                     }
                                     ?.let { { YouTubeVideoMode.toggle(it) } },
                                 videoOn = videoOn || spotifyVideoOn,
@@ -1898,6 +2724,52 @@ fun SquareApp(
                                 sendForDownload(context, shownPlaylist.openLink())
                             }
                         }
+                        // Keeping the page on the phone lives here rather
+                        // than under the cover: the reference has no button for
+                        // it beside play, and the three that are there are the
+                        // three you press while listening. This is a decision
+                        // about storage, which is what a menu is for.
+                        //
+                        // The store belongs to the librespot engine, so only
+                        // Spotify pages can be kept — and with no network the
+                        // entry would only ever queue work that cannot start.
+                        //
+                        // Offered only for the page that is open, because
+                        // keeping one means keeping its songs and the track list
+                        // is what this reads: the same sheet opens over a
+                        // library row, where there is a name and nothing to
+                        // fetch yet.
+                        val keepable = backend == dev.lelonio.square.backend.BackendId.SPOTIFY &&
+                            shownPlaylist.uri.startsWith("spotify:") &&
+                            playlist.uri == shownPlaylist.uri &&
+                            playlist.tracks.isNotEmpty() &&
+                            // An artist page has no keep button of its own: its
+                            // three controls are the ones the reference gives an
+                            // artist, so for that one page this is the way in.
+                            playlist.kind == MainViewModel.DetailKind.ARTIST &&
+                            !offlineNow
+                        if (keepable) {
+                            val kept = downloadOwners[shownPlaylist.uri]
+                            val isKept = kept is dev.lelonio.square.data.OwnerState.Complete ||
+                                kept is dev.lelonio.square.data.OwnerState.Partial
+                            TrackSheetAction(
+                                stringResource(
+                                    if (isKept) R.string.remove_download else R.string.download,
+                                ),
+                                if (isKept) {
+                                    PhosphorIcons.Regular.Trash
+                                } else {
+                                    PhosphorIcons.Regular.Download
+                                },
+                            ) {
+                                playlistMenu = null
+                                // Asked rather than done when it takes songs
+                                // away: a mis-tap should not delete a hundred
+                                // of them.
+                                if (isKept) unkeeping = playlist
+                                else viewModel.toggleDownload(playlist)
+                            }
+                        }
                         if (editable) TrackSheetAction(
                             stringResource(R.string.delete),
                             PhosphorIcons.Regular.Trash,
@@ -1908,6 +2780,19 @@ fun SquareApp(
                             playlistMenu = null
                         }
                     }
+                }
+
+                unkeeping?.let { target ->
+                    dev.lelonio.square.ui.components.ConfirmDialog(
+                        title = stringResource(R.string.remove_download),
+                        message = stringResource(R.string.remove_download_confirm, target.name),
+                        confirmLabel = stringResource(R.string.remove_download_confirm_action),
+                        onConfirm = {
+                            viewModel.toggleDownload(target)
+                            unkeeping = null
+                        },
+                        onDismiss = { unkeeping = null },
+                    )
                 }
 
                 deleting?.let { target ->
@@ -2236,7 +3121,46 @@ fun SquareApp(
  * cover — the palette is built for a dark page.
  */
 @Composable
-private fun AppBackdrop(artworkUrl: String?) {
+private fun AppBackdrop(
+    artworkUrl: String?,
+    asColor: Boolean = false,
+    /** The catalogue's own page colour for what is playing; see pageColorForHex. */
+    tintHex: String? = null,
+) {
+    // The pages are the colour of what is playing, not a picture of it.
+    //
+    // A blurred cover behind a home page full of covers is a picture behind
+    // pictures: every shelf sits on a different smear of the same artwork, and
+    // nothing on the page is helped by it. The detail pages already answer this
+    // properly — one tone taken from the record, falling away down the screen —
+    // and this is that same treatment for everywhere else, which is also what
+    // makes moving between them feel like one app rather than two.
+    //
+    // The player keeps the picture: there the cover is the subject, and a wash
+    // of its colour behind the very artwork it was taken from says nothing.
+    if (asColor) {
+        val accent by rememberArtworkColor(artworkUrl.takeIf { tintHex == null })
+        // Eased rather than cut: a track change would otherwise repaint the
+        // whole window in one frame, which reads as a flash.
+        val tone by animateColorAsState(
+            targetValue = tintHex?.let(::pageColorForHex) ?: pageColorFor(accent),
+            animationSpec = tween(durationMillis = 700),
+            label = "pageTone",
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to tone,
+                        0.45f to tone,
+                        1f to PageFloor,
+                    ),
+                ),
+        )
+        return
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -2287,9 +3211,11 @@ private fun BottomBar(
 ) {
     // Search sits outside the capsule as its own round button, the way the
     // reference has it: it is a different kind of destination — you go there to
-    // do something and come back — and giving it the same weight as Home and
-    // Library made all three read as places.
-    val routes = remember { listOf(Routes.HOME, Routes.LIBRARY) }
+    // do something and come back — and giving it the same weight as the places
+    // made all of them read as places.
+    val routes = remember {
+        listOf(Routes.HOME, Routes.NEW, Routes.RADIO, Routes.LIBRARY)
+    }
 
     // The last tab that was actually on screen, held across screens that are not
     // tabs at all — a playlist, the search page.
@@ -2335,7 +3261,7 @@ private fun BottomBar(
             BottomItem(
                 stringResource(R.string.home),
                 PhosphorIcons.Fill.House,
-                PhosphorIcons.Regular.House,
+                PhosphorIcons.Bold.House,
                 // Nothing is lit while the page on screen is not one of these
                 // two: search is a destination of its own, and leaving Home
                 // filled behind it said the app was somewhere it was not.
@@ -2344,10 +3270,22 @@ private fun BottomBar(
                 onSelect(Routes.HOME)
             }
             BottomItem(
+                stringResource(R.string.tab_new),
+                PhosphorIcons.Fill.SquaresFour,
+                PhosphorIcons.Bold.SquaresFour,
+                routeIndex >= 0 && selected == 1,
+            ) { onSelect(Routes.NEW) }
+            BottomItem(
+                stringResource(R.string.tab_radio),
+                PhosphorIcons.Fill.Broadcast,
+                PhosphorIcons.Bold.Broadcast,
+                routeIndex >= 0 && selected == 2,
+            ) { onSelect(Routes.RADIO) }
+            BottomItem(
                 stringResource(R.string.library),
                 PhosphorIcons.Fill.MusicNotes,
-                PhosphorIcons.Regular.MusicNotes,
-                routeIndex >= 0 && selected == 1,
+                PhosphorIcons.Bold.MusicNotes,
+                routeIndex >= 0 && selected == 3,
             ) { onSelect(Routes.LIBRARY) }
             }
         }
@@ -2366,7 +3304,7 @@ private fun BottomBar(
             // reads as clearer glass than the bar it sits next to.
         ) {
             Icon(
-                imageVector = if (searching) PhosphorIcons.Fill.MagnifyingGlass else PhosphorIcons.Regular.MagnifyingGlass,
+                imageVector = if (searching) PhosphorIcons.Fill.MagnifyingGlass else PhosphorIcons.Bold.MagnifyingGlass,
                 contentDescription = stringResource(R.string.search),
                 tint = Ink,
                 modifier = Modifier.size(24.dp),
@@ -2586,6 +3524,14 @@ private fun savedPlaybackSeed(context: android.content.Context): PlaybackState? 
         mediaId = track.uri,
         title = track.name,
         artist = track.artist,
+        // The record too, and not only for the caption under the title: it is
+        // what the other catalogue is searched by. Left out, the first lookup of
+        // every cold start went to the search-by-song fallback and came back
+        // with whichever release ranked first — a single, or a compilation —
+        // which is why a song could open under a different cover each time the
+        // app was started.
+        album = track.album,
+        albumUri = track.albumUri,
         artworkUrl = track.artworkUrl,
         durationMs = track.durationMs,
         // Not "paused": what it is doing is unknown until the controller
@@ -2607,6 +3553,8 @@ private fun BarSearchField(
     query: String,
     onQuery: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** The bar's own white, carrying the colour of the page behind it. */
+    ink: Color = Ink,
 ) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
@@ -2616,17 +3564,17 @@ private fun BarSearchField(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            PhosphorIcons.Regular.MagnifyingGlass,
+            PhosphorIcons.Bold.MagnifyingGlass,
             contentDescription = null,
-            tint = Ink.copy(alpha = 0.7f),
+            tint = ink.copy(alpha = 0.7f),
             modifier = Modifier.size(20.dp),
         )
         BasicTextField(
             value = query,
             onValueChange = onQuery,
             singleLine = true,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink),
-            cursorBrush = androidx.compose.ui.graphics.SolidColor(Ink),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = ink),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(ink),
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 12.dp)
@@ -2636,7 +3584,7 @@ private fun BarSearchField(
                     Text(
                         stringResource(R.string.search_placeholder),
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Ink.copy(alpha = 0.5f),
+                        color = ink.copy(alpha = 0.5f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

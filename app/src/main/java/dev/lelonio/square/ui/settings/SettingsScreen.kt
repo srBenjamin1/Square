@@ -272,6 +272,12 @@ fun SettingsScreen(
             CrossfadeSection()
         }
 
+        // Spotify's own, served by its access point: on another source there is
+        // no clip to ask for and nothing this switch could turn off.
+        if (open == SettingsPage.Playback && showSpotify) item("canvas") {
+            CanvasSection(backdrop)
+        }
+
         // The effects run on our own output, so this one holds for both backends.
         if (open == SettingsPage.Playback) item("effect-quality") {
             EffectQualitySection()
@@ -621,6 +627,31 @@ private fun YouTubeAccountSection(onSignIn: () -> Unit, onChannelChange: () -> U
                 scope.launch { app.youtubeBackend.logOut() }
             }
         }
+    }
+}
+
+/**
+ * The looping clip, on or off for everything.
+ *
+ * Off is not only "do not draw it": no clip is fetched at all, so a listener who
+ * turns this off stops paying for a video on every track as well as seeing one.
+ */
+@Composable
+private fun CanvasSection(backdrop: Backdrop) {
+    val context = LocalContext.current
+    val store = remember(context) {
+        (context.applicationContext as dev.lelonio.square.SquareApplication).preferences
+    }
+    val enabled by store.canvasEnabled.collectAsStateWithLifecycle()
+
+    Section(stringResource(R.string.canvas)) {
+        DownloadSwitch(
+            label = stringResource(R.string.canvas_show),
+            note = stringResource(R.string.canvas_note),
+            checked = enabled,
+            backdrop = backdrop,
+            onChange = store::setCanvasEnabled,
+        )
     }
 }
 

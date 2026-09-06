@@ -1243,12 +1243,16 @@ class PlaybackService : MediaLibraryService() {
                         androidx.media3.common.MediaMetadata.Builder()
                             .setTitle(track.name)
                             .setArtist(track.artist)
+                            .setAlbumTitle(track.album.takeIf { it.isNotEmpty() })
                             .setDurationMs(track.durationMs.takeIf { it > 0 })
                             .setArtworkUri(track.artworkUrl?.let(android.net.Uri::parse))
                             .setExtras(
                                 android.os.Bundle().apply {
                                     track.artistUri?.let {
                                         putString(dev.lelonio.square.ui.EXTRA_ARTIST_URI, it)
+                                    }
+                                    track.albumUri?.let {
+                                        putString(dev.lelonio.square.ui.EXTRA_ALBUM_URI, it)
                                     }
                                     val credited = track.artists.filter { it.uri != null }
                                     if (credited.isNotEmpty()) {
@@ -1302,6 +1306,8 @@ class PlaybackService : MediaLibraryService() {
         artist = track.artist,
         artistUri = track.artistUri,
         artists = track.artists,
+        album = track.album,
+        albumUri = track.albumUri,
         durationMs = track.durationMs,
         artworkUri = track.artworkUrl?.let(android.net.Uri::parse),
     )

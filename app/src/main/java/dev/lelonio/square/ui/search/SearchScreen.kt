@@ -21,7 +21,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +31,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -47,9 +51,13 @@ import dev.lelonio.square.ui.player.GlassFilm
 import dev.lelonio.square.ui.settings.WebApiSetup
 import dev.lelonio.square.ui.theme.Ink
 import dev.lelonio.square.ui.theme.InkDim
+import androidx.compose.foundation.clickable
 import com.adamglin.PhosphorIcons
+import com.adamglin.phosphoricons.Bold
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.Regular
+import com.adamglin.phosphoricons.bold.MagnifyingGlass
+import com.adamglin.phosphoricons.bold.X
 import com.adamglin.phosphoricons.regular.DotsThree
 
 /** Which kind of result the page is showing. */
@@ -93,6 +101,15 @@ fun SearchScreen(
     /** Opens the same track sheet the library rows open. */
     onTrackMenu: (CatalogTrack) -> Unit,
     onOpenContext: (SearchItem) -> Unit,
+    /**
+     * What is typed goes here.
+     *
+     * The field used to live in the bottom bar, growing out of the search
+     * circle. That was a local change to the bar, and the bar is the library's
+     * again — so the box you type in is back on the page that answers it, which
+     * is also where every other client puts it.
+     */
+    onQuery: (String) -> Unit,
     backdrop: Backdrop,
 ) {
     var kind by remember { mutableStateOf(Kind.ALL) }
@@ -102,11 +119,9 @@ fun SearchScreen(
     remember(query) { kind = Kind.ALL }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
-        // No field, and no title over it. Both are in the bottom bar now: the
-        // search button there grows into the box you type in, which is the whole
-        // point of that control, and a page that answers it by drawing a second
-        // box asks which of the two is listening. What is left here is the
-        // answer, which is what the page was ever for.
+        // No field here: it is in the bar, where the search button grows into
+        // it. A page that answers a query by drawing a second box asks which of
+        // the two is listening.
 
         if (!state.results.isEmpty && !state.loading) {
             item(contentType = "chips") {

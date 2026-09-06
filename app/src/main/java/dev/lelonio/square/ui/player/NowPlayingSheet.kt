@@ -145,6 +145,7 @@ fun NowPlayingSheet(
                 background()
                 androidx.compose.runtime.CompositionLocalProvider(
                     LocalGlassEnabled provides settled,
+                    LocalPlayerSettled provides settled,
                 ) {
                     expandedContent()
                 }

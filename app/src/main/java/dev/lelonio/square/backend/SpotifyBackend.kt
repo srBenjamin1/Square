@@ -3,7 +3,6 @@ package dev.lelonio.square.backend
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import dev.lelonio.square.SquareApplication
-import dev.lelonio.square.backend.lyrics.Lossless
 import dev.lelonio.square.data.Catalog
 import dev.lelonio.square.data.CatalogPlaylist
 import dev.lelonio.square.data.CatalogTrack
@@ -230,9 +229,13 @@ class SpotifyBackend(private val container: SquareApplication) : MusicBackend {
         title: String,
         artist: String,
         durationMs: Long,
-    ) = dev.lelonio.square.backend.lyrics.Amll.lyrics(uri)
-        ?: Lossless.lyrics(title, artist, durationMs)
-        ?: Catalog.lyrics(uri)
+    ) = dev.lelonio.square.backend.lyrics.SpotifyLyrics.lyrics(
+        uri = uri,
+        title = title,
+        artist = artist,
+        durationMs = durationMs,
+        allowNetwork = !dev.lelonio.square.playback.OfflineMode.active.value,
+    )
 
     /**
      * Whether playlists can be made and changed.

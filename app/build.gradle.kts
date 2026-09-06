@@ -191,6 +191,8 @@ dependencies {
     // DASH, for Spotify's own video: its manifest is a set of segment
     // templates, which is what a DASH source is built to walk.
     implementation(libs.media3.exoplayer.dash)
+    // Apple's animated covers are HLS; see AppleCatalog and MotionCover.
+    implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.ui)
 
     implementation(libs.kotlinx.coroutines.android)

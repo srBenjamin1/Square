@@ -345,6 +345,7 @@
     <string name="download_waiting_wifi">En attente du Wi‑Fi</string>
     <string name="download_waiting_network">En attente d\'une connexion</string>
     <string name="download_waiting_engine">En attente de Spotify</string>
+    <string name="download_extras">Finalisation des pochettes et paroles</string>
     <string name="download_quality">Qualité des téléchargements</string>
     <string name="download_quality_note">La qualité à laquelle un téléchargement est gardé. Pas d\'automatique ici : un téléchargement se fait une fois et reste, il ne devrait donc pas être la copie que la connexion permettait à cette minute.</string>
     <string name="download_wifi_only">Télécharger uniquement en Wi‑Fi</string>
@@ -370,4 +371,31 @@
     <string name="radio_of">Radio de %1$s</string>
     <string name="remove_download_confirm">Retirer de ce téléphone les titres téléchargés de « %1$s » ?</string>
     <string name="remove_download_confirm_action">Retirer</string>
+    <string name="tab_new">Nouveautés</string>
+    <string name="tab_radio">Radio</string>
+    <string name="latest_release">Dernière sortie</string>
+    <string name="top_songs">Titres populaires</string>
+    <string name="stations_for_you">Stations pour vous</string>
+    <string name="made_for_you">Faites pour vous</string>
+    <string name="new_releases_title">Nouvelles sorties</string>
+    <string name="nothing_here">Rien ici pour le moment</string>
+    <string name="radio_empty">Les stations sont créées à partir de vos écoutes.</string>
+    <string name="new_songs">Nouveaux titres</string>
+    <string name="new_this_week">Nouveautés de la semaine</string>
+    <string name="new_release_tag">Nouvelle sortie</string>
+    <plurals name="song_count">
+        <item quantity="one">%1$d titre</item>
+        <item quantity="other">%1$d titres</item>
+    </plurals>
+    <string name="songs_and_length">%1$d titres, %2$s</string>
+    <string name="more_notes">PLUS</string>
+    <string name="updated_ago">Mise à jour : %1$s</string>
+    <string name="ago_today">aujourd\'hui</string>
+    <string name="ago_days">%1$d j</string>
+    <string name="ago_weeks">%1$d sem</string>
+    <string name="ago_months">%1$d mois</string>
+    <string name="ago_years">%1$d ans</string>
+    <string name="canvas">Canvas</string>
+    <string name="canvas_show">Afficher les clips en boucle</string>
+    <string name="canvas_note">La courte vidéo que portent certains titres. Désactivé, elle n\'est pas téléchargée non plus.</string>
 </resources>

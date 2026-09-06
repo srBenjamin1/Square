@@ -345,6 +345,7 @@
     <string name="download_waiting_wifi">Aguardando o Wi‑Fi</string>
     <string name="download_waiting_network">Aguardando uma conexão</string>
     <string name="download_waiting_engine">Aguardando o Spotify</string>
+    <string name="download_extras">A concluir capas e letras</string>
     <string name="download_quality">Qualidade dos downloads</string>
     <string name="download_quality_note">Com que qualidade um download é guardado. Aqui não existe automático: um download acontece uma vez e fica, então não deveria ser a cópia que a conexão permitiu naquele minuto.</string>
     <string name="download_wifi_only">Baixar somente no Wi‑Fi</string>
@@ -370,4 +371,31 @@
     <string name="radio_of">Rádio de %1$s</string>
     <string name="remove_download_confirm">Remover deste telemóvel as músicas transferidas de “%1$s”?</string>
     <string name="remove_download_confirm_action">Remover</string>
+    <string name="tab_new">Novidades</string>
+    <string name="tab_radio">Rádio</string>
+    <string name="latest_release">Último lançamento</string>
+    <string name="top_songs">Faixas principais</string>
+    <string name="stations_for_you">Estações para você</string>
+    <string name="made_for_you">Feitas para você</string>
+    <string name="new_releases_title">Novos lançamentos</string>
+    <string name="nothing_here">Ainda não há nada aqui</string>
+    <string name="radio_empty">As estações são criadas a partir do que você ouve.</string>
+    <string name="new_songs">Novas faixas</string>
+    <string name="new_this_week">Novidades da semana</string>
+    <string name="new_release_tag">Novo lançamento</string>
+    <plurals name="song_count">
+        <item quantity="one">%1$d faixa</item>
+        <item quantity="other">%1$d faixas</item>
+    </plurals>
+    <string name="songs_and_length">%1$d faixas, %2$s</string>
+    <string name="more_notes">MAIS</string>
+    <string name="updated_ago">Atualizada: %1$s</string>
+    <string name="ago_today">hoje</string>
+    <string name="ago_days">%1$d d</string>
+    <string name="ago_weeks">%1$d sem</string>
+    <string name="ago_months">%1$d meses</string>
+    <string name="ago_years">%1$d anos</string>
+    <string name="canvas">Canvas</string>
+    <string name="canvas_show">Mostrar clipes em loop</string>
+    <string name="canvas_note">O vídeo curto que algumas faixas trazem. Desligado, também não é baixado.</string>
 </resources>

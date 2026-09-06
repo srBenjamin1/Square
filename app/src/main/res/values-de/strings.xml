@@ -345,6 +345,7 @@
     <string name="download_waiting_wifi">Wartet auf WLAN</string>
     <string name="download_waiting_network">Wartet auf eine Verbindung</string>
     <string name="download_waiting_engine">Wartet auf Spotify</string>
+    <string name="download_extras">Cover und Songtexte werden ergänzt</string>
     <string name="download_quality">Downloadqualität</string>
     <string name="download_quality_note">In welcher Qualität ein Download gespeichert wird. Hier gibt es kein Automatisch: ein Download passiert einmal und bleibt, also sollte er nicht die Kopie sein, die die Verbindung gerade zuließ.</string>
     <string name="download_wifi_only">Nur über WLAN herunterladen</string>
@@ -370,4 +371,31 @@
     <string name="radio_of">Radio zu %1$s</string>
     <string name="remove_download_confirm">Die heruntergeladenen Songs von „%1$s“ von diesem Telefon entfernen?</string>
     <string name="remove_download_confirm_action">Entfernen</string>
+    <string name="tab_new">Neu</string>
+    <string name="tab_radio">Radio</string>
+    <string name="latest_release">Neueste Veröffentlichung</string>
+    <string name="top_songs">Top-Titel</string>
+    <string name="stations_for_you">Sender für dich</string>
+    <string name="made_for_you">Für dich gemacht</string>
+    <string name="new_releases_title">Neuerscheinungen</string>
+    <string name="nothing_here">Hier ist noch nichts</string>
+    <string name="radio_empty">Sender entstehen aus dem, was du hörst.</string>
+    <string name="new_songs">Neue Titel</string>
+    <string name="new_this_week">Neu diese Woche</string>
+    <string name="new_release_tag">Neuerscheinung</string>
+    <plurals name="song_count">
+        <item quantity="one">%1$d Titel</item>
+        <item quantity="other">%1$d Titel</item>
+    </plurals>
+    <string name="songs_and_length">%1$d Titel, %2$s</string>
+    <string name="more_notes">MEHR</string>
+    <string name="updated_ago">Aktualisiert: %1$s</string>
+    <string name="ago_today">heute</string>
+    <string name="ago_days">%1$d T</string>
+    <string name="ago_weeks">%1$d Wo</string>
+    <string name="ago_months">%1$d Mon</string>
+    <string name="ago_years">%1$d J</string>
+    <string name="canvas">Canvas</string>
+    <string name="canvas_show">Loop-Clips zeigen</string>
+    <string name="canvas_note">Das kurze Video, das manche Titel mitbringen. Aus wird es auch nicht geladen.</string>
 </resources>

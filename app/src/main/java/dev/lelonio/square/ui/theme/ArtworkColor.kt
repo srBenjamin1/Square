@@ -18,6 +18,42 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
+ * Where a page ends up once the artwork's colour has faded out of it.
+ *
+ * Not pure black: a page that ends on #000 against a phone's own black bezel
+ * has no bottom edge, and the last shelf on it looks like it is falling off.
+ */
+val PageFloor = Color(0xFF0A0A0C)
+
+/**
+ * The page tone for a cover.
+ *
+ * The dominant colour arrives at full saturation — it has to, it is picked to
+ * identify the artwork — and using it as a background would put text on a
+ * fluorescent field. Most of the way to the floor keeps the hue recognisable
+ * and nothing else. A null cover falls back to the floor rather than to grey.
+ */
+fun pageColorFor(accent: Color?): Color =
+    accent?.let { androidx.compose.ui.graphics.lerp(it, PageFloor, 0.7f) } ?: PageFloor
+
+/**
+ * The page tone the other catalogue chose for a record, as six hex digits.
+ *
+ * Kept apart from [pageColorFor] and mixed much lighter, because the two
+ * sources are not the same kind of colour. A dominant colour is picked out of a
+ * photograph at full strength and has to be taken most of the way down before
+ * text can sit on it; this one was chosen by somebody as the ground for a page,
+ * so taking it that far down would throw away the choice — and it is what makes
+ * a record's page read as coloured rather than as dark grey.
+ *
+ * Null, or anything unparseable, ends on the floor like everything else.
+ */
+fun pageColorForHex(hex: String?): Color = hex
+    ?.let { runCatching { Color(android.graphics.Color.parseColor("#$it")) }.getOrNull() }
+    ?.let { androidx.compose.ui.graphics.lerp(it, PageFloor, 0.42f) }
+    ?: PageFloor
+
+/**
  * The dominant colour of an artwork URL, for seeding the theme.
  *
  * Results are memoised per URL: the same cover is asked for by the mini player,
@@ -45,6 +81,21 @@ fun rememberArtworkColor(artworkUrl: String?): State<Color?> {
 
 private val cached = object : LinkedHashMap<String, Color>(16, 0.75f, true) {
     override fun removeEldestEntry(eldest: Map.Entry<String, Color>?) = size > 64
+}
+
+/**
+ * Works out a cover's colour before anything asks for it.
+ *
+ * The picture and the colour it tints the page with are two different reads of
+ * the same file, and only the first of them is prefetched with the song that is
+ * coming. Left alone, the artwork arrived out of memory in a single frame while
+ * its colour was still being extracted — the cover changed, and the page caught
+ * up with it a moment later. This puts the answer in the same place the screen
+ * will look for it, at the same time as the picture.
+ */
+suspend fun warmArtworkColor(context: Context, url: String) {
+    if (cached.containsKey(url)) return
+    extractDominant(context, url)?.let { cached[url] = it }
 }
 
 /**

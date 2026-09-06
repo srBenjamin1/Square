@@ -67,6 +67,23 @@ class PreferencesStore(context: Context) {
         prefs.edit().putBoolean(KEY_ONBOARDED, value).apply()
     }
 
+    private val _canvasEnabled = MutableStateFlow(prefs.getBoolean(KEY_CANVAS, true))
+
+    /**
+     * Whether a track's looping clip is fetched and played at all.
+     *
+     * On by default: it is the thing the player is built around. Off is for the
+     * listener who wants the artwork and nothing moving — and it is not only a
+     * drawing decision, since with this off no clip is asked for and the data
+     * is not spent either.
+     */
+    val canvasEnabled: StateFlow<Boolean> = _canvasEnabled.asStateFlow()
+
+    fun setCanvasEnabled(value: Boolean) {
+        _canvasEnabled.value = value
+        prefs.edit().putBoolean(KEY_CANVAS, value).apply()
+    }
+
     /**
      * Whether the player was open when the app was last left.
      *
@@ -151,6 +168,7 @@ class PreferencesStore(context: Context) {
         const val KEY_TRACK_DESC = "track_sort_descending"
         const val KEY_DEVICE_ID = "device_id"
         const val KEY_ONBOARDED = "onboarded"
+        const val KEY_CANVAS = "canvas_enabled"
         const val KEY_PLAYER_OPEN = "player_open"
         const val KEY_BACKEND = "backend"
         const val KEY_PROFILE_NAME = "profile_name"

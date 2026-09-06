@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui
 
+import coil.imageLoader
 import android.app.Application
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
@@ -99,6 +100,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * not, which is not enough to justify three near-identical screens that
      * would then drift apart.
      */
+    /**
+     * One record, said the way the artist page's top card says it.
+     *
+     * Its own type rather than a [SearchItem] because the card leads with the
+     * date and counts the songs, and neither fits in a subtitle line.
+     */
+    data class ArtistRelease(
+        val uri: String,
+        val title: String,
+        val artworkUrl: String?,
+        /** ISO-8601 as Spotify gives it: a full date, a month, or a year. */
+        val releaseDate: String,
+        val trackCount: Int,
+    )
+
     data class PlaylistState(
         val uri: String? = null,
         val name: String = "",
@@ -142,6 +158,66 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val appearsOn: List<SearchItem> = emptyList(),
         /** The playlists Spotify built around them, "This Is" first. */
         val artistPlaylists: List<SearchItem> = emptyList(),
+        /**
+         * The record they put out last, for the card under the artist's photo.
+         *
+         * Null on every page that is not an artist, and on an artist whose
+         * discography came back empty — the card is then simply absent rather
+         * than a row of placeholders.
+         */
+        /**
+         * The picture the page opens with, when there is an editorial one.
+         *
+         * Apple's catalogue keeps a full-height photograph for artists and for
+         * some records; where it exists the page is that photograph, and where
+         * it does not the page is the square cover — which is the difference
+         * between the two kinds of header the reference shows.
+         */
+        val heroUrl: String? = null,
+        /**
+         * The sleeve as Apple scanned it, where the page has one.
+         *
+         * Beside [artworkUrl] rather than replacing it: that one is the cover
+         * this app downloads, caches and colours pages from, and swapping the
+         * source under it would have every kept playlist fetch its cover again.
+         * This is only what the header draws.
+         */
+        val coverUrl: String? = null,
+        /** What Apple's editors wrote about the record; see AppleCatalog. */
+        val notes: String? = null,
+        /** The page's tint as six hex digits, where the catalogue names one. */
+        val tintHex: String? = null,
+        /**
+         * Whose list it is: the account that made a playlist.
+         *
+         * An album's is taken from its own tracks and does not need a request,
+         * so only a playlist fills this in; see openPlaylist.
+         */
+        val byline: String = "",
+        /** Where an artist is from, or when the band was formed. */
+        val origin: String? = null,
+        /** The cover as a moving picture, where the label made one. */
+        val motionUrl: String? = null,
+        /**
+         * The other catalogue has been asked and has not answered yet.
+         *
+         * The header holds its picture back while this is true. Spotify's cover
+         * is already in hand and could be drawn at once, but on a page that is
+         * about to have a different photograph that only means opening on the
+         * wrong one and swapping it out in front of the reader. The wait is
+         * capped; see dressPage.
+         */
+        val heroPending: Boolean = false,
+        /** The artist's name drawn in their own face; see AppleCatalog. */
+        val logoUrl: String? = null,
+        val latest: ArtistRelease? = null,
+        /**
+         * Whether that record is already in the library.
+         *
+         * Null while unknown, and the "+" on the card is then absent — the same
+         * rule the save button on every other page follows.
+         */
+        val latestSaved: Boolean? = null,
         /** How many accounts follow them, and what Spotify files them under. */
         val followers: Int = 0,
         val genres: List<String> = emptyList(),
@@ -196,6 +272,92 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val jumpBackIn: List<SearchItem> = emptyList(),
         val loading: Boolean = false,
     )
+
+    /**
+     * What is out, arranged the way a "new" page is read.
+     *
+     * Separate from [FeedState] and loaded only when the tab is opened: the
+     * home page needs a dozen records for one shelf, and this needs forty of
+     * them split by date plus a song out of each of the first few. Making the
+     * home feed carry all that would spend it on every cold start for a page
+     * most sessions never open.
+     */
+    data class NewPage(
+        /** The few records the page leads with, drawn large. */
+        val hero: List<SearchItem> = emptyList(),
+        /** Out in the last seven days. */
+        val thisWeek: List<SearchItem> = emptyList(),
+        /** Everything else Spotify calls new, newest first. */
+        val recent: List<SearchItem> = emptyList(),
+        /** One song out of each of the first few records above. */
+        val songs: List<CatalogTrack> = emptyList(),
+        val loading: Boolean = false,
+    )
+
+    private val _newPage = MutableStateFlow(NewPage())
+    val newPage: StateFlow<NewPage> = _newPage.asStateFlow()
+    private var newPageJob: Job? = null
+
+    /**
+     * Fills the new-releases tab, once.
+     *
+     * Reloaded only when it is empty: records do not come out while somebody is
+     * switching tabs, and rebuilding the page under the reader every time they
+     * come back to it would move what they were about to tap.
+     */
+    fun loadNewPage() {
+        if (!container.webApi.isReady || newPageJob?.isActive == true) return
+        if (_newPage.value.recent.isNotEmpty() || _newPage.value.thisWeek.isNotEmpty()) return
+
+        _newPage.value = _newPage.value.copy(loading = true)
+        newPageJob = viewModelScope.launch {
+            val albums = runCatching {
+                container.api.newReleases(limit = NEW_RELEASES).albums?.items.orEmpty()
+            }
+                .onFailure { android.util.Log.w(TAG, "new releases unavailable: ${describe(it)}") }
+                .getOrDefault(emptyList())
+                .sortedByDescending { it.releaseDate.orEmpty() }
+
+            val week = java.time.LocalDate.now().minusDays(7).toString()
+            fun item(album: dev.lelonio.square.data.AlbumDto): SearchItem? = SearchItem(
+                uri = album.uri ?: return null,
+                title = album.name,
+                subtitle = album.artists.joinToString(", ") { it.name },
+                artworkUrl = album.images.firstOrNull()?.url,
+            )
+
+            val thisWeek = albums.filter { (it.releaseDate ?: "") >= week }.mapNotNull(::item)
+            val rest = albums.filter { (it.releaseDate ?: "") < week }.mapNotNull(::item)
+
+            // The records by the artists this account listens to lead the page,
+            // because "new" without "to you" is a catalogue. The global list is
+            // the fallback for an account too young to have artists of its own.
+            val mine = _feed.value.fromYourArtists
+            val hero = (if (mine.isNotEmpty()) mine else thisWeek + rest).take(HERO_RELEASES)
+
+            _newPage.value = NewPage(
+                hero = hero,
+                thisWeek = thisWeek,
+                recent = rest,
+                loading = false,
+            )
+
+            // And a song out of each of the first few, which is the one part of
+            // the page that has to be heard rather than looked at. Resolved
+            // through the access point rather than the Web API: this is a track
+            // list for a context, which is exactly what that side answers, and
+            // it does not come out of the account's own quota.
+            if (!awaitEngine()) return@launch
+            val songs = withContext(Dispatchers.IO) {
+                (thisWeek + rest).take(NEW_SONGS).mapNotNull { album ->
+                    runCatching {
+                        Catalog.tracks(Catalog.contextTrackUris(album.uri).take(1)).firstOrNull()
+                    }.getOrNull()
+                }
+            }
+            _newPage.value = _newPage.value.copy(songs = songs)
+        }
+    }
 
     private val _feed = MutableStateFlow(FeedState())
     val feed: StateFlow<FeedState> = _feed.asStateFlow()
@@ -1244,6 +1406,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _videoFileId.value = null
         _videoMode.value = false
         if (trackUri == null || !trackUri.startsWith("spotify:track:")) return
+        // Offline there is no video to offer: it is streamed, and the lookup
+        // itself is a request. Leaving the answer null is what takes the button
+        // off the player — the button is drawn from having one.
+        if (dev.lelonio.square.playback.OfflineMode.active.value) return
         videoLookup = viewModelScope.launch(Dispatchers.IO) {
             val answer = NativeBridge.trackVideo(trackUri) ?: return@launch
             val fileId = runCatching {
@@ -1497,6 +1663,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 loadFriends()
                 loadFollowedArtists()
                 loadSavedAlbums()
+                // The pictures of whatever is downloaded, while there is a
+                // connection to fetch them with.
+                keepPageCovers()
+                catchUpDownloads()
             }
             .onFailure {
                 android.util.Log.e(TAG, "library load failed: ${chain(it)}", it)
@@ -1525,6 +1695,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * Null when there is nothing downloaded, which is the one case where an
      * error really is the honest answer.
      */
+    /**
+     * Fetches the covers of downloaded pages that have none yet.
+     *
+     * Not left to the download queue, which is where the songs' own covers are
+     * filled in: that queue only runs while there is something to download, so
+     * a library that is already complete never starts it and the pages kept
+     * their blank tiles for ever. This is a handful of images against a
+     * library's worth of audio, so it can simply be done.
+     *
+     * Online only, and quietly: a failure here means a tile stays drawn.
+     */
+    private fun keepPageCovers() = viewModelScope.launch {
+        if (dev.lelonio.square.playback.OfflineMode.active.value) return@launch
+        val owners = container.downloads.owners.value.keys
+        if (owners.isEmpty()) return@launch
+        withContext(Dispatchers.IO) {
+            owners.forEach { uri ->
+                val url = container.downloads.labelOf(uri)?.artworkUrl ?: return@forEach
+                if (dev.lelonio.square.download.DownloadExtras.fileOf(url, "art") != null) {
+                    return@forEach
+                }
+                runCatching { dev.lelonio.square.download.DownloadExtras.keep(url, "art") }
+            }
+        }
+    }
+
+    /**
+     * Starts the queue when something downloaded is still short of its extras.
+     *
+     * A download is meant to carry its sleeve, its tall picture, its words and
+     * its Canvas, and songs fetched by an earlier build carry none of those.
+     * The queue catches them up on its own — but only while it is running, and
+     * it only runs while there is audio owed, so a library that is complete
+     * would never have started it. This is that missing nudge, once per launch
+     * and only when there is really something to fetch.
+     */
+    private fun catchUpDownloads() = viewModelScope.launch {
+        if (dev.lelonio.square.playback.OfflineMode.active.value) return@launch
+        val wanting = withContext(Dispatchers.IO) {
+            runCatching { container.downloadQueue.anythingMissing() }.getOrDefault(false)
+        }
+        if (wanting) DownloadService.start(getApplication())
+    }
+
     private suspend fun offlineLibrary(): UiState.Ready? {
         container.downloads.load()
         val owners = container.downloads.owners.value
@@ -1745,6 +1959,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 description = state.description.ifEmpty { current.description },
                 saved = state.saved ?: current.saved,
                 mine = state.mine ?: current.mine,
+                // Everything the other catalogue answered, kept across the
+                // republishes the page makes while it loads. It arrives once, on
+                // its own schedule, and the batch of tracks that lands after it
+                // used to take the photograph and the bio back off the page.
+                heroUrl = state.heroUrl ?: current.heroUrl,
+                coverUrl = state.coverUrl ?: current.coverUrl,
+                logoUrl = state.logoUrl ?: current.logoUrl,
+                notes = state.notes ?: current.notes,
+                byline = state.byline.ifEmpty { current.byline },
+                origin = state.origin ?: current.origin,
+                tintHex = state.tintHex ?: current.tintHex,
+                motionUrl = state.motionUrl ?: current.motionUrl,
+                // Owned by the lookup alone: every other publish carries the
+                // flag's default and would clear the wait a batch of tracks
+                // early, which is the swap this exists to prevent.
+                heroPending = current.heroPending,
             )
         }
     }
@@ -1756,7 +1986,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * playlist endpoint returns both, so splitting them would double the
      * traffic for a page that is already waiting on its tracks.
      */
-    private suspend fun detailsOf(uri: String): Pair<String?, Boolean?>? {
+    /** What one lookup says about a playlist: its words, whose it is, and their name. */
+    private data class PlaylistDetails(
+        val description: String?,
+        val mine: Boolean?,
+        val owner: String?,
+    )
+
+    private suspend fun detailsOf(uri: String): PlaylistDetails? {
         if (!container.webApi.isReady || !uri.startsWith("spotify:playlist:")) return null
         val dto = runCatching { container.api.playlist(uri.substringAfterLast(':')) }
             .onFailure { android.util.Log.w(TAG, "no details for $uri: ${describe(it)}") }
@@ -1774,7 +2011,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ?.replace("&#39;", "'")
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
-        return text to mine
+        return PlaylistDetails(
+            description = text,
+            mine = mine,
+            owner = dto.owner?.displayName?.takeIf { it.isNotBlank() },
+        )
     }
 
 
@@ -1836,6 +2077,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 android.util.Log.e(TAG, "keeping failed: ${chain(it)}", it)
                 if (_playlist.value.uri == uri) {
                     _playlist.value = _playlist.value.copy(saved = was)
+                }
+            }
+    }
+
+    /**
+     * Keeps the record on the artist page's top card, or lets it go.
+     *
+     * Its own function rather than [toggleSaved]: that one is about the page
+     * being read, and this is about a different record shown on it. Sharing the
+     * code would mean one of the two buttons writing the other's state.
+     */
+    fun toggleLatestSaved() = viewModelScope.launch {
+        val page = _playlist.value
+        val release = page.latest ?: return@launch
+        val was = page.latestSaved ?: return@launch
+        val id = release.uri.substringAfterLast(':')
+
+        _playlist.value = _playlist.value.copy(latestSaved = !was)
+        runCatching {
+            if (was) container.api.removeAlbums(id) else container.api.saveAlbums(id)
+        }
+            .onSuccess { refresh() }
+            .onFailure {
+                android.util.Log.e(TAG, "keeping the release failed: ${chain(it)}", it)
+                if (_playlist.value.uri == page.uri) {
+                    _playlist.value = _playlist.value.copy(latestSaved = was)
                 }
             }
     }
@@ -2188,6 +2455,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 inFlight.forEach { runCatching { NativeBridge.cancelDownload(it) } }
                 sweepOrphans()
             } else {
+                // The page's own cover, kept like the songs are. It is one
+                // picture against a playlist's worth of audio, and without it
+                // the library offline is a wall of drawn tiles.
+                page.artworkUrl?.let {
+                    launch { dev.lelonio.square.download.DownloadExtras.keep(it, "art") }
+                }
                 container.downloads.setOwner(
                     ownerUri = uri,
                     tracks = page.tracks,
@@ -2272,7 +2545,110 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Detail pages opened over other detail pages, newest last.
+     *
+     * The navigation graph has one route for all of them, so an album opened
+     * from an artist is not a second destination — it is the same screen showing
+     * something else, and back had nowhere to go but out of the screen entirely.
+     * This is that missing history: what the page was before it became this one.
+     */
+    private val pageStack = ArrayDeque<PlaylistState>()
+
+    /**
+     * Whether there is a page behind this one, as something the screen can watch.
+     *
+     * A plain getter is what this was, and it is worth saying why that was a
+     * bug rather than a style: the back handler reads it while it composes, and
+     * nothing about a plain field tells Compose to compose again. Opening an
+     * album from an artist changed the answer and nothing noticed — so the
+     * gesture kept leaving the screen entirely, or kept being swallowed after
+     * the history had run out, which is the "back shows the wrong page" this is
+     * behind.
+     */
+    private val _hasPreviousPage = MutableStateFlow(false)
+    val hasPreviousPage: StateFlow<Boolean> = _hasPreviousPage.asStateFlow()
+
+    /**
+     * How deep into the detail pages the listener has walked.
+     *
+     * Only the screen's own transition uses it, and only to tell a push from a
+     * pop: the two have to move in opposite directions, and one destination
+     * shared by every page means the navigation library cannot say which way
+     * this is going.
+     */
+    private val _pageDepth = MutableStateFlow(0)
+    val pageDepth: StateFlow<Int> = _pageDepth.asStateFlow()
+
+    /**
+     * Whether the detail screen is the one on screen right now.
+     *
+     * What decides whether opening a page pushes the last one onto the history.
+     * Without it the state left behind by a page that was closed minutes ago
+     * still counted as "the page you were on": open a playlist, leave it, open
+     * an artist, press back — and the playlist came back, because it was still
+     * sitting in [_playlist] when the artist was opened.
+     */
+    private var pageOnScreen = false
+
+    /** Told by the screen itself; see the detail route. */
+    fun detailShown() {
+        pageOnScreen = true
+    }
+
+    /** And when it goes, so does everything behind it. */
+    fun detailClosed() {
+        pageOnScreen = false
+        clearPageHistory()
+    }
+
+    /**
+     * Goes back one detail page, and says whether there was one.
+     *
+     * False leaves the caller to pop the navigation stack as it always did:
+     * the page underneath is then a tab, not another detail.
+     */
+    fun popPage(): Boolean {
+        val previous = pageStack.removeLastOrNull() ?: return false
+        playlistJob?.cancel()
+        _playlist.value = previous
+        _hasPreviousPage.value = pageStack.isNotEmpty()
+        _pageDepth.value = pageStack.size
+        return true
+    }
+
+    /**
+     * Nothing is behind a page reached from a tab.
+     *
+     * Called when a tab is tapped: the detail screen is one destination shared
+     * by every tab, so a history left over from the last one would have back
+     * walking into a page opened from somewhere the listener has since left.
+     */
+    fun clearPageHistory() {
+        pageStack.clear()
+        _hasPreviousPage.value = false
+        _pageDepth.value = 0
+    }
+
     fun openPlaylist(playlist: CatalogPlaylist) {
+        // What is on screen now, if it is a different page and a real one. The
+        // list is kept whole rather than re-resolved on the way back: an artist
+        // page is four requests and a discography, and walking back into it
+        // should be instant.
+        _playlist.value
+            .takeIf {
+                pageOnScreen && it.uri != null && it.uri != playlist.uri &&
+                    it.tracks.isNotEmpty()
+            }
+            ?.let {
+                pageStack.addLast(it)
+                // Deep enough to walk back through a listening session, short
+                // enough that a thousand-track playlist is not held forever.
+                while (pageStack.size > PAGE_HISTORY) pageStack.removeFirst()
+                _hasPreviousPage.value = true
+                _pageDepth.value = pageStack.size
+            }
+
         // A station reopens as the list it already is; see [showStation].
         lastStation?.takeIf { it.uri == playlist.uri }?.let {
             playlistJob?.cancel()
@@ -2362,15 +2738,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // What the list says about itself, when its source says anything.
             // Asked for beside the picture and written the same way, through
             // `base`, so a later publish cannot take it back off the screen.
-            if (base.description.isEmpty() && kind == DetailKind.PLAYLIST) launch {
+            // Asked whenever anything it answers is still missing. Keyed on the
+            // description alone, it never ran for a list that had one — and the
+            // name under the title, which comes from the same request, was then
+            // absent on exactly the lists that describe themselves.
+            if (kind == DetailKind.PLAYLIST &&
+                (base.description.isEmpty() || base.byline.isEmpty())
+            ) launch {
                 val details = detailsOf(playlist.uri) ?: return@launch
-                val text = details.first
-                val mine = details.second
-                base = base.copy(description = text.orEmpty(), mine = mine)
+                val text = details.description
+                val mine = details.mine
+                base = base.copy(
+                    description = text.orEmpty(),
+                    mine = mine,
+                    byline = details.owner.orEmpty(),
+                )
                 if (_playlist.value.uri == playlist.uri) {
                     _playlist.value = _playlist.value.copy(
                         description = text.orEmpty().ifEmpty { _playlist.value.description },
                         mine = mine,
+                        byline = details.owner.orEmpty(),
                     )
                 }
             }
@@ -2382,6 +2769,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _playlist.value = _playlist.value.copy(saved = kept)
                 }
                 base = base.copy(saved = kept)
+            }
+
+            // Apple's own pictures for the page. Deliberately last and
+            // deliberately quiet: it is a different catalogue reached over a
+            // different network, everything on screen is already correct
+            // without it, and an artist it has never heard of simply keeps the
+            // header it has.
+            if (kind == DetailKind.ARTIST || kind == DetailKind.ALBUM) {
+                if (!dev.lelonio.square.playback.OfflineMode.active.value) {
+                    base = base.copy(heroPending = true)
+                    if (_playlist.value.uri == playlist.uri) {
+                        _playlist.value = _playlist.value.copy(heroPending = true)
+                    }
+                }
+                launch { dressPage(playlist.uri, playlist.name, kind) }
             }
 
             if (base.artworkUrl == null) launch {
@@ -2415,6 +2817,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     publishPlaylist(
                         base.copy(
                             tracks = page.tracks,
+                            latest = page.latest,
                             albums = page.albums,
                             singles = page.singles,
                             appearsOn = page.appearsOn,
@@ -2424,6 +2827,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             following = _playlist.value.following,
                         ),
                     )
+
+                    // Asked after the page is on screen, not before it: whether
+                    // one album is in the library is not worth holding an
+                    // artist's whole page for.
+                    page.latest?.let { release ->
+                        launch {
+                            val kept = savedState(release.uri) ?: return@launch
+                            if (_playlist.value.uri == playlist.uri) {
+                                _playlist.value = _playlist.value.copy(latestSaved = kept)
+                            }
+                        }
+                    }
                 } else if (cached.isNotEmpty() && isUnchanged(playlist.uri, entry?.snapshotId)) {
                     // Nothing to do: one small request said the copy on screen
                     // is the current one.
@@ -2850,6 +3265,307 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * The artwork the record a track comes from carries, for the player.
+     *
+     * A song in Apple's catalogue has one square picture and nothing else; the
+     * tall one and the moving one belong to its album, which is where their own
+     * player takes them from too. Empty until a track is playing, and empty
+     * again for anything the catalogue does not have — the player then shows the
+     * square cover it already had.
+     */
+    private val _nowPlayingArt = MutableStateFlow<dev.lelonio.square.data.AppleCatalog.Album?>(null)
+    val nowPlayingArt: StateFlow<dev.lelonio.square.data.AppleCatalog.Album?> =
+        _nowPlayingArt.asStateFlow()
+
+    /**
+     * Whether the other catalogue is still being asked about this track.
+     *
+     * The player holds its picture back while this is true. Spotify's cover is
+     * already in hand and could be drawn at once, but on a track that is about
+     * to have a better copy of the same artwork that only means showing the
+     * soft one and swapping it in front of the listener. Capped, so a slow
+     * network costs a moment of plain colour rather than a player with no
+     * picture at all.
+     */
+    private val _nowPlayingArtPending = MutableStateFlow(false)
+    val nowPlayingArtPending: StateFlow<Boolean> = _nowPlayingArtPending.asStateFlow()
+
+    private var nowPlayingArtJob: Job? = null
+    private var prefetchArtJob: Job? = null
+
+    /**
+     * Looks up, and downloads, the artwork of the song that comes next.
+     *
+     * The wait a listener notices is not the picture arriving — thirty
+     * kilobytes on a wifi is nothing — it is everything before it: a search of
+     * the other catalogue, then a fetch, then a decode of a picture sixteen
+     * hundred across, all of it started at the moment the song changed. Done
+     * for the *next* song while the current one plays, all three are over
+     * before the change, and the answer is waiting in the caches the real
+     * lookup reads.
+     *
+     * Fails quietly and cancels freely: nothing on screen depends on it.
+     */
+    fun prefetchArt(title: String, album: String, artist: String) {
+        if (artist.isBlank() || dev.lelonio.square.playback.OfflineMode.active.value) return
+        prefetchArtJob?.cancel()
+        prefetchArtJob = viewModelScope.launch {
+            val found = dev.lelonio.square.data.AppleCatalog.album(album, artist)
+                .takeIf { album.isNotBlank() }
+            val cover = found?.coverUrl
+                ?: dev.lelonio.square.data.AppleCatalog.song(title, artist, album)
+            // The bytes and the decode as well as the answer: Coil keeps what it
+            // has already read, and this is the half that takes the longest.
+            val context = getApplication<SquareApplication>()
+            // At the size the player will ask for, not at the picture's own.
+            // Coil files what it has decoded under the size it decoded it at, so
+            // a copy read at sixteen hundred across is not the copy the screen
+            // wants and the decode happens again in front of the listener. The
+            // header fills the width at three by four.
+            val width = context.resources.displayMetrics.widthPixels
+            val height = width * DETAIL_TALL / DETAIL_WIDE
+            listOfNotNull(found?.heroUrl, cover).forEach { url ->
+                runCatching {
+                    context.imageLoader.enqueue(
+                        coil.request.ImageRequest.Builder(context)
+                            .data(url)
+                            .size(width, height)
+                            .scale(coil.size.Scale.FILL)
+                            .build(),
+                    )
+                }
+            }
+            // And the colour the page takes from it, which is a second read of
+            // the same file: without this the cover arrived out of memory in one
+            // frame and the page followed it a moment later. See
+            // warmArtworkColor.
+            (found?.heroUrl ?: cover)?.let { url ->
+                runCatching {
+                    dev.lelonio.square.ui.theme.warmArtworkColor(context, url)
+                }
+            }
+        }
+    }
+
+    /**
+     * The record a track is on, asked for when nothing already knew it.
+     *
+     * The address travels with the queue where the source gave one, but a
+     * playlist resolved before this app kept it — the copies on disk outlive a
+     * version — has only the album's name. Rather than leave the title inert on
+     * those, it is looked up once, on the tap.
+     */
+    suspend fun albumOf(trackUri: String): CatalogPlaylist? {
+        if (!trackUri.startsWith("spotify:track:") || !container.webApi.isReady) return null
+        val id = trackUri.substringAfterLast(':')
+        val dto = runCatching { container.api.track(id) }
+            .onFailure { android.util.Log.w(TAG, "no album for $trackUri: ${describe(it)}") }
+            .getOrNull() ?: return null
+        val album = dto.album ?: return null
+        val uri = album.uri ?: return null
+        return CatalogPlaylist(
+            uri = uri,
+            name = album.name,
+            artworkUrl = album.images.firstOrNull()?.url,
+        )
+    }
+
+    /** Called when the track changes; cached and cheap on a repeat. */
+    fun loadNowPlayingArt(uri: String?, title: String, album: String, artist: String) {
+        nowPlayingArtJob?.cancel()
+        _nowPlayingArt.value = null
+        if (artist.isBlank()) {
+            _nowPlayingArtPending.value = false
+            return
+        }
+        _nowPlayingArtPending.value = true
+        nowPlayingArtJob = viewModelScope.launch {
+            launch {
+                delay(ART_WAIT_MS)
+                _nowPlayingArtPending.value = false
+            }
+
+            // What came down with the download, first and without asking
+            // anybody. A downloaded song keeps the tall picture beside its
+            // audio, which is the whole point of keeping it: offline there is
+            // nobody to ask, and online this is the same answer without the
+            // round trip.
+            //
+            // "Asked and there is nothing" counts as an answer here, and ends
+            // the wait just as an answer does. Otherwise every downloaded song
+            // the other catalogue does not have would hold its own cover back
+            // for the length of a lookup that was made days ago.
+            keptArt(uri)?.let {
+                _nowPlayingArt.value = it.album
+                _nowPlayingArtPending.value = false
+                return@launch
+            }
+
+            // The record's name is worth waiting a moment for.
+            //
+            // Metadata arrives in pieces: the id first, the title and artist
+            // next, the record's name sometimes after that. Asking with it
+            // missing does not fail — it falls through to searching for the
+            // song, which answers with whichever release the search puts first,
+            // and that is as often a compilation or a single as the record. Two
+            // different answers for one song, each filed under its own key, is
+            // why the cover could change between one opening of the app and the
+            // next.
+            //
+            // Nothing is polled: the caller re-runs this the moment the name
+            // lands, which cancels this job where it stands. The wait is only
+            // for the songs that never get one — a local file, a stream — and
+            // those go on to the search below as they did before.
+            if (album.isBlank()) delay(ALBUM_WAIT_MS)
+
+            val found = dev.lelonio.square.data.AppleCatalog.album(album, artist)
+                .takeIf { album.isNotBlank() }
+            _nowPlayingArt.value = found
+
+            // No record found, or one with no sleeve of its own: ask for the
+            // song instead. Spotify's largest cover is 640 across and the player
+            // draws it the width of the screen, so falling back to it is
+            // falling back to a soft picture — where Apple keeps a song's
+            // artwork at several thousand.
+            if (found?.coverUrl == null && title.isNotBlank()) {
+                val fromSong = dev.lelonio.square.data.AppleCatalog.song(title, artist, album)
+                if (fromSong != null) {
+                    _nowPlayingArt.value = (found ?: dev.lelonio.square.data.AppleCatalog.Album(
+                        heroUrl = null,
+                        coverUrl = null,
+                    )).copy(coverUrl = fromSong)
+                }
+            }
+            _nowPlayingArtPending.value = false
+        }
+    }
+
+    /**
+     * What was filed for a downloaded song when it was asked about.
+     *
+     * Null and [album] null are different answers, and the difference is the
+     * whole reason this is wrapped: null means nobody has asked yet, so the
+     * catalogue still might have something; an [album] of null means it was
+     * asked and had nothing, and there is nothing to wait for.
+     */
+    private class KeptArt(val album: dev.lelonio.square.data.AppleCatalog.Album?)
+
+    /**
+     * The pictures kept beside a downloaded song, as the player wants them.
+     *
+     * Only urls with a file behind them: a url whose picture never came down is
+     * a header that draws nothing at all offline. See DownloadExtras.
+     */
+    private suspend fun keptArt(uri: String?): KeptArt? {
+        val track = uri ?: return null
+        return withContext(Dispatchers.IO) {
+            val extras = dev.lelonio.square.download.DownloadExtras
+            val (hero, cover) = extras.art(track) ?: return@withContext null
+            val onDisk = { url: String? -> url?.takeIf { extras.fileOf(it, "art") != null } }
+            val kept = dev.lelonio.square.data.AppleCatalog.Album(
+                heroUrl = onDisk(hero),
+                coverUrl = onDisk(cover),
+            )
+            KeptArt(kept.takeIf { it.heroUrl != null || it.coverUrl != null })
+        }
+    }
+
+    /**
+     * Asks Apple's catalogue for the page's photograph, and its name drawn.
+     *
+     * An album is matched on its own name and its artist's, and the artist is
+     * only known once the tracks are in — so this waits for them rather than
+     * guessing. Everything about it is optional: no network, no match, no
+     * pictures, and the page keeps the header it already has.
+     */
+    private suspend fun dressPage(uri: String, opened: String, kind: DetailKind) {
+        // Offline this still runs. AppleCatalog answers from what it wrote down
+        // and reaches for nothing, so a record whose songs are on the phone
+        // opens on its own photograph in a tunnel; one that was never looked up
+        // simply keeps Spotify's header, as it did before.
+
+        // Whatever happens below, the header stops waiting: an answer, no
+        // answer, or a network that is simply slow. A page that holds its
+        // picture back for a lookup that is never coming is worse than one that
+        // shows Spotify's.
+        viewModelScope.launch {
+            delay(HERO_WAIT_MS)
+            if (_playlist.value.uri == uri) {
+                _playlist.value = _playlist.value.copy(heroPending = false)
+            }
+        }
+        val done = { if (_playlist.value.uri == uri) {
+            _playlist.value = _playlist.value.copy(heroPending = false)
+        } }
+
+        // The name the page was opened with is empty when it was opened from a
+        // link — the title arrives with the rest of it a moment later — and a
+        // lookup for "" is a lookup for nothing.
+        val name = opened.ifBlank {
+            withTimeoutOrNull(ARTIST_WAIT_MS) {
+                while (_playlist.value.uri == uri && _playlist.value.name.isBlank()) {
+                    delay(POLL_INTERVAL_MS)
+                }
+                _playlist.value.name
+            }.orEmpty()
+        }
+        if (name.isBlank()) {
+            done()
+            return
+        }
+
+        if (kind == DetailKind.ARTIST) {
+            val found = dev.lelonio.square.data.AppleCatalog.artist(name)
+            if (found == null) {
+                done()
+                return
+            }
+            if (_playlist.value.uri != uri) return
+            _playlist.value = _playlist.value.copy(
+                heroUrl = found.heroUrl,
+                logoUrl = found.logoUrl,
+                tintHex = found.bgColor,
+                notes = found.bio,
+                origin = found.origin,
+                heroPending = false,
+            )
+            return
+        }
+
+        // The record's artist, once there is a track to read it off.
+        val artist = withTimeoutOrNull(ARTIST_WAIT_MS) {
+            while (_playlist.value.uri == uri && _playlist.value.tracks.isEmpty()) {
+                delay(POLL_INTERVAL_MS)
+            }
+            _playlist.value.tracks.firstOrNull()?.artist
+        }
+        if (artist == null) {
+            done()
+            return
+        }
+
+        // The catalogue's answer, or the one that came down with the songs.
+        // The rows it writes expire after a month; the pictures beside a
+        // download do not, so a record kept on the phone opens on its own
+        // photograph however long it has been there.
+        val found = dev.lelonio.square.data.AppleCatalog.album(name, artist)
+            ?: keptArt(_playlist.value.tracks.firstOrNull()?.uri)?.album
+        if (found == null) {
+            done()
+            return
+        }
+        if (_playlist.value.uri != uri) return
+        _playlist.value = _playlist.value.copy(
+            heroUrl = found.heroUrl,
+            coverUrl = found.coverUrl,
+            notes = found.notes,
+            tintHex = found.bgColor,
+            motionUrl = found.motionUrl,
+            heroPending = false,
+        )
+    }
+
+    /**
      * Top tracks and albums for an artist.
      *
      * Web API rather than the access point: an artist is not a playable context,
@@ -2860,6 +3576,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Everything an artist page shows, gathered in one go. */
     private data class ArtistPage(
         val tracks: List<CatalogTrack>,
+        val latest: ArtistRelease?,
         val albums: List<SearchItem>,
         val singles: List<SearchItem>,
         val appearsOn: List<SearchItem>,
@@ -2912,9 +3629,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
 
+        // The newest thing with the artist's own name on it. Compilations and
+        // the records that are somebody else's are left out: "latest release"
+        // meaning a greatest-hits reissue somebody else assembled is how that
+        // card ends up wrong on half the artists in the catalogue.
+        val latest = releases
+            .filter { it.albumGroup == "album" || it.albumGroup == "single" }
+            .filter { !it.releaseDate.isNullOrBlank() }
+            .maxByOrNull { it.releaseDate.orEmpty() }
+            ?.let { album ->
+                album.uri?.let { uri ->
+                    ArtistRelease(
+                        uri = uri,
+                        title = album.name,
+                        artworkUrl = album.images.firstOrNull()?.url,
+                        releaseDate = album.releaseDate.orEmpty(),
+                        trackCount = album.totalTracks,
+                    )
+                }
+            }
+
         return ArtistPage(
             playlists = artistPlaylists(artist?.name.orEmpty()),
             tracks = tracks,
+            latest = latest,
             albums = shelf("album", "compilation"),
             singles = shelf("single"),
             appearsOn = shelf("appears_on"),
@@ -3146,8 +3884,48 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         /** A page of saved albums; the API's own maximum. */
         const val ALBUM_PAGE = 50
 
+        /** How many detail pages back the in-screen history holds. */
+        const val PAGE_HISTORY = 12
+
         /** How long a home row gets before it stops being worth scrolling. */
         const val FEED_ROW = 12
+
+        /** Records asked of Spotify's own new-releases list for the New tab. */
+        const val NEW_RELEASES = 40
+
+        /** How many of them the page leads with, drawn large. */
+        const val HERO_RELEASES = 6
+
+        /** And how many are opened for a song to put in the list under them. */
+        const val NEW_SONGS = 10
+
+        /**
+         * How long a header holds its picture back for the other catalogue.
+         *
+         * Long enough for a cached answer and a quick search, short enough that
+         * a bad network costs a moment of plain colour rather than a page with
+         * no picture at all.
+         */
+        const val HERO_WAIT_MS = 1_200L
+
+        /**
+         * How long the player holds its picture back for the other catalogue.
+         *
+         * Long enough for a cached answer and a search on a working connection,
+         * short enough that a bad one costs a moment of colour rather than a
+         * screen with no artwork.
+         */
+        const val ART_WAIT_MS = 1_500L
+
+        /** How long a song's record has to arrive before it is given up on. */
+        const val ALBUM_WAIT_MS = 900L
+
+        /** The shape the header draws a cover in; see PlayerScreen. */
+        const val DETAIL_WIDE = 3
+        const val DETAIL_TALL = 4
+
+        /** How long the album lookup waits for a track to name the artist. */
+        const val ARTIST_WAIT_MS = 8_000L
 
         const val ENGINE_TIMEOUT_MS = 30_000L
         const val POLL_INTERVAL_MS = 250L

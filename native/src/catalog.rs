@@ -294,6 +294,9 @@ fn track_json(track: &Track) -> Value {
             .map(|a| json!({ "name": a.name, "uri": a.id.to_uri().ok() }))
             .collect::<Vec<_>>(),
         "album": track.album.name,
+        // And its address, so the title in the player is a way onto the record
+        // rather than a caption. The Web API side fills the same field.
+        "albumUri": track.album.id.to_uri().ok(),
         "durationMs": track.duration,
         "explicit": track.is_explicit,
         "artworkUrl": largest_cover(&track.album.covers),

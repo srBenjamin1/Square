@@ -164,6 +164,16 @@ interface SpotifyApi {
     @GET("v1/albums/{id}")
     suspend fun album(@Path("id") albumId: String): AlbumDto
 
+    /**
+     * One track, for the record it is on.
+     *
+     * The access point names a track's album but does not always address it —
+     * and a queue resolved before the app started keeping that address has none
+     * at all. This is the way back to it from the track alone.
+     */
+    @GET("v1/tracks/{id}")
+    suspend fun track(@Path("id") trackId: String): TrackDto
+
     @GET("v1/playlists/{id}")
     suspend fun playlist(
         @Path("id") playlistId: String,

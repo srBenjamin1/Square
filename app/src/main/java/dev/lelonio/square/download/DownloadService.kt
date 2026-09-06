@@ -125,11 +125,16 @@ class DownloadService : android.app.Service() {
     }
 
     private fun build(status: DownloadQueue.Status): Notification {
-        val text = when (status.waiting) {
-            DownloadQueue.Waiting.WIFI -> getString(R.string.download_waiting_wifi)
-            DownloadQueue.Waiting.NETWORK -> getString(R.string.download_waiting_network)
-            DownloadQueue.Waiting.ENGINE -> getString(R.string.download_waiting_engine)
-            null -> getString(R.string.download_progress_count, status.done, status.total)
+        val text = when {
+            status.waiting == DownloadQueue.Waiting.WIFI ->
+                getString(R.string.download_waiting_wifi)
+            status.waiting == DownloadQueue.Waiting.NETWORK ->
+                getString(R.string.download_waiting_network)
+            status.waiting == DownloadQueue.Waiting.ENGINE ->
+                getString(R.string.download_waiting_engine)
+            // The music is all here; what is left is what goes beside it.
+            status.extras -> getString(R.string.download_extras)
+            else -> getString(R.string.download_progress_count, status.done, status.total)
         }
 
         val stop = PendingIntent.getService(
@@ -148,7 +153,7 @@ class DownloadService : android.app.Service() {
             .setProgress(
                 status.total.coerceAtLeast(1),
                 status.done,
-                status.waiting != null || status.total == 0,
+                status.waiting != null || status.extras || status.total == 0,
             )
             .setOngoing(true)
             .setSilent(true)

@@ -67,6 +67,17 @@ object ApiFactory {
     private class RateLimitInterceptor : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
             val response = chain.proceed(chain.request())
+
+            // Spotify's gateway answers 502 and 503 a few times a day for no
+            // reason anybody can act on, and it is over by the time the message
+            // reaches the screen. One immediate retry turns "Errore 502" on an
+            // artist page into a page that simply loaded.
+            if (response.code == 502 || response.code == 503) {
+                android.util.Log.w(TAG, "upstream ${response.code}, retrying once")
+                response.close()
+                return chain.proceed(chain.request())
+            }
+
             if (response.code != 429) return response
 
             val retryAfter = response.header("Retry-After")?.toLongOrNull()

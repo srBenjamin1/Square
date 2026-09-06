@@ -360,6 +360,7 @@
     <string name="download_waiting_wifi">Wi‑Fi का इंतज़ार</string>
     <string name="download_waiting_network">कनेक्शन का इंतज़ार</string>
     <string name="download_waiting_engine">Spotify का इंतज़ार</string>
+    <string name="download_extras">कवर और बोल पूरे किए जा रहे हैं</string>
     <string name="download_quality">डाउनलोड क्वालिटी</string>
     <string name="download_quality_note">डाउनलोड किस क्वालिटी में रखा जाएगा। यहाँ ऑटोमैटिक नहीं है: डाउनलोड एक बार होता है और रह जाता है।</string>
     <string name="download_wifi_only">केवल Wi‑Fi पर डाउनलोड करें</string>
@@ -385,4 +386,31 @@
     <string name="radio_of">%1$s का रेडियो</string>
     <string name="remove_download_confirm">“%1$s” के डाउनलोड किए गए गाने इस फ़ोन से हटाएँ?</string>
     <string name="remove_download_confirm_action">हटाएँ</string>
+    <string name="tab_new">नया</string>
+    <string name="tab_radio">रेडियो</string>
+    <string name="latest_release">नवीनतम रिलीज़</string>
+    <string name="top_songs">टॉप गाने</string>
+    <string name="stations_for_you">आपके लिए स्टेशन</string>
+    <string name="made_for_you">आपके लिए बने</string>
+    <string name="new_releases_title">नई रिलीज़</string>
+    <string name="nothing_here">यहाँ अभी कुछ नहीं है</string>
+    <string name="radio_empty">स्टेशन आपकी सुनी हुई चीज़ों से बनते हैं.</string>
+    <string name="new_songs">नए गाने</string>
+    <string name="new_this_week">इस हफ़्ते नया</string>
+    <string name="new_release_tag">नई रिलीज़</string>
+    <plurals name="song_count">
+        <item quantity="one">%1$d गाना</item>
+        <item quantity="other">%1$d गाने</item>
+    </plurals>
+    <string name="songs_and_length">%1$d गाने, %2$s</string>
+    <string name="more_notes">और</string>
+    <string name="updated_ago">अपडेट: %1$s</string>
+    <string name="ago_today">आज</string>
+    <string name="ago_days">%1$d दि</string>
+    <string name="ago_weeks">%1$d सप्ता</string>
+    <string name="ago_months">%1$d माह</string>
+    <string name="ago_years">%1$d वर्ष</string>
+    <string name="canvas">Canvas</string>
+    <string name="canvas_show">लूप क्लिप दिखाएँ</string>
+    <string name="canvas_note">कुछ गानों के साथ आने वाला छोटा वीडियो. बंद होने पर डाउनलोड भी नहीं होता.</string>
 </resources>

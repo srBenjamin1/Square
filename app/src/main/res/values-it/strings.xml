@@ -346,6 +346,7 @@
     <string name="download_waiting_wifi">In attesa del Wi‑Fi</string>
     <string name="download_waiting_network">In attesa di una connessione</string>
     <string name="download_waiting_engine">In attesa di Spotify</string>
+    <string name="download_extras">Completamento di copertine e testi</string>
     <string name="download_quality">Qualità dei download</string>
     <string name="download_quality_note">A che qualità viene tenuto un download. Qui non c\'è l\'automatico: un download si fa una volta e resta, quindi non deve essere la copia che la connessione permetteva in quel minuto.</string>
     <string name="download_wifi_only">Scarica solo su Wi‑Fi</string>
@@ -371,4 +372,31 @@
     <string name="radio_of">Radio di %1$s</string>
     <string name="remove_download_confirm">Vuoi togliere da questo telefono i brani scaricati di “%1$s”?</string>
     <string name="remove_download_confirm_action">Rimuovi</string>
+    <string name="tab_new">Novità</string>
+    <string name="tab_radio">Radio</string>
+    <string name="latest_release">Ultima uscita</string>
+    <string name="top_songs">Brani principali</string>
+    <string name="stations_for_you">Stazioni per te</string>
+    <string name="made_for_you">Fatte per te</string>
+    <string name="new_releases_title">Nuove uscite</string>
+    <string name="nothing_here">Ancora niente qui</string>
+    <string name="radio_empty">Le stazioni nascono da ciò che ascolti.</string>
+    <string name="new_songs">Nuovi brani</string>
+    <string name="new_this_week">Novità della settimana</string>
+    <string name="new_release_tag">Nuova uscita</string>
+    <plurals name="song_count">
+        <item quantity="one">%1$d brano</item>
+        <item quantity="other">%1$d brani</item>
+    </plurals>
+    <string name="songs_and_length">%1$d brani, %2$s</string>
+    <string name="more_notes">ALTRO</string>
+    <string name="updated_ago">Aggiornata: %1$s</string>
+    <string name="ago_today">oggi</string>
+    <string name="ago_days">%1$d g</string>
+    <string name="ago_weeks">%1$d sett</string>
+    <string name="ago_months">%1$d mesi</string>
+    <string name="ago_years">%1$d anni</string>
+    <string name="canvas">Canvas</string>
+    <string name="canvas_show">Mostra i video in loop</string>
+    <string name="canvas_note">Il breve video che alcuni brani portano con sé. Disattivato, non viene nemmeno scaricato.</string>
 </resources>

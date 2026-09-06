@@ -84,13 +84,22 @@ fun LiquidBottomTabs(
     // Nav-bar pill defaults; pass a caller color/height to blend into a
     // specific screen (e.g. that screen's own hero tint) instead.
     containerColor: Color? = null,
+    /**
+     * LOCAL CHANGE: the colour the selected tab is drawn in.
+     *
+     * Upstream picks a system blue. This app has one accent — the colour the
+     * cover gave the theme — and a bar that keeps its own says the app is two
+     * things. Null keeps upstream's.
+     */
+    accentColor: Color? = null,
     height: Dp = 64.dp,
     content: @Composable RowScope.() -> Unit
 ) {
     val isLightTheme = !isSystemInDarkTheme()
-    val accentColor =
+    val resolvedAccentColor = accentColor ?: (
         if (isLightTheme) Color(0xFF0088FF)
         else Color(0xFF0091FF)
+        )
     val resolvedContainerColor = containerColor ?: (
         if (isLightTheme) Color(0xFFFAFAFA).copy(0.4f)
         else Color(0xFF121212).copy(0.4f)
@@ -246,7 +255,7 @@ fun LiquidBottomTabs(
                     .height(innerHeight)
                     .fillMaxWidth()
                     .padding(horizontal = 4f.dp)
-                    .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
+                    .graphicsLayer(colorFilter = ColorFilter.tint(resolvedAccentColor)),
                 verticalAlignment = Alignment.CenterVertically,
                 content = content
             )

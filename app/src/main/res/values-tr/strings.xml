@@ -360,6 +360,7 @@
     <string name="download_waiting_wifi">Wi‑Fi bekleniyor</string>
     <string name="download_waiting_network">Bağlantı bekleniyor</string>
     <string name="download_waiting_engine">Spotify bekleniyor</string>
+    <string name="download_extras">Kapaklar ve sözler tamamlanıyor</string>
     <string name="download_quality">İndirme kalitesi</string>
     <string name="download_quality_note">Bir indirmenin hangi kalitede saklanacağı. Burada otomatik yok: indirme bir kez yapılır ve kalır, o yüzden bağlantının o dakika izin verdiği kopya olmamalı.</string>
     <string name="download_wifi_only">Yalnızca Wi‑Fi ile indir</string>
@@ -385,4 +386,30 @@
     <string name="radio_of">%1$s radyosu</string>
     <string name="remove_download_confirm">“%1$s” içindeki indirilmiş şarkılar bu telefondan kaldırılsın mı?</string>
     <string name="remove_download_confirm_action">Kaldır</string>
+    <string name="tab_new">Yeni</string>
+    <string name="tab_radio">Radyo</string>
+    <string name="latest_release">Son çıkan</string>
+    <string name="top_songs">En iyi şarkılar</string>
+    <string name="stations_for_you">Sana özel istasyonlar</string>
+    <string name="made_for_you">Senin için</string>
+    <string name="new_releases_title">Yeni çıkanlar</string>
+    <string name="nothing_here">Burada henüz bir şey yok</string>
+    <string name="radio_empty">İstasyonlar dinlediklerinden oluşturulur.</string>
+    <string name="new_songs">Yeni şarkılar</string>
+    <string name="new_this_week">Bu hafta yeni</string>
+    <string name="new_release_tag">Yeni çıkan</string>
+    <plurals name="song_count">
+        <item quantity="other">%1$d şarkı</item>
+    </plurals>
+    <string name="songs_and_length">%1$d şarkı, %2$s</string>
+    <string name="more_notes">DAHA</string>
+    <string name="updated_ago">Güncellendi: %1$s</string>
+    <string name="ago_today">bugün</string>
+    <string name="ago_days">%1$d g</string>
+    <string name="ago_weeks">%1$d hf</string>
+    <string name="ago_months">%1$d ay</string>
+    <string name="ago_years">%1$d yıl</string>
+    <string name="canvas">Canvas</string>
+    <string name="canvas_show">Döngü kliplerini göster</string>
+    <string name="canvas_note">Bazı şarkıların getirdiği kısa video. Kapalıyken indirilmez de.</string>
 </resources>

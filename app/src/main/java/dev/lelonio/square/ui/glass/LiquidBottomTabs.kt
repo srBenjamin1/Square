@@ -98,6 +98,15 @@ fun LiquidBottomTabs(
     // indicator claimed the app was somewhere it was not. Faded rather than
     // removed, so it comes back where it left and the drag target stays alive.
     indicatorVisible: Boolean = true,
+    /**
+     * LOCAL CHANGE: what the moving indicator is filled with.
+     *
+     * Upstream lightens the slot it marks — white at a tenth on a dark bar. The
+     * reference this app is matched against does the opposite: it sinks the lit
+     * slot into the bar, so the mark is darker than the glass around it. Null
+     * keeps upstream's.
+     */
+    indicatorColor: Color? = null,
     content: @Composable RowScope.() -> Unit
 ) {
     val isLightTheme = !isSystemInDarkTheme()
@@ -322,7 +331,7 @@ fun LiquidBottomTabs(
                     onDrawSurface = {
                         val progress = dampedDragAnimation.pressProgress
                         drawRect(
-                            if (isLightTheme) Color.Black.copy(0.1f)
+                            indicatorColor ?: if (isLightTheme) Color.Black.copy(0.1f)
                             else Color.White.copy(0.1f),
                             alpha = 1f - progress
                         )

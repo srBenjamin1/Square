@@ -56,6 +56,15 @@ class DownloadQueue(
         val total: Int = 0,
         /** Why nothing is happening, when nothing is happening. */
         val waiting: Waiting? = null,
+        /**
+         * Whether what is left is the extras rather than the music.
+         *
+         * The counts above are about audio, and during a catch-up pass there is
+         * none owed — so the notification read "0 of 0", which is a progress
+         * bar about nothing. What is happening then is worth saying in words
+         * instead.
+         */
+        val extras: Boolean = false,
     )
 
     enum class Waiting { NETWORK, WIFI, ENGINE }
@@ -165,8 +174,11 @@ class DownloadQueue(
                 // Covers before everything else, including before the rest of
                 // the extras: they are the one thing whose absence is visible
                 // the moment it happens.
-                if (pending.isEmpty() && backfillCovers()) continue
-                if (pending.isEmpty() && backfillExtras()) continue
+                if (pending.isEmpty()) {
+                    _status.value = Status(running = true, extras = true)
+                    if (backfillCovers()) continue
+                    if (backfillExtras()) continue
+                }
                 if (pending.isEmpty()) {
                     // Nothing to do now, but something may be waiting out a
                     // failure. Sleeping until then rather than spinning is the
@@ -222,10 +234,37 @@ class DownloadQueue(
      *
      * @return true when it did something, so the caller comes back for more.
      */
+    /**
+     * The covers of the pages themselves, which the songs' own do not include.
+     *
+     * A playlist downloaded before this existed has its songs and their
+     * sleeves, and a blank tile where its own picture should be. Fetched here
+     * rather than only when a page is downloaded, so a library built earlier
+     * fills in without anything being downloaded again.
+     */
+    private suspend fun backfillOwnerCovers(): Boolean {
+        val missing = store.owners.value.keys.asSequence()
+            .filterNot(coversTried::contains)
+            .mapNotNull { uri -> store.labelOf(uri)?.artworkUrl?.let { uri to it } }
+            .filter { (_, url) -> DownloadExtras.fileOf(url, "art") == null }
+            .take(COVER_BATCH)
+            .toList()
+        if (missing.isEmpty()) return false
+
+        for ((uri, url) in missing) {
+            coversTried += uri
+            DownloadExtras.keep(url, "art")
+            delay(COVER_GAP_MS)
+        }
+        return true
+    }
+
     private suspend fun backfillCovers(): Boolean {
+        if (backfillOwnerCovers()) return true
+
         val missing = store.files.value.keys.asSequence()
             .filterNot(coversTried::contains)
-            .filter { needsExtras(it) }
+            .filter { needsCover(it) }
             .take(COVER_BATCH)
             .toList()
         if (missing.isEmpty()) return false
@@ -273,17 +312,64 @@ class DownloadQueue(
 
         for (uri in missing) {
             extrasTried += uri
-            val sidecar = runCatching { NativeBridge.downloadState(uri) }.getOrNull() ?: continue
+            // No sidecar is not a reason to skip: it carries the cover url the
+            // engine recorded, and everything else here — the words, the tall
+            // picture — is asked for by name from the index instead.
+            val sidecar = runCatching { NativeBridge.downloadState(uri) }.getOrNull() ?: "{}"
             keepExtras(uri, sidecar)
             delay(TRACK_GAP_MS)
         }
         return true
     }
 
-    /** Whether the cover of a downloaded track is missing from the phone. */
-    private fun needsExtras(trackUri: String): Boolean {
+    /**
+     * Whether any downloaded song is still short of something.
+     *
+     * Asked from outside, because the queue only runs while there is audio to
+     * fetch: a library that is fully downloaded never starts it, and the songs
+     * fetched by a build that kept none of this would have waited for the next
+     * playlist to be added. Reads the disk, so it belongs off the main thread.
+     */
+    fun anythingMissing(): Boolean = store.files.value.keys.any(::needsExtras)
+
+    /** Whether the sleeve of a downloaded track is missing from the phone. */
+    private fun needsCover(trackUri: String): Boolean {
         val cover = store.trackOf(trackUri)?.artworkUrl ?: return false
         return DownloadExtras.fileOf(cover, "art") == null
+    }
+
+    /**
+     * Whether anything a downloaded song is meant to carry is still missing.
+     *
+     * A download is the sleeve, the tall picture, the words and the Canvas as
+     * much as it is the audio: offline those are the difference between the app
+     * the listener uses and a list of file names. Each is checked on its own —
+     * a song can perfectly well have its cover and no lyrics — and each is
+     * checked as "has it been asked about", not "is there one": most of the
+     * catalogue has no Canvas and no words, and a check for the answer itself
+     * would ask about those songs for ever. See DownloadExtras.note.
+     */
+    private fun needsExtras(trackUri: String): Boolean =
+        needsCover(trackUri) ||
+            !DownloadExtras.asked("lyrics", trackUri) ||
+            !DownloadExtras.asked("canvas", trackUri) ||
+            needsArt(trackUri) ||
+            needsClip(trackUri)
+
+    /** The tall picture: never asked for, or asked for and never fetched. */
+    private fun needsArt(trackUri: String): Boolean {
+        val kept = DownloadExtras.art(trackUri) ?: return true
+        return listOfNotNull(kept.first, kept.second)
+            .any { DownloadExtras.fileOf(it, "art") == null }
+    }
+
+    /** The Canvas answer is here, but the video it names is not. */
+    private fun needsClip(trackUri: String): Boolean {
+        val raw = DownloadExtras.canvas(trackUri) ?: return false
+        val answer = runCatching { JSONObject(raw) }.getOrNull() ?: return false
+        val url = answer.optString("url").takeIf { it.isNotBlank() } ?: return false
+        val kind = if (answer.optBoolean("isVideo", true)) "video" else "art"
+        return DownloadExtras.fileOf(url, kind) == null
     }
 
     private enum class Outcome { DONE, FAILED, NOT_NOW }
@@ -318,16 +404,17 @@ class DownloadQueue(
     }
 
     /**
-     * The words, the Canvas, the cover and the artist behind the song.
+     * Everything a downloaded song carries besides the song: the sleeve, the
+     * tall picture, the words and the Canvas.
      *
      * Everything here fails quietly. A track with no lyrics is the ordinary
      * case, a Canvas that will not fetch is a still cover, and neither is worth
      * failing a download that has already succeeded — the music is on the
      * phone, which is what was asked for.
      *
-     * Calling the catalogue is the whole of the caching: `Catalog` writes every
-     * answer down on the way past for a track that is downloaded, which this
-     * one now is. Only the two binaries have to be fetched by name.
+     * Each half is skipped when it has already been asked about, so this is
+     * also what the backfill runs: a song downloaded by a build that had none
+     * of this ends up with all of it, and a song that has it is left alone.
      */
     private suspend fun keepExtras(trackUri: String, sidecar: String) {
         runCatching {
@@ -340,22 +427,93 @@ class DownloadQueue(
             // The size the engine recorded is the large one, which is what the
             // player screen wants. The row thumbnail finds it too: covers are
             // keyed on the picture rather than the size. See DownloadExtras.
-            runCatching { JSONObject(sidecar).optString("coverUrl") }
+            val cover = runCatching { JSONObject(sidecar).optString("coverUrl") }
                 .getOrNull()
                 ?.takeIf { it.isNotBlank() }
-                ?.let { DownloadExtras.keep(it, "art") }
-
-            // Asking is the whole of the caching: the catalogue writes every
-            // answer down on the way past, so a track that is downloaded has
-            // its words on the phone too.
-            dev.lelonio.square.data.Catalog.lyrics(trackUri)
-
-            dev.lelonio.square.data.Catalog.canvas(trackUri)?.let { clip ->
-                DownloadExtras.keep(clip.url, if (clip.isVideo) "video" else "art")
+                ?: store.trackOf(trackUri)?.artworkUrl
+            // The sidecar's cover comes from the engine's own metadata, which
+            // does not always carry one; the catalogue's does. Without either,
+            // a downloaded song plays offline with a drawn tile where its
+            // sleeve should be.
+            val kept = cover?.let { DownloadExtras.keep(it, "art") }
+            if (kept == null) {
+                android.util.Log.i("SquareDownloads", "no cover kept for $trackUri")
             }
+
+            val track = store.trackOf(trackUri)
+
+            // The words. Asking is the whole of the keeping: the chain the
+            // player reads writes every answer down for a track that is
+            // downloaded, and files a note when there are none. See
+            // SpotifyLyrics.
+            if (!DownloadExtras.asked("lyrics", trackUri)) {
+                dev.lelonio.square.backend.lyrics.SpotifyLyrics.lyrics(
+                    uri = trackUri,
+                    title = track?.name.orEmpty(),
+                    artist = track?.artist.orEmpty(),
+                    durationMs = track?.durationMs ?: 0L,
+                )
+            }
+
+            // The Canvas: the answer as well as the video, because offline the
+            // answer names a url that is nowhere and the player has no other
+            // way to learn there is a clip at all.
+            if (!DownloadExtras.asked("canvas", trackUri) || needsClip(trackUri)) {
+                val clip = dev.lelonio.square.data.Catalog.canvas(trackUri)
+                if (clip == null) {
+                    DownloadExtras.note("canvas", trackUri)
+                } else {
+                    DownloadExtras.rememberCanvas(
+                        trackUri,
+                        JSONObject()
+                            .put("url", clip.url)
+                            .put("isVideo", clip.isVideo)
+                            .toString(),
+                    )
+                    DownloadExtras.keep(clip.url, if (clip.isVideo) "video" else "art")
+                }
+            }
+
+            // And the tall picture, which is what the player and the record's
+            // own page are built around now. Spotify has no such thing, so this
+            // is the other catalogue's — asked for here rather than when the
+            // page opens, because offline is exactly when it cannot be asked.
+            if (needsArt(trackUri)) keepArt(trackUri, track)
         }.onFailure {
             android.util.Log.i("SquareDownloads", "extras for $trackUri: $it")
         }
+    }
+
+    /**
+     * The record's tall photograph and Apple's own scan of its sleeve.
+     *
+     * Matched on the record and its artist, and on the song itself when the
+     * record cannot be found — which is the same pair of lookups the player
+     * makes, so what lands here is what would have been shown online. Both
+     * urls are filed against the track even when only one arrives, and the
+     * answer is filed even when neither does: it is what stops the queue from
+     * asking about this song again on its next turn.
+     *
+     * The moving cover is deliberately not fetched. It is an HLS playlist of
+     * separate segments rather than a file, so there is nothing here that could
+     * keep it, and it is the one extra whose absence costs a still picture
+     * instead of a blank one.
+     */
+    private suspend fun keepArt(trackUri: String, track: dev.lelonio.square.data.CatalogTrack?) {
+        val artist = track?.artist.orEmpty()
+        if (artist.isBlank()) return
+
+        val named = track?.album.orEmpty()
+        val album = named.takeIf { it.isNotBlank() }
+            ?.let { dev.lelonio.square.data.AppleCatalog.album(it, artist) }
+        val cover = album?.coverUrl
+            ?: dev.lelonio.square.data.AppleCatalog.song(track?.name.orEmpty(), artist, named)
+
+        listOfNotNull(album?.heroUrl, cover).forEach {
+            DownloadExtras.keep(it, "art")
+            delay(COVER_GAP_MS)
+        }
+        DownloadExtras.rememberArt(trackUri, album?.heroUrl, cover)
     }
 
     /**

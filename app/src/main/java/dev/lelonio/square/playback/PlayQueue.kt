@@ -32,6 +32,16 @@ class PlayQueue {
         val artistUri: String? = null,
         /** Every credited artist with a page of their own, in credit order. */
         val artists: List<dev.lelonio.square.data.CatalogArtist> = emptyList(),
+        /**
+         * The record it is on, and its address where the source gave one.
+         *
+         * Carried here because the queue rebuilds every item it holds — see
+         * toMediaItemData — and whatever is not carried is lost to everything
+         * that reads the player. The album's name went that way, which is why
+         * the player could not say what record was playing.
+         */
+        val album: String = "",
+        val albumUri: String? = null,
         val durationMs: Long,
         val artworkUri: Uri?,
         /**
@@ -382,6 +392,8 @@ class PlayQueue {
             artist = metadata.artist?.toString().orEmpty(),
             artistUri = metadata.extras?.getString(dev.lelonio.square.ui.EXTRA_ARTIST_URI),
             artists = creditedArtists(metadata.extras),
+            album = metadata.albumTitle?.toString().orEmpty(),
+            albumUri = metadata.extras?.getString(dev.lelonio.square.ui.EXTRA_ALBUM_URI),
             durationMs = metadata.durationMs ?: 0L,
             artworkUri = metadata.artworkUri,
             queued = metadata.extras?.getBoolean(EXTRA_PLAY_NEXT) == true,

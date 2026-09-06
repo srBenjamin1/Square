@@ -25,6 +25,16 @@ data class PlaybackState(
     val mediaId: String? = null,
     val title: String = "",
     val artist: String = "",
+    /**
+     * The record it is from, where the queue knows it.
+     *
+     * Only the player uses it, and only to ask the other catalogue for that
+     * record's own artwork — the tall picture and the moving cover a song
+     * inherits from its album; see AppleCatalog.
+     */
+    val album: String = "",
+    /** And its address, where the queue knows it; see EXTRA_ALBUM_URI. */
+    val albumUri: String? = null,
     val artworkUrl: String? = null,
     val isPlaying: Boolean = false,
     /**
@@ -179,6 +189,7 @@ fun rememberPlaybackState(
                 mediaId = player.currentMediaItem?.mediaId,
                 title = metadata.title?.toString().orEmpty(),
                 artist = metadata.artist?.toString().orEmpty(),
+                album = metadata.albumTitle?.toString().orEmpty(),
                 artworkUrl = metadata.artworkUri?.toString(),
                 isPlaying = player.isPlaying,
                 wantsPlay = player.playWhenReady,
@@ -192,6 +203,7 @@ fun rememberPlaybackState(
                 pitch = player.playbackParameters.pitch,
                 source = metadata.extras?.getString(EXTRA_CONTEXT_LABEL).orEmpty(),
                 artistUri = metadata.extras?.getString(dev.lelonio.square.ui.EXTRA_ARTIST_URI),
+                albumUri = metadata.extras?.getString(dev.lelonio.square.ui.EXTRA_ALBUM_URI),
                 artists = run {
                     val names = metadata.extras
                         ?.getStringArrayList(dev.lelonio.square.ui.EXTRA_ARTIST_NAMES)

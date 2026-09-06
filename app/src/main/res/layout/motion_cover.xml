@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The moving cover's own view.
+
+  Inflated rather than constructed in code for one attribute: surface_type. A
+  PlayerView built in Kotlin gets a SurfaceView, which is a separate window
+  punched through the app's own — it ignores the alpha and the transforms of the
+  composition around it, so a page fading out left its video hanging on screen
+  after everything else had gone. A TextureView is an ordinary view: it fades
+  and moves with whatever holds it, at the cost of one more copy per frame,
+  which for a few seconds of album art is a trade worth making.
+-->
+<androidx.media3.ui.PlayerView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    app:surface_type="texture_view"
+    app:use_controller="false"
+    app:resize_mode="zoom" />

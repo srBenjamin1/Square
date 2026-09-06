@@ -33,6 +33,22 @@ data class CatalogTrack(
      */
     val artists: List<CatalogArtist> = emptyList(),
     val album: String = "",
+    /**
+     * The record's own address, where the source gives one.
+     *
+     * What makes the album under a title in the player a way to reach it rather
+     * than a caption. Null through the access point, which names the record but
+     * does not address it; the player falls back to a lookup there.
+     */
+    val albumUri: String? = null,
+    /**
+     * The year the record came out, or empty where the source does not say.
+     *
+     * Only the four digits: an artist page names a song by the record it is on
+     * and when that record happened, and the month and day of a release are not
+     * how anybody places an album.
+     */
+    val year: String = "",
     val durationMs: Long = 0,
     val explicit: Boolean = false,
     val artworkUrl: String? = null,
@@ -52,6 +68,7 @@ data class CatalogTrack(
  * @param startTimeMs when the line begins, or null for unsynced lyrics — the
  *   distinction decides whether the view can highlight along with playback.
  */
+@Serializable
 data class LyricLine(
     val startTimeMs: Long?,
     val text: String,
@@ -75,8 +92,10 @@ data class LyricLine(
 )
 
 /** One word, and the moment it belongs to. */
+@Serializable
 data class LyricWord(val startMs: Long, val endMs: Long, val text: String)
 
+@Serializable
 data class Lyrics(val lines: List<LyricLine>, val synced: Boolean)
 
 /**
@@ -122,6 +141,8 @@ fun TrackDto.toCatalogTrack(addedAt: String? = null): CatalogTrack = CatalogTrac
     artistUri = artists.firstOrNull()?.uri,
     artists = artists.map { CatalogArtist(it.name, it.uri) },
     album = album?.name.orEmpty(),
+    albumUri = album?.uri,
+    year = album?.releaseDate?.take(4).orEmpty(),
     durationMs = durationMs,
     explicit = explicit,
     artworkUrl = album?.images?.firstOrNull()?.url,

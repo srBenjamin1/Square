@@ -45,6 +45,22 @@ import dev.lelonio.square.ui.glass.liquidGlass
  */
 val LocalGlassEnabled = androidx.compose.runtime.staticCompositionLocalOf { true }
 
+/**
+ * Whether the player is standing still.
+ *
+ * False for the frames of an opening or a closing, and read by the two things
+ * in the player that are video: a TextureView inside a layer that is being
+ * scaled and faded has its surface detached and re-attached around the change,
+ * and draws black for the length of the travel — a black rectangle sliding down
+ * the screen, and the last thing to go.
+ *
+ * Kept apart from [LocalGlassEnabled], which the sheet used to answer this
+ * question with. That one carries the listener's glass setting as well, so a
+ * player with the glass turned off had no moving cover either — two unrelated
+ * things behind one flag.
+ */
+val LocalPlayerSettled = androidx.compose.runtime.staticCompositionLocalOf { true }
+
 @Composable
 fun GlassSurface(
     backdrop: Backdrop,

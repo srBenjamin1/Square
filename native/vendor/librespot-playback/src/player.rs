@@ -1900,6 +1900,36 @@ impl Future for PlayerInternal {
                 }
             }
 
+            // LOCAL PATCH: the outgoing track keeps sounding while the one it
+            // is dissolving into is still being loaded.
+            //
+            // `apply_fade` mixes the tail into the incoming track's own
+            // packets, so it can only run once that track is producing audio.
+            // Between the load starting and the first packet arriving there is
+            // nothing to mix into, and the fade fell silent there — which is a
+            // cut, not a dissolve. Online it was brief enough to pass; offline,
+            // where this side loads the next track itself, it was the whole of
+            // what a crossfade sounded like.
+            //
+            // `Loading` only, and only a load meant to play: a fade is the
+            // sound of one song ending under another, and a load that will sit
+            // paused is not that.
+            if self.fade_out.is_some()
+                && matches!(
+                    self.state,
+                    PlayerState::Loading {
+                        start_playback: true,
+                        ..
+                    }
+                )
+                && self.pump_fade_out()
+            {
+                // Round again rather than to sleep: the write inside blocks for
+                // as long as the audio it just handed over lasts, so this paces
+                // itself the way playback does.
+                all_futures_completed_or_not_ready = false;
+            }
+
             if self.state.is_playing() {
                 self.ensure_sink_running();
 
@@ -2269,6 +2299,72 @@ impl PlayerInternal {
             // Dropping it closes the outgoing stream.
             self.fade_out = None;
         }
+    }
+
+    /// LOCAL PATCH: writes the outgoing track on its own, with no incoming one.
+    ///
+    /// The same curve [`apply_fade`] uses, applied to the tail alone: there is
+    /// nothing to mix it with yet. Returns whether anything was written, so the
+    /// caller knows to come round again rather than wait to be woken.
+    fn pump_fade_out(&mut self) -> bool {
+        let volume = self.volume_getter.attenuation_factor();
+
+        let (samples, drained) = {
+            let Some(fade) = self.fade_out.as_mut() else {
+                return false;
+            };
+
+            let mut samples: Vec<f64> = fade.spare.drain(..).collect();
+            if !fade.drained {
+                match fade.decoder.next_packet() {
+                    Ok(Some((_, packet))) => match packet.samples() {
+                        Ok(decoded) => samples.extend_from_slice(decoded),
+                        Err(_) => fade.drained = true,
+                    },
+                    Ok(None) => fade.drained = true,
+                    Err(e) => {
+                        debug!("crossfade: the outgoing track stopped early: {e}");
+                        fade.drained = true;
+                    }
+                }
+            }
+
+            let x = fade.done as f64 / fade.total as f64;
+            let gain = (x * std::f64::consts::FRAC_PI_2).cos()
+                * fade.normalisation_factor
+                * volume;
+            for sample in samples.iter_mut() {
+                *sample = (*sample * gain).clamp(-1.0, MAX_SAMPLE);
+            }
+
+            // Counted here as well, or the curve would stand still through the
+            // load and the fade would restart at full level once the incoming
+            // track arrived.
+            fade.done = (fade.done + samples.len()).min(fade.total);
+
+            (samples, fade.drained)
+        };
+
+        if samples.is_empty() {
+            if drained {
+                // Dropping it closes the outgoing stream.
+                self.fade_out = None;
+            }
+            return false;
+        }
+
+        if let Err(e) = self
+            .sink
+            .write(AudioPacket::Samples(samples), &mut self.converter)
+        {
+            // The fade goes rather than the playback: what failed is the tail of
+            // a song that is already over, and the track being loaded has its
+            // own sink errors to report if it hits any.
+            error!("{e}");
+            self.fade_out = None;
+            return false;
+        }
+        true
     }
 
     fn handle_player_stop(&mut self) {

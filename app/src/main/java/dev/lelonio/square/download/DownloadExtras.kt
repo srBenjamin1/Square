@@ -16,10 +16,11 @@ import java.net.URL
  *
  * ### Where it plugs in
  *
- * Inside [dev.lelonio.square.data.Catalog], which is the one funnel every one of
- * these already goes through. A successful answer is written down on the way
- * past; a failed one is looked up here. So nothing else in the app has to know
- * this exists, and no screen grew an offline branch of its own.
+ * Inside the one funnel each of these already goes through — the lyrics chain
+ * in [dev.lelonio.square.backend.lyrics.SpotifyLyrics], the download queue for
+ * the pictures and the Canvas. A successful answer is written down on the way
+ * past; offline the same call reads it back, so no screen grew an offline
+ * branch of its own.
  *
  * ### What is kept, and what is not
  *
@@ -36,6 +37,20 @@ import java.net.URL
  */
 object DownloadExtras {
 
+    /**
+     * Where the other catalogue's answers are filed, and how they are retired.
+     *
+     * The name carries a number because the answers are only as good as the
+     * matching that produced them: a song matched against the wrong release
+     * keeps wearing that release's sleeve for as long as the file is here, and
+     * there is nothing in the file itself to say so. Bumping this asks every
+     * downloaded song again with the matching as it stands now, and the old
+     * directory is swept below. Bumped again when the pictures changed format:
+     * the answers name jpg files that are still on the phone, so nothing would
+     * have gone looking for the smaller ones.
+     */
+    private const val ART = "apple4"
+
     private var root: File? = null
 
     /** Whether a track is downloaded, and therefore worth keeping extras for. */
@@ -45,6 +60,12 @@ object DownloadExtras {
         root = File(downloadsRoot, "extras")
         kept = isKept
         forgetArtAnswers()
+        // Answers filed by a matching this build no longer trusts; see ART.
+        root?.let { here ->
+            here.listFiles()
+                ?.filter { it.isDirectory && it.name.startsWith("apple") && it.name != ART }
+                ?.forEach { runCatching { it.deleteRecursively() } }
+        }
     }
 
     // ------------------------------------------------------------ the answers
@@ -56,6 +77,64 @@ object DownloadExtras {
     fun rememberCanvas(trackUri: String, raw: String) = remember("canvas", trackUri, raw)
 
     fun canvas(trackUri: String): String? = recall("canvas", trackUri)
+
+    /**
+     * The Canvas as it can actually be played offline: the stored answer with
+     * its url swapped for the copy on this phone.
+     *
+     * The answer names a CDN url, and offline that url is nothing. The video
+     * beside it is the same clip, so this is the answer the player wanted.
+     * Null when either half is missing — a Canvas that was noted but never
+     * fetched is not one that can be shown.
+     */
+    fun localCanvas(trackUri: String): dev.lelonio.square.data.CanvasClip? {
+        val raw = canvas(trackUri) ?: return null
+        val answer = runCatching { JSONObject(raw) }.getOrNull() ?: return null
+        val url = answer.optString("url").takeIf { it.isNotBlank() } ?: return null
+        val video = answer.optBoolean("isVideo", true)
+        val file = fileOf(url, if (video) "video" else "art") ?: return null
+        return dev.lelonio.square.data.CanvasClip(
+            url = android.net.Uri.fromFile(file).toString(),
+            isVideo = video,
+        )
+    }
+
+    /**
+     * The other catalogue's pictures of the record a downloaded song is on.
+     *
+     * Kept per track rather than per record because a track is what the index
+     * knows: the download store holds songs, and the record they belong to is a
+     * name on each of them. Both urls may be absent — the answer is filed all
+     * the same, and its presence is what says this song has been asked about.
+     */
+    fun rememberArt(trackUri: String, heroUrl: String?, coverUrl: String?) {
+        val answer = JSONObject()
+            .put("hero", heroUrl.orEmpty())
+            .put("cover", coverUrl.orEmpty())
+        remember(ART, trackUri, answer.toString())
+    }
+
+    /** The tall picture and the sleeve kept for a track, either of them null. */
+    fun art(trackUri: String): Pair<String?, String?>? {
+        val raw = recall(ART, trackUri) ?: return null
+        val answer = runCatching { JSONObject(raw) }.getOrNull() ?: return null
+        return answer.optString("hero").takeIf { it.isNotBlank() } to
+            answer.optString("cover").takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * Files that this song has been asked about, and had nothing.
+     *
+     * Most of the catalogue has no lyrics and no Canvas, and without a note of
+     * having asked, every one of those songs would be asked about again on
+     * every run of the queue — a library's worth of requests, for ever, to
+     * learn the same nothing. The note is the empty file itself: [recall] reads
+     * a blank one as no answer, so nothing else has to know it is there.
+     */
+    fun note(kind: String, uri: String) = remember(kind, uri, "")
+
+    /** Whether this song has been asked about at all, answer or not. */
+    fun asked(kind: String, uri: String): Boolean = fileFor(kind, uri)?.exists() == true
 
     /**
      * Artist descriptions are kept for anyone with a downloaded track, so the
@@ -78,7 +157,9 @@ object DownloadExtras {
 
     private fun recall(kind: String, uri: String): String? {
         val file = fileFor(kind, uri) ?: return null
-        return runCatching { file.takeIf(File::exists)?.readText() }.getOrNull()
+        return runCatching { file.takeIf(File::exists)?.readText() }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
     }
 
     // -------------------------------------------------------------- the files
@@ -186,7 +267,7 @@ object DownloadExtras {
 
     /** Drops everything kept for a track that is no longer downloaded. */
     fun forget(trackUri: String) {
-        listOf("lyrics", "canvas").forEach { kind ->
+        listOf("lyrics", "canvas", ART).forEach { kind ->
             fileFor(kind, trackUri)?.let { runCatching { it.delete() } }
         }
     }
@@ -224,7 +305,17 @@ object DownloadExtras {
 
         val keepLyrics = trackUris.mapNotNullTo(mutableSetOf()) { fileFor("lyrics", it)?.name }
         val keepCanvas = trackUris.mapNotNullTo(mutableSetOf()) { fileFor("canvas", it)?.name }
+        val keepApple = trackUris.mapNotNullTo(mutableSetOf()) { fileFor(ART, it)?.name }
         val keepArt = coverUrls.mapNotNullTo(mutableSetOf()) { fileFor("art", it)?.name }
+
+        // The tall pictures are named by the answers that point at them, the
+        // same way the Canvas videos are: read while those answers are still
+        // here to be read.
+        trackUris.forEach { uri ->
+            art(uri)?.toList()?.filterNotNull()?.forEach { url ->
+                fileFor("art", url)?.let { keepArt += it.name }
+            }
+        }
 
         // Read before the Canvas answers are pruned: a video is named after the
         // URL inside the answer that points at it, so the answers are the only
@@ -239,6 +330,7 @@ object DownloadExtras {
         forgetArtAnswers()
         prune("lyrics", keepLyrics)
         prune("canvas", keepCanvas)
+        prune(ART, keepApple)
         prune("art", keepArt)
         prune("video", keepVideo)
     }

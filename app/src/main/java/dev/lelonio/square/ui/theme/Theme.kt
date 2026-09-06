@@ -178,20 +178,22 @@ fun Modifier.softShadow(
  */
 private val SpotTypography = Typography(
     displayLarge = TextStyle(
+        fontFamily = Inter,
         fontSize = 34.sp,
         lineHeight = 38.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = (-1.2).sp,
     ),
     headlineLarge = TextStyle(
+        fontFamily = Inter,
         fontSize = 27.sp,
         lineHeight = 31.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = (-0.8).sp,
     ),
-    titleLarge = TextStyle(fontSize = 19.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp),
-    titleMedium = TextStyle(fontSize = 15.5.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.1).sp),
-    bodyMedium = TextStyle(fontSize = 13.5.sp, fontWeight = FontWeight.Normal),
-    bodySmall = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal),
-    labelLarge = TextStyle(fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp),
+    titleLarge = TextStyle(fontFamily = Inter, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp),
+    titleMedium = TextStyle(fontFamily = Inter, fontSize = 15.5.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.1).sp),
+    bodyMedium = TextStyle(fontFamily = Inter, fontSize = 13.5.sp, fontWeight = FontWeight.Normal),
+    bodySmall = TextStyle(fontFamily = Inter, fontSize = 12.sp, fontWeight = FontWeight.Normal),
+    labelLarge = TextStyle(fontFamily = Inter, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp),
 )

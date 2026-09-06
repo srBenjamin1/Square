@@ -65,6 +65,8 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -145,6 +147,17 @@ private const val PAUSED_DIM = 0.55f
  * back here as a full-bleed backdrop.
  */
 /** What occupies the middle of the player. */
+/**
+ * How long the cover and a Canvas take to change places.
+ *
+ * Matched to the clip's own fade below: the two are one movement, and a
+ * handover where each half runs at its own speed is visible as a dip.
+ */
+private const val CANVAS_HANDOVER = 500
+
+/** The shape the catalogue files an extended cover in: three by four. */
+private const val DETAIL_ASPECT = 3f / 4f
+
 /** How long each half of a change between the cover and a panel takes. */
 private const val STAGE_FADE_MS = 180
 
@@ -200,6 +213,32 @@ fun PlayerScreen(
     backdrop: Backdrop,
     /** The track's Canvas clip, or null when it has none. */
     canvas: dev.lelonio.square.data.CanvasClip?,
+    /**
+     * The tall picture the record carries, where the catalogue has one.
+     *
+     * A song has one square cover and nothing else; the extended artwork
+     * belongs to its album, which is where the reference's own player takes it
+     * from as well. Null falls back to the square cover.
+     */
+    coverHeroUrl: String? = null,
+    /** And the moving version of it, for the records that have one. */
+    coverMotionUrl: String? = null,
+    /**
+     * The catalogue's own square scan, for the records with no tall picture.
+     *
+     * Better than falling straight back to the cover the queue carries: that
+     * one is sized for a list row, and this screen enlarges whatever it is
+     * given to fill a phone.
+     */
+    coverSquareUrl: String? = null,
+    /**
+     * The other catalogue has not answered yet.
+     *
+     * Holds the queue's own cover back for that moment: it is the fallback, and
+     * drawing it first only to replace it with a sharper copy of the same
+     * picture is the swap the listener sees.
+     */
+    coverPending: Boolean = false,
     /** See MiniPlayer: the cover is shared with the bar this screen grew out of. */
     sharedScope: androidx.compose.animation.SharedTransitionScope? = null,
     animatedScope: androidx.compose.animation.AnimatedVisibilityScope? = null,
@@ -222,6 +261,8 @@ fun PlayerScreen(
      * it loads. The player closes itself first; see the two callers.
      */
     onOpenUri: (String, String) -> Unit = { _, _ -> },
+    /** Opens the record the playing track is on; null when there is none. */
+    onOpenAlbum: (() -> Unit)? = null,
     /**
      * Whether this track is already in one of the account's playlists.
      *
@@ -341,6 +382,10 @@ fun PlayerScreen(
         state.artworkUrl.takeIf { canvas == null },
     )
 
+    // The tone the cover fades into, worked out the same way the pages do it.
+    val coverAccent by dev.lelonio.square.ui.theme.rememberArtworkColor(state.artworkUrl)
+    val coverTone = dev.lelonio.square.ui.theme.pageColorFor(coverAccent)
+
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier
@@ -376,8 +421,106 @@ fun PlayerScreen(
             // video playing there is something, and the glow above is taken
             // from its own frames: drawing the cover's aura over that would
             // paint the song's colours on top of the video's.
-            if (canvas == null && !videoOn) {
-                CoverAura(colors = auraColors, playing = state.isPlaying)
+            // The picture leaves on the same clock the clip arrives on.
+            //
+            // It used to be a condition: the moment a Canvas existed, the cover
+            // was dropped from the composition and the clip faded up over
+            // whatever was behind it — a cut on one side of a crossfade, which
+            // reads as the screen blinking. Held as an opacity instead, so the
+            // two overlap for the length of the change, and it comes back the
+            // same way on a track that has no clip.
+            val coverFade by animateFloatAsState(
+                targetValue = if (!videoOn && (canvas == null || !canvasReady)) 1f else 0f,
+                animationSpec = tween(CANVAS_HANDOVER),
+                label = "coverFade",
+            )
+
+            if (coverFade > 0f) {
+                Box(Modifier.fillMaxSize().graphicsLayer { alpha = coverFade }) {
+                // The cover, shown the way every other screen in the app shows
+                // a picture it is built around: filling the top, softening on
+                // the way down, ending on the colour taken from it. A track
+                // with no clip used to get moving light in those same colours
+                // and nothing of the picture itself — which was a stand-in for
+                // an image the app had all along.
+                dev.lelonio.square.ui.components.HeroBackdrop(
+                    artworkUrl = coverHeroUrl
+                        ?: coverSquareUrl
+                        ?: state.artworkUrl.takeIf { !coverPending },
+                    // The moving cover only while the player is standing
+                    // still. Otherwise its TextureView goes black for the
+                    // length of the closing animation and is the last thing
+                    // left on screen — see LocalPlayerSettled. The still
+                    // picture underneath is what the travel shows instead, and
+                    // at that size and speed the swap is invisible.
+                    motionUrl = coverMotionUrl.takeIf { LocalPlayerSettled.current },
+                    title = state.title,
+                    pageColor = coverTone,
+                    pending = coverPending,
+                    // Where the picture stops being a picture. It runs longer
+                    // when it is the only one on the screen — there is no sleeve
+                    // over it to look at, so it has to hold the top of the
+                    // player on its own — and ends earlier when it is only the
+                    // ground under a square cover.
+                    // Left alone to its own bottom edge, and softened only in
+                    // the last stretch before it.
+                    //
+                    // Measured on the screen: the picture is three by four from
+                    // the top, so it ends where the "watch the video" button
+                    // begins, and the fade runs in the last stretch above that
+                    // line rather than starting a third of the way up.
+                    //
+                    // It has to *finish* before that line, though, and not on
+                    // it. Softening right up to the edge leaves the picture
+                    // still faintly there where it stops, and a picture that is
+                    // faintly there has a border — which is the seam the fade is
+                    // for. This lands the colour a few percent early, so what
+                    // reaches the bottom of the frame is colour and nothing
+                    // else.
+                    softenFrom = 0.84f,
+                    softenTo = 0.96f,
+                    // Three by four, whichever picture it is — the shape the
+                    // extended covers are drawn in, and the shape that reaches
+                    // down to the title with nothing empty in between.
+                    //
+                    // A square sleeve is trimmed at the sides to fit it, not
+                    // enlarged: the catalogue's scan is 1600 across and the
+                    // screen is 1080, so what is cropped is real picture and
+                    // what is drawn is still smaller than the source.
+                    imageAspect = DETAIL_ASPECT,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                // And the light still moves, in the cover's own colours: it is
+                // what the glass above has to bend. Only *under* the picture,
+                // though — beams sweeping across a photograph wash it out, and
+                // the part of this screen that needs something alive in it is
+                // the colour field below, where the controls sit.
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            // Where the picture ends, in this box's own terms:
+                            // it is as tall as the screen is wide, times four
+                            // thirds. Measured rather than guessed, since the
+                            // slot is whatever the phone leaves it.
+                            val ends = (size.width / DETAIL_ASPECT / size.height)
+                                .coerceIn(0f, 1f)
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    0f to Color.Transparent,
+                                    (ends * 0.8f) to Color.Transparent,
+                                    ends to Color.Black,
+                                    1f to Color.Black,
+                                ),
+                                blendMode = BlendMode.DstIn,
+                            )
+                        },
+                ) {
+                    CoverAura(colors = auraColors, playing = state.isPlaying)
+                }
+                }
             }
 
 
@@ -549,6 +692,11 @@ fun PlayerScreen(
                         // left to fade. The panels go on swapping between
                         // themselves; the cover is simply the floor of this
                         // slot, and opening a panel takes its opacity away.
+                        // No square cover on a record that has a picture of its
+                        // own. The extended artwork behind this slot is the
+                        // cover, at the size the record was given one for, and
+                        // putting the sleeve back on top of it is the same image
+                        // twice — which is what the reference stopped doing.
                         val coverShowing = panel == PlayerPanel.NONE &&
                             !(videoOn && videoPlayer != null && LocalGlassEnabled.current) &&
                             (canvas == null || !canvasReady)
@@ -609,31 +757,16 @@ fun PlayerScreen(
                                 }
                             }
 
-                            if (coverAlpha > 0f) {
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .graphicsLayer { alpha = coverAlpha },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Cover(
-                                        state,
-                                        // Always as if nothing were open: the
-                                        // cover shrinks towards the size it
-                                        // takes beside a panel, and doing that
-                                        // while it fades is two movements where
-                                        // one was asked for. It is only ever
-                                        // seen at full size now.
-                                        PlayerPanel.NONE,
-                                        onNext,
-                                        onPrevious,
-                                        // Only for the journey the bar's
-                                        // thumbnail makes into this cover.
-                                        sharedScope.takeIf { coverShowing },
-                                        animatedScope.takeIf { coverShowing },
-                                    )
-                                }
-                            }
+                            // No sleeve on this screen any more.
+                            //
+                            // What used to sit here was the square cover, drawn
+                            // over a blurred copy of itself — the same image
+                            // twice, the small one hiding the middle of the
+                            // large one. The picture behind this slot *is* the
+                            // cover now: the record's own extended artwork
+                            // where the catalogue has one, and the sleeve itself
+                            // laid across the top where it does not, both of
+                            // them ending in the colour the page is made of.
 
                         AnimatedContent(
                             targetState = when (panel) {
@@ -873,6 +1006,7 @@ fun PlayerScreen(
                                         onCollapse()
                                         onOpenUri(uri, name)
                                     },
+                                    onOpenAlbum = onOpenAlbum,
                                 )
                                 // A station built from this track, the way the
                                 // official client's own radio button does it.
@@ -1438,6 +1572,14 @@ private fun TitleBlock(
     state: PlaybackState,
     modifier: Modifier = Modifier,
     onOpenArtist: (uri: String, name: String) -> Unit = { _, _ -> },
+    /**
+     * Opens the record this track is on. Null where there is none to open.
+     *
+     * A plain callback rather than a URI: the queue does not always carry the
+     * album's address — a list resolved before the app started keeping it has
+     * only the name — and whoever hands this in is the one that can look it up.
+     */
+    onOpenAlbum: (() -> Unit)? = null,
 ) {
     // Slid rather than swapped on a track change: this capsule is the only place
     // the track is named now that the big cover is gone, so the change has to be
@@ -1452,11 +1594,22 @@ private fun TitleBlock(
         modifier = modifier,
     ) { (title, artist) ->
         Column {
+            // The title is the way to the record it is on — the same idea as
+            // the artist's name below it being the way to them. Only where
+            // there is somewhere to go: a queue built from search results, or a
+            // track another device is playing, names a record this app has no
+            // address for, and a title that looks like a link and does nothing
+            // is worse than a caption.
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = if (onOpenAlbum != null) {
+                    Modifier.pressable(onOpenAlbum, pressedScale = 0.98f)
+                } else {
+                    Modifier
+                },
             )
             ArtistLine(state, artist, onOpenArtist)
         }

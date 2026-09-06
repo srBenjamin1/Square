@@ -45,6 +45,12 @@ class SquareApplication : Application() {
             downloads.isDownloaded(it)
         }
 
+        // The other catalogue's answers, kept between runs. Without a store to
+        // write to it still works and simply asks again every time — which is
+        // the difference between a page that opens on the right picture and one
+        // that opens on Spotify's and changes it a second later.
+        dev.lelonio.square.data.AppleCatalog.attach(this)
+
         // Two things feed the offline state, and one thing reads it out to the
         // engine. The switch below is the listener's; the watch is the network
         // going; and the engine has to be told either way, because it cannot

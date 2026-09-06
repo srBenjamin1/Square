@@ -10,6 +10,10 @@ import androidx.media3.common.util.UnstableApi
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import dev.lelonio.square.nativecore.NativeBridge
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import dev.lelonio.square.nativecore.NativeEvents
 
 /**
@@ -435,6 +439,54 @@ class LibrespotPlayer(
 
     /** Set while a reconnection is in flight, so a burst of taps starts one. */
     private var reconnecting = false
+
+    /** How long a track dissolves into the next; the listener's own setting. */
+    private val crossfade = dev.lelonio.square.data.CrossfadeStore(context)
+
+    /** Watches the one thing outside this class that changes what it must do. */
+    private val watch = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+    )
+
+    init {
+        // Coming back online, the engine has to be given this queue again.
+        //
+        // Offline the tracks are loaded one at a time, straight into the
+        // player: the Connect device is not there to be told what the queue is.
+        // When the network returns that device comes back knowing nothing, and
+        // the song that was playing ran to its end with nobody to advance it —
+        // so the music stopped and stayed stopped, on a queue of songs that
+        // were all sitting on the phone.
+        watch.launch {
+            dev.lelonio.square.playback.OfflineMode.active
+                .drop(1)
+                .distinctUntilChanged()
+                .collect { offline ->
+                    if (offline) return@collect
+                    handler.post {
+                        if (released || queue.items.isEmpty()) return@post
+                        android.util.Log.i(
+                            "SquarePlayer",
+                            "back online: handing the queue over at ${positionMs}ms",
+                        )
+                        // From where it is, playing if it was: this is a
+                        // handover, not a restart, and the listener should hear
+                        // the same second of the same song either side of it.
+                        pushQueue(startPlaying = playWhenReady, positionMs = positionMs.toInt())
+                    }
+                }
+        }
+    }
+
+    /**
+     * The track this side has already moved on from, by uri.
+     *
+     * Offline nothing else advances the queue — there is no Connect device to
+     * own it — so this side does, and it must do it once. Kept as the uri
+     * rather than a flag so a track that comes round again in a loop is a
+     * different question each time.
+     */
+    private var advancedFrom: String? = null
 
     /**
      * Runs `then` on the looper with a live Connect device, rebuilding one first
@@ -1158,6 +1210,7 @@ class LibrespotPlayer(
 
     override fun handleRelease(): ListenableFuture<*> {
         released = true
+        watch.cancel()
         handler.removeCallbacks(settleSkip)
         focus.release()
         engine("shutdown") { NativeBridge.shutdown() }
@@ -1189,6 +1242,39 @@ class LibrespotPlayer(
         if (!queue.items[next].queued) return false
         requestSkipTo(next, 0L)
         return true
+    }
+
+    /**
+     * Moves to the next track, offline, where nothing else will.
+     *
+     * With a connection the Connect device owns the queue: it loads the next
+     * track while the current one is still sounding, and that overlap is what
+     * the crossfade is made of. Offline there is no device, so the app has to
+     * be the one that looks ahead — otherwise a track ends, the player stops,
+     * and the next one is loaded into silence. That is why offline had no
+     * dissolve at all, and why the queue stopped at the end of every song
+     * unless somebody pressed skip.
+     *
+     * @param early true when this is the run-up to a crossfade rather than the
+     *   end of the track, which is the only difference between a dissolve and a
+     *   plain advance.
+     */
+    private fun advanceOffline(early: Boolean) {
+        val from = queue.currentIndex
+        val current = queue.items.getOrNull(from) ?: return
+        if (advancedFrom == current.uri) return
+        val next = from + 1
+        // The end of the queue is the end. Repeat is the engine's own setting
+        // and it is not reachable from here; a queue that restarted itself
+        // offline would be doing something the listener did not ask for.
+        if (next > queue.items.lastIndex) return
+
+        advancedFrom = current.uri
+        android.util.Log.i(
+            "SquarePlayer",
+            "offline: ${if (early) "dissolving into" else "advancing to"} track $next",
+        )
+        requestSkipTo(next, 0L)
     }
 
     private fun applyEvent(type: String, uri: String, eventPositionMs: Long) {
@@ -1275,6 +1361,9 @@ class LibrespotPlayer(
                 handler.removeCallbacks(stallWatch)
             }
             "playing" -> {
+                // A new track to watch, and one this side has not moved on
+                // from yet.
+                if (uri != advancedFrom) advancedFrom = null
                 playbackState = Player.STATE_READY
                 playWhenReady = true
                 if (uri.isNotEmpty()) bandwidth.playing(uri)
@@ -1303,6 +1392,20 @@ class LibrespotPlayer(
                 // longer the one on screen.
                 if (skipPending || skipInFlight) return
                 positionMs = eventPositionMs
+
+                // Offline, the run-up to the next track is this side's job.
+                //
+                // Started exactly one crossfade before the end, so the two
+                // tracks overlap by the length the listener asked for. With the
+                // setting at zero there is nothing to run up to, and the track
+                // is left to end on its own.
+                if (dev.lelonio.square.playback.OfflineMode.active.value) {
+                    val length = queue.items.getOrNull(queue.currentIndex)?.durationMs ?: 0L
+                    val fade = crossfade.durationMs().toLong()
+                    if (fade > 0 && length > 0 && length - eventPositionMs in 1..fade) {
+                        advanceOffline(early = true)
+                    }
+                }
             }
             "stopped" -> {
                 playbackState = Player.STATE_IDLE
@@ -1337,7 +1440,23 @@ class LibrespotPlayer(
             }
 
             "end_of_track" -> {
-                takeOverForQueued()
+                if (takeOverForQueued()) return
+                // Offline the engine has no queue to advance, so a track that
+                // ran to its end without a crossfade — because the setting is
+                // off, or because it was shorter than one — stops here unless
+                // this side moves on.
+                //
+                // Except when this is the end of the track already being
+                // dissolved out of. That event belongs to the song being left,
+                // and it arrives milliseconds after the crossfade has started —
+                // by which point the queue has moved on, so advancing again
+                // stepped over the track that was just beginning. One song in
+                // two was skipped without ever being heard, which is what "it
+                // sometimes jumps straight to the next one" was.
+                if (uri == advancedFrom) return
+                if (dev.lelonio.square.playback.OfflineMode.active.value) {
+                    advanceOffline(early = false)
+                }
                 return
             }
 
@@ -1381,6 +1500,7 @@ class LibrespotPlayer(
                         MediaMetadata.Builder()
                             .setTitle(track.title)
                             .setArtist(track.artist)
+                            .setAlbumTitle(track.album.takeIf { it.isNotEmpty() })
                             .setArtworkUri(track.artworkUri)
                             // Put back, because this item is rebuilt rather than
                             // passed through: whatever is not restored here is
@@ -1397,6 +1517,9 @@ class LibrespotPlayer(
                                     }
                                     track.artistUri?.let {
                                         putString(dev.lelonio.square.ui.EXTRA_ARTIST_URI, it)
+                                    }
+                                    track.albumUri?.let {
+                                        putString(dev.lelonio.square.ui.EXTRA_ALBUM_URI, it)
                                     }
                                     val credited = track.artists.filter { it.uri != null }
                                     if (credited.isNotEmpty()) {

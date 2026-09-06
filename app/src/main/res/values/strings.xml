@@ -366,6 +366,7 @@
     <string name="download_waiting_wifi">Waiting for Wi‑Fi</string>
     <string name="download_waiting_network">Waiting for a connection</string>
     <string name="download_waiting_engine">Waiting for Spotify</string>
+    <string name="download_extras">Finishing covers and lyrics</string>
     <string name="download_quality">Download quality</string>
     <string name="download_quality_note">What a download is kept at. There is no automatic setting here: a download happens once and stays, so it should not be the copy your connection happened to allow that minute.</string>
     <string name="download_wifi_only">Download over Wi‑Fi only</string>
@@ -391,4 +392,31 @@
     <string name="radio_of">Radio of %1$s</string>
     <string name="remove_download_confirm">Take the downloaded songs of “%1$s” off this phone?</string>
     <string name="remove_download_confirm_action">Remove</string>
+    <string name="tab_new">New</string>
+    <string name="tab_radio">Radio</string>
+    <string name="latest_release">Latest Release</string>
+    <string name="top_songs">Top Songs</string>
+    <string name="stations_for_you">Stations for you</string>
+    <string name="made_for_you">Made for you</string>
+    <string name="new_releases_title">New releases</string>
+    <string name="nothing_here">Nothing here yet</string>
+    <string name="radio_empty">Radio stations are built from what you listen to.</string>
+    <string name="new_songs">New Songs</string>
+    <string name="new_this_week">New This Week</string>
+    <string name="new_release_tag">New release</string>
+    <plurals name="song_count">
+        <item quantity="one">%1$d song</item>
+        <item quantity="other">%1$d songs</item>
+    </plurals>
+    <string name="songs_and_length">%1$d songs, %2$s</string>
+    <string name="more_notes">MORE</string>
+    <string name="updated_ago">Updated: %1$s</string>
+    <string name="ago_today">today</string>
+    <string name="ago_days">%1$d d</string>
+    <string name="ago_weeks">%1$d w</string>
+    <string name="ago_months">%1$d mo</string>
+    <string name="ago_years">%1$d y</string>
+    <string name="canvas">Canvas</string>
+    <string name="canvas_show">Show looping clips</string>
+    <string name="canvas_note">The short video some tracks come with. Off, none is downloaded either.</string>
 </resources>
