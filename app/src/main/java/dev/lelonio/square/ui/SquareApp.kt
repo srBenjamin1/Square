@@ -466,7 +466,28 @@ fun SquareApp(
             player?.playbackParameters = params
         }
     }
-    val accent by rememberArtworkColor(playback.artworkUrl)
+    // The playing record's own artwork, asked for once per track and cached.
+    val nowPlayingArt by viewModel.nowPlayingArt.collectAsStateWithLifecycle()
+    val nowPlayingArtPending by viewModel.nowPlayingArtPending.collectAsStateWithLifecycle()
+
+    // The app's one accent, taken from the same picture the pages are tinted
+    // by.
+    //
+    // It used to be read off Spotify's square print while the background was
+    // taken from the other catalogue's — two colours from two photographs of
+    // the same record, and on a cover where they disagree the bar came out
+    // brown over a grey page. The catalogue's own colour for the record wins
+    // where there is one: it was chosen for this page rather than measured off
+    // a photograph, which is the same reason a record's own page uses it.
+    val playingArt = nowPlayingArt?.heroUrl
+        ?: nowPlayingArt?.coverUrl
+        ?: playback.artworkUrl
+    val playingAccent by rememberArtworkColor(playingArt)
+    val accent = nowPlayingArt?.bgColor
+        ?.let { hex ->
+            runCatching { Color(android.graphics.Color.parseColor("#$hex")) }.getOrNull()
+        }
+        ?: playingAccent
 
     // How bright the page behind the glass is, from the artwork rather than
     // from the screen.
@@ -502,9 +523,6 @@ fun SquareApp(
      */
     val newPage by viewModel.newPage.collectAsStateWithLifecycle()
 
-    // The playing record's own artwork, asked for once per track and cached.
-    val nowPlayingArt by viewModel.nowPlayingArt.collectAsStateWithLifecycle()
-    val nowPlayingArtPending by viewModel.nowPlayingArtPending.collectAsStateWithLifecycle()
     LaunchedEffect(playback.mediaId, playback.title, playback.album, playback.artist) {
         viewModel.loadNowPlayingArt(
             uri = playback.mediaId,
