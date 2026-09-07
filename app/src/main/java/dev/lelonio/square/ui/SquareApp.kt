@@ -3257,9 +3257,17 @@ private fun AppBackdrop(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        0f to Color.Black.copy(alpha = 0.45f),
-                        0.5f to Color.Black.copy(alpha = 0.60f),
-                        1f to Color.Black.copy(alpha = 0.78f),
+                        // Light enough that the cover's colour survives it.
+                        //
+                        // At 0.45 to 0.78 the blurred artwork under the player
+                        // arrived as grey: a red sleeve gave a grey-green
+                        // field, which is neither the record's colour nor
+                        // anything the sharp copy above could dissolve into.
+                        // The glass over the controls does its own darkening,
+                        // and the hero's scrim adds the rest at the foot.
+                        0f to Color.Black.copy(alpha = 0.18f),
+                        0.5f to Color.Black.copy(alpha = 0.24f),
+                        1f to Color.Black.copy(alpha = 0.34f),
                     ),
                 ),
         )

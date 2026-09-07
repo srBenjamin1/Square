@@ -477,8 +477,12 @@ fun PlayerScreen(
                     // for. This lands the colour a few percent early, so what
                     // reaches the bottom of the frame is colour and nothing
                     // else.
-                    softenFrom = 0.84f,
-                    softenTo = 0.96f,
+                    // A longer run than the numbers suggest they are: the
+                    // ramp between them is eased, so the first fifth of it is
+                    // barely there and the picture reads as sharp well past the
+                    // point it starts giving way. See softening.
+                    softenFrom = 0.82f,
+                    softenTo = 0.97f,
                     // Three by four, whichever picture it is — the shape the
                     // extended covers are drawn in, and the shape that reaches
                     // down to the title with nothing empty in between.
@@ -488,6 +492,11 @@ fun PlayerScreen(
                     // screen is 1080, so what is cropped is real picture and
                     // what is drawn is still smaller than the source.
                     imageAspect = DETAIL_ASPECT,
+                    // The picture ends on itself here, not on the page's tone:
+                    // behind this whole screen is the same artwork, blurred and
+                    // filling it, so the sharp copy has its own blur to dissolve
+                    // into. See fadeToPage.
+                    fadeToPage = false,
                     modifier = Modifier.fillMaxSize(),
                 )
                 // And the light still moves, in the cover's own colours: it is
