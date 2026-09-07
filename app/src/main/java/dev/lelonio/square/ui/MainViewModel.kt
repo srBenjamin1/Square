@@ -190,6 +190,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val notes: String? = null,
         /** The page's tint as six hex digits, where the catalogue names one. */
         val tintHex: String? = null,
+        /** The ink the catalogue picked for that tint; see AppleCatalog. */
+        val inkHex: String? = null,
+        /** The header picture's own proportions, width over height. */
+        val heroAspect: Float? = null,
         /**
          * Whose list it is: the account that made a playlist.
          *
@@ -2023,6 +2027,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 byline = state.byline.ifEmpty { current.byline },
                 origin = state.origin ?: current.origin,
                 tintHex = state.tintHex ?: current.tintHex,
+                inkHex = state.inkHex ?: current.inkHex,
+                heroAspect = state.heroAspect ?: current.heroAspect,
                 motionUrl = state.motionUrl ?: current.motionUrl,
                 // Owned by the lookup alone: every other publish carries the
                 // flag's default and would clear the wait a batch of tracks
@@ -3659,6 +3665,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 heroUrl = found.heroUrl,
                 logoUrl = found.logoUrl,
                 tintHex = found.bgColor,
+                inkHex = found.textHex,
+                heroAspect = found.heroAspect,
                 notes = found.bio,
                 origin = found.origin,
                 heroPending = false,
@@ -3694,6 +3702,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             coverUrl = found.coverUrl,
             notes = found.notes,
             tintHex = found.bgColor,
+            inkHex = found.textHex,
             motionUrl = found.motionUrl,
             heroPending = false,
         )

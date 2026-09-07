@@ -83,6 +83,8 @@ fun HeroBackdrop(
      */
     imageAspect: Float? = null,
 ) {
+    // Black over a dark page and white over a light one; see scrimColor.
+    val scrim = dev.lelonio.square.ui.theme.scrimColor()
     Box(modifier) {
         if (imageAspect != null && fadeToPage) {
             // The colour first, because the picture no longer covers the slot.
@@ -224,7 +226,7 @@ fun HeroBackdrop(
                         // out from halfway — the colour arrived on its own
                         // schedule and paled the very part that was meant to be
                         // legible.
-                        0f to Color.Black.copy(alpha = 0.22f),
+                        0f to scrim.copy(alpha = 0.22f),
                         (softenFrom * 0.45f) to Color.Transparent,
                         // The colour comes up behind the blur rather than with
                         // it, and on the same eased curve. The picture going
@@ -263,15 +265,21 @@ fun HeroBackdrop(
                         val ends = imageAspect
                             ?.let { (size.width / it / size.height).coerceIn(0f, 1f) }
                             ?: 1f
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                0f to Color.Black.copy(alpha = 0.20f),
-                                (ends * 0.45f) to Color.Transparent,
-                                (ends * 0.92f) to Color.Black.copy(alpha = 0.05f),
-                                ends to Color.Black.copy(alpha = 0.12f),
-                                1f to Color.Black.copy(alpha = 0.30f),
-                            ),
-                        )
+                        // The last two stops collapse onto each other where the
+                        // picture reaches the bottom of its own box, which is a
+                        // hard edge rather than a gradient.
+                        val stops = buildList {
+                            add(0f to scrim.copy(alpha = 0.20f))
+                            add((ends * 0.45f) to Color.Transparent)
+                            add((ends * 0.92f) to scrim.copy(alpha = 0.05f))
+                            if (ends < 0.999f) {
+                                add(ends to scrim.copy(alpha = 0.12f))
+                                add(1f to scrim.copy(alpha = 0.30f))
+                            } else {
+                                add(1f to scrim.copy(alpha = 0.12f))
+                            }
+                        }
+                        drawRect(brush = Brush.verticalGradient(*stops.toTypedArray()))
                     },
             )
         }

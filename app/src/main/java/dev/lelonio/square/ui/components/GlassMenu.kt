@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.IntOffset
@@ -146,10 +147,24 @@ val MENU_WIDTH = 244.dp
 private val TopEnd = TransformOrigin(1f, 0f)
 
 /** Dark enough that a list of track titles does not read through it. */
-private val MenuSurface = Color(0xFF16161A)
+private val MenuSurfaceDark = Color(0xFF16161A)
+private val MenuSurfaceLight = Color(0xFFF6F6FA)
+
+/** The base a menu is built on, on whichever side of the app it opens. */
+private val MenuSurface: Color
+    @Composable get() = if (dev.lelonio.square.ui.theme.lightPage()) {
+        MenuSurfaceLight
+    } else {
+        MenuSurfaceDark
+    }
 
 /** The hairline every other surface in the app catches light with. */
-private val MenuEdge = Color.White.copy(alpha = 0.14f)
+private val MenuEdge: Color
+    @Composable get() = if (dev.lelonio.square.ui.theme.lightPage()) {
+        Color.Black.copy(alpha = 0.12f)
+    } else {
+        Color.White.copy(alpha = 0.14f)
+    }
 
 /**
  * The compact form: one row of icons in a glass capsule.
@@ -353,7 +368,16 @@ fun Modifier.menuSkin(shape: androidx.compose.ui.graphics.Shape): Modifier =
 private fun menuFilm(): Color {
     val config = dev.lelonio.square.ui.glass.LocalGlassEffectConfig.current
     val missing = (MENU_FLOOR_OPACITY - config.surfaceOpacity).coerceAtLeast(0f)
-    return config.surfaceTintColor.copy(alpha = missing)
+    // The listener's own tint where they set one, and the adaptive film
+    // otherwise — the same rule the glass itself follows; see GlassEffect.
+    val tint = if (config.surfaceTintColor.isSpecified) {
+        config.surfaceTintColor
+    } else if (dev.lelonio.square.ui.theme.lightPage()) {
+        Color(0xFFFAFAFA)
+    } else {
+        Color(0xFF23232A)
+    }
+    return tint.copy(alpha = missing)
 }
 
 /** The coverage a menu needs before its own rows stop competing with the page. */

@@ -398,4 +398,6 @@
     <string name="canvas">Canvas</string>
     <string name="canvas_show">Afficher les clips en boucle</string>
     <string name="canvas_note">La courte vidéo que portent certains titres. Désactivé, elle n\'est pas téléchargée non plus.</string>
+    <string name="show_all">Tout afficher</string>
+    <string name="show_less">Afficher moins</string>
 </resources>

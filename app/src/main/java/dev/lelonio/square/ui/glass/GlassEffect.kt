@@ -57,8 +57,16 @@ data class GlassEffectConfig(
     val lensAmount: Float = 0.6f,
     val chromaticAberration: Boolean = false,
     val depthEffect: Boolean = false,
-    /** [Color.Unspecified] means adaptive: dark grey on dark. */
-    val surfaceTintColor: Color = Color(0xFF1A1A1A),
+    /**
+     * [Color.Unspecified] means adaptive, which is the default.
+     *
+     * It used to default to a fixed dark grey, which meant the adaptive branch
+     * below was dead code: the film stayed dark over a light page, so in the
+     * system's light setting every pill in the app was a dark slab with dark
+     * ink on it. A colour set by hand in the settings still wins over the
+     * adaptive answer — that is what setting it is for.
+     */
+    val surfaceTintColor: Color = Color.Unspecified,
     /** Specular rim ("pluck") colour. [Color.Unspecified] keeps the default white. */
     val highlightColor: Color = Color.Unspecified,
     /** Specular rim opacity, 0..1. */
@@ -444,7 +452,7 @@ fun Modifier.liquidGlass(
     val backdropLuminance = LocalBackdropLuminance.current
     val surfaceTintColor = if (config.surfaceTintColor.isSpecified) {
         config.surfaceTintColor
-    } else if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
+    } else if (dev.lelonio.square.ui.theme.LocalLightTheme.current) {
         Color(0xFFFAFAFA)
     } else {
         // Between the two across the middle of the range rather than at a line,

@@ -286,11 +286,17 @@ fun MiniPlayer(
 }
 
 /**
- * Fixed light, like everything else on the glass: what sits behind this bar is
- * the darkened artwork, not a page colour.
+ * The ink on the glass, on whichever side of the app it is.
+ *
+ * Fixed light is what this was, on the reasoning that behind the bar is the
+ * darkened artwork rather than a page colour. That stopped being true with the
+ * light setting: there the film over the artwork is white, and near-white text
+ * on it is not text. It is the app's own ink, like everywhere else.
  */
-internal val MiniPlayerInk = Color(0xFFF7F8FA)
-internal val MiniPlayerInkDim = Color(0xFFF7F8FA).copy(alpha = 0.66f)
+internal val MiniPlayerInk: Color
+    @Composable get() = dev.lelonio.square.ui.theme.Ink
+internal val MiniPlayerInkDim: Color
+    @Composable get() = dev.lelonio.square.ui.theme.InkDim
 
 /**
  * The green everyone already reads as "this is coming out of something else".

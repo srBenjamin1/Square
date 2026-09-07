@@ -145,7 +145,11 @@ fun UpdateSheet(
                     }
 
                     if (notes.isNotBlank()) {
-                        val text = remember(notes) { releaseNotes(notes) }
+                        // The emphasis colour is handed in rather than read
+                        // inside: this builds a string, not a composition, and
+                        // the ink now depends on the theme.
+                        val emphasis = GlassInk
+                        val text = remember(notes, emphasis) { releaseNotes(notes, emphasis) }
                         Text(
                             text,
                             style = MaterialTheme.typography.bodyMedium,
@@ -246,7 +250,7 @@ private fun DialogAction(
  * things release notes are actually written with, and leaves anything else as
  * the text it already is.
  */
-private fun releaseNotes(source: String): AnnotatedString = buildAnnotatedString {
+private fun releaseNotes(source: String, emphasis: Color): AnnotatedString = buildAnnotatedString {
     val lines = source.trim().lines()
     lines.forEachIndexed { index, raw ->
         val line = raw.trim()
@@ -267,17 +271,17 @@ private fun releaseNotes(source: String): AnnotatedString = buildAnnotatedString
 
         if (bullet) append("•  ")
         if (heading) {
-            withStyle(SpanStyle(color = GlassInk, fontWeight = FontWeight.SemiBold)) {
-                appendInline(body)
+            withStyle(SpanStyle(color = emphasis, fontWeight = FontWeight.SemiBold)) {
+                appendInline(body, emphasis)
             }
         } else {
-            appendInline(body)
+            appendInline(body, emphasis)
         }
     }
 }
 
 /** Bold spans and code ticks, which is all the emphasis the notes ever use. */
-private fun AnnotatedString.Builder.appendInline(text: String) {
+private fun AnnotatedString.Builder.appendInline(text: String, emphasis: Color) {
     var rest = text
     while (true) {
         val open = rest.indexOf("**")
@@ -285,7 +289,7 @@ private fun AnnotatedString.Builder.appendInline(text: String) {
         val close = rest.indexOf("**", open + 2)
         if (close < 0) break
         append(rest.substring(0, open).replace("`", ""))
-        withStyle(SpanStyle(color = GlassInk, fontWeight = FontWeight.SemiBold)) {
+        withStyle(SpanStyle(color = emphasis, fontWeight = FontWeight.SemiBold)) {
             append(rest.substring(open + 2, close).replace("`", ""))
         }
         rest = rest.substring(close + 2)

@@ -220,6 +220,8 @@ fun PlayerScreen(
      * belongs to its album, which is where the reference's own player takes it
      * from as well. Null falls back to the square cover.
      */
+    /** The colours the catalogue filed with this artwork; see CoverAura. */
+    catalogPalette: List<String> = emptyList(),
     coverHeroUrl: String? = null,
     /** And the moving version of it, for the records that have one. */
     coverMotionUrl: String? = null,
@@ -378,9 +380,23 @@ fun PlayerScreen(
     var ambient by remember { mutableStateOf<AmbientEdges?>(null) }
     LaunchedEffect(videoOn) { if (!videoOn) ambient = null }
 
-    val auraColors by dev.lelonio.square.ui.theme.rememberArtworkPalette(
+    val readPalette by dev.lelonio.square.ui.theme.rememberArtworkPalette(
         state.artworkUrl.takeIf { canvas == null },
     )
+
+    // The catalogue's own colours for this artwork where it has them.
+    //
+    // Ours are swatches pulled out of the bitmap by whatever reads as most
+    // vivid, and on a crimson sleeve with a black rose on it that came back
+    // blue — a light behind the cover in a colour the cover does not contain.
+    // Theirs were chosen to sit on this picture, and they are the four the
+    // reference itself uses.
+    val catalogAura = remember(catalogPalette) {
+        catalogPalette.mapNotNull { hex ->
+            runCatching { Color(android.graphics.Color.parseColor("#$hex")) }.getOrNull()
+        }
+    }
+    val auraColors = if (canvas == null && catalogAura.isNotEmpty()) catalogAura else readPalette
 
     // The tone the cover fades into, worked out the same way the pages do it.
     val coverAccent by dev.lelonio.square.ui.theme.rememberArtworkColor(state.artworkUrl)
@@ -527,7 +543,22 @@ fun PlayerScreen(
                             )
                         },
                 ) {
-                    CoverAura(colors = auraColors, playing = state.isPlaying)
+                    // Only where there is no picture to expand.
+                    //
+                    // The reference puts no invented light on this screen at
+                    // all: what fills it above and below the cover is the cover
+                    // itself, blurred and carried past its own edges. Coloured
+                    // beams over that are a second, competing source — and being
+                    // colours *chosen* rather than colours present, they can be
+                    // ones the sleeve does not contain. A crimson cover was
+                    // reading blue at the foot of the screen for exactly that
+                    // reason. So this is now the stand-in for a screen with no
+                    // artwork behind it, and nothing else.
+                    if (coverHeroUrl == null && coverSquareUrl == null &&
+                        state.artworkUrl == null
+                    ) {
+                        CoverAura(colors = auraColors, playing = state.isPlaying)
+                    }
                 }
                 }
             }
@@ -1851,13 +1882,13 @@ private fun KaraokeBadge(amount: Float, backdrop: Backdrop, onClick: () -> Unit)
             contentDescription = null,
             // White, like the control it refers to: an accent pulled from the
             // cover lands anywhere, including on the cover itself.
-            tint = Color.White,
+            tint = GlassInk,
             modifier = Modifier.size(13.dp),
         )
         Text(
             stringResource(R.string.karaoke_on, (amount * 100).toInt()),
             style = MaterialTheme.typography.labelMedium,
-            color = Color.White,
+            color = GlassInk,
             modifier = Modifier.padding(start = 6.dp),
         )
     }
@@ -1928,14 +1959,19 @@ private fun ToggleIcon(
 }
 
 /**
- * Fixed light, not themed.
+ * The ink on every glass surface in the app.
  *
- * What sits behind every control here is album art under a dark wash, not the
- * app's page colour, so the light/dark scheme says nothing about what is
- * readable.
+ * Fixed white was the reasoning here for a long time, and it held while the
+ * only thing behind a control was album art under a *dark* wash. With the
+ * system's light setting that wash goes the other way — the artwork is taken up
+ * towards paper, and the film over it is white — so white ink on it is nothing
+ * at all. It follows the app's own ink now, which is what decides that
+ * direction; see SquareTheme.
  */
-internal val GlassInk = Color.White
-internal val GlassInkDim = Color.White.copy(alpha = 0.68f)
+internal val GlassInk: Color
+    @Composable get() = dev.lelonio.square.ui.theme.Ink
+internal val GlassInkDim: Color
+    @Composable get() = dev.lelonio.square.ui.theme.Ink.copy(alpha = 0.68f)
 
 /**
  * The film every glass surface is tinted with.
@@ -1944,7 +1980,14 @@ internal val GlassInkDim = Color.White.copy(alpha = 0.68f)
  * each picked its own: the tab bar came out noticeably paler than the mini
  * player and the search button beside it.
  */
-internal val GlassFilm = Color.White.copy(alpha = 0.12f)
+internal val GlassFilm: Color
+    @Composable get() = if (dev.lelonio.square.ui.theme.lightPage()) {
+        // More of it on the light side: a twelfth of white over a pale page is
+        // not a surface, and the controls have to sit on something.
+        Color.White.copy(alpha = 0.45f)
+    } else {
+        Color.White.copy(alpha = 0.12f)
+    }
 
 /**
  * The lyrics, centre stage.

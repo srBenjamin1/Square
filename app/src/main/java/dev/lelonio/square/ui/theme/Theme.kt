@@ -8,6 +8,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -27,12 +29,12 @@ import androidx.core.view.WindowCompat
 /**
  * Glass over the album art.
  *
- * The scheme is deliberately one-sided now. The paper version had a light and a
- * dark half because the page was opaque and had to match the system; here the
- * page *is* the artwork under a dark wash, so there is only ever dark glass with
- * light ink on it. Following the system theme would mean two backdrops and two
- * sets of legibility rules for a surface whose contrast does not depend on
- * either.
+ * The page is the record that is playing — a colour taken from the artwork,
+ * never a flat sheet — and the system's setting decides which way that colour
+ * is taken. Dark takes it down towards the floor and puts light ink and a dark
+ * film of glass on it; light takes the same colour up towards paper and puts
+ * dark ink and a white film on it. One palette, read in two directions, rather
+ * than two palettes.
  *
  * `background` is transparent on purpose: whatever draws the backdrop sits
  * behind the whole tree, and an opaque page colour would cover it.
@@ -50,6 +52,16 @@ import androidx.core.view.WindowCompat
  * colour is as likely to be near-black as near-white, and either one vanishes
  * against the wrong background.
  */
+/**
+ * Which side the app is on, said plainly.
+ *
+ * Read off the scheme's own surface at first, and that was wrong in a way that
+ * only showed on the other side: every film in this design is a translucent
+ * *white*, so `surface.luminance()` is 1.0 in both settings — alpha is not part
+ * of luminance. Everything keyed on it would have called the dark theme light.
+ */
+val LocalLightTheme = staticCompositionLocalOf { false }
+
 @Composable
 fun SquareTheme(
     /** Dominant colour of the current artwork, or null before anything plays. */
@@ -67,25 +79,50 @@ fun SquareTheme(
     // Keyed on the accent: rebuilding a ColorScheme allocates dozens of colours
     // and invalidates every composable that reads MaterialTheme, so doing it on
     // each recomposition drags the whole tree along with the seek bar.
-    val scheme = remember(animatedAccent) {
-        darkColorScheme(
-            primary = animatedAccent,
-            onPrimary = Color(0xFF0B0D10),
-            primaryContainer = GlassFill,
-            onPrimaryContainer = Ink,
-            secondary = InkDim,
-            // See the note above: the backdrop shows through this.
-            background = Color.Transparent,
-            onBackground = Ink,
-            // Glass, not a card: a translucent white film is what every surface
-            // in this design is made of, and the refraction on top of it comes
-            // from the backdrop library rather than from the colour.
-            surface = GlassFill,
-            onSurface = Ink,
-            surfaceVariant = GlassFillStrong,
-            onSurfaceVariant = InkDim,
-            outlineVariant = Color.White.copy(alpha = 0.16f),
-        )
+    val scheme = remember(animatedAccent, darkTheme) {
+        // The ink and the film are the two things that change side, and both are
+        // read back out of the scheme everywhere else in the app: `Ink` is the
+        // scheme's own onSurface, and the glass takes a white film whenever the
+        // scheme's surface is a light colour. So this is the only place that
+        // knows which way round the app is.
+        val ink = if (darkTheme) DarkInk else LightInk
+        val film = if (darkTheme) DarkFilm else LightFilm
+        val filmStrong = if (darkTheme) DarkFilmStrong else LightFilmStrong
+        if (darkTheme) {
+            darkColorScheme(
+                primary = animatedAccent,
+                onPrimary = Color(0xFF0B0D10),
+                primaryContainer = film,
+                onPrimaryContainer = ink,
+                secondary = ink.copy(alpha = 0.66f),
+                // See the note above: the backdrop shows through this.
+                background = Color.Transparent,
+                onBackground = ink,
+                // Glass, not a card: a translucent film is what every surface in
+                // this design is made of, and the refraction on top of it comes
+                // from the backdrop library rather than from the colour.
+                surface = film,
+                onSurface = ink,
+                surfaceVariant = filmStrong,
+                onSurfaceVariant = ink.copy(alpha = 0.66f),
+                outlineVariant = Color.White.copy(alpha = 0.16f),
+            )
+        } else {
+            lightColorScheme(
+                primary = animatedAccent,
+                onPrimary = Color(0xFFFFFFFF),
+                primaryContainer = film,
+                onPrimaryContainer = ink,
+                secondary = ink.copy(alpha = 0.66f),
+                background = Color.Transparent,
+                onBackground = ink,
+                surface = film,
+                onSurface = ink,
+                surfaceVariant = filmStrong,
+                onSurfaceVariant = ink.copy(alpha = 0.66f),
+                outlineVariant = Color.Black.copy(alpha = 0.14f),
+            )
+        }
     }
 
     // System bar icons have to flip with the theme; left alone they are drawn
@@ -94,28 +131,54 @@ fun SquareTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as android.app.Activity).window
-            // Always light icons: the bars sit over the darkened artwork, not
-            // over the system's idea of a background.
+            // Dark icons over a light page and light ones over a dark page:
+            // the bars sit over the artwork's own colour, which is taken in
+            // whichever direction the system asked for.
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = false
-                isAppearanceLightNavigationBars = false
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
             }
         }
     }
 
-    MaterialTheme(colorScheme = scheme, typography = SpotTypography, content = content)
+    CompositionLocalProvider(LocalLightTheme provides !darkTheme) {
+        MaterialTheme(colorScheme = scheme, typography = SpotTypography, content = content)
+    }
 }
 
 private val DarkBase = Color(0xFF0D0E11)
 private val LightBase = Color(0xFFF1F2F6)
 
-/** The film every glass surface is tinted with. */
-private val GlassFill = Color.White.copy(alpha = 0.10f)
-private val GlassFillStrong = Color.White.copy(alpha = 0.16f)
+/**
+ * The film every glass surface is tinted with.
+ *
+ * White over a dark page and white-with-more-of-it over a light one: the
+ * material is the same, and what changes is how much of the page is left
+ * showing through. The glass code decides its own tint from whether this colour
+ * is light or dark, so these are also the switch for that; see GlassEffect.
+ */
+private val DarkFilm = Color.White.copy(alpha = 0.10f)
+private val DarkFilmStrong = Color.White.copy(alpha = 0.16f)
+private val LightFilm = Color.White.copy(alpha = 0.55f)
+private val LightFilmStrong = Color.White.copy(alpha = 0.72f)
 
-/** Text and icons, fixed light — see the note on [SquareTheme]. */
-val Ink = Color(0xFFF7F8FA)
-val InkDim = Color(0xFFF7F8FA).copy(alpha = 0.66f)
+/** Text and icons, on whichever side of the page they have to be read from. */
+private val DarkInk = Color(0xFFF7F8FA)
+private val LightInk = Color(0xFF15161A)
+
+/**
+ * The colour text and icons are drawn in.
+ *
+ * A composable getter rather than a constant, so the eighty-odd places that
+ * name it did not have to learn about the theme: it is the scheme's own
+ * onSurface, which is light over a dark page and dark over a light one.
+ */
+val Ink: Color
+    @Composable get() = LocalInkOverride.current ?: MaterialTheme.colorScheme.onSurface
+
+/** The same, for what is said quietly. */
+val InkDim: Color
+    @Composable get() = Ink.copy(alpha = 0.66f)
 
 /**
  * Fallback accent, used until artwork provides one.
@@ -138,11 +201,18 @@ private fun Color.liftFor(background: Color): Color {
     )
 }
 
-/** Darken until the colour reads against a near-white background. */
+/**
+ * Darken until the colour reads against a near-white background.
+ *
+ * Taken further than it was. At the old ceiling a mid-tan came out of this
+ * barely touched, and the accent is spent on exactly the things that have to be
+ * found at a glance — the lit tab, the play button, the row that is playing —
+ * so "technically darker than the page" is not enough for it.
+ */
 private fun Color.deepenFor(background: Color): Color {
-    val ceiling = background.luminance() - 0.42f
+    val ceiling = background.luminance() - 0.62f
     if (luminance() <= ceiling) return this
-    val amount = ((luminance() - ceiling) * 1.1f).coerceIn(0f, 0.8f)
+    val amount = ((luminance() - ceiling) * 1.6f).coerceIn(0f, 0.86f)
     return Color(
         red = red * (1f - amount),
         green = green * (1f - amount),

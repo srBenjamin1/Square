@@ -100,7 +100,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import dev.lelonio.square.ui.components.BlurTransformation
 import dev.lelonio.square.ui.glass.backdrop.Backdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.layerBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberLayerBackdrop
@@ -159,10 +158,10 @@ import dev.lelonio.square.ui.search.SearchScreen
 import dev.lelonio.square.ui.onboarding.BackendChoiceScreen
 import dev.lelonio.square.ui.onboarding.OnboardingScreen
 import dev.lelonio.square.ui.settings.SettingsScreen
+import dev.lelonio.square.ui.theme.footToneFor
 import dev.lelonio.square.ui.theme.Ink
 import dev.lelonio.square.ui.theme.pageColorFor
 import dev.lelonio.square.ui.theme.pageColorForHex
-import dev.lelonio.square.ui.theme.PageFloor
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInHorizontally
@@ -171,6 +170,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.togetherWith
 import dev.lelonio.square.ui.theme.SquareTheme
 import dev.lelonio.square.ui.theme.rememberArtworkColor
+import dev.lelonio.square.ui.theme.rememberArtworkFootColor
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import com.adamglin.PhosphorIcons
@@ -232,12 +232,16 @@ private val BottomBarHeight = 62.dp
  * a tint belongs, and only then mixes — so a purple page gives a purple-white and
  * a green one a green-white, whatever the page's own colour was worth.
  */
+@Composable
 private fun inkTintedBy(color: Color): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(color.toArgb(), hsv)
     if (hsv[1] < 0.06f) return Ink
     hsv[1] = hsv[1].coerceIn(0.5f, 1f)
-    hsv[2] = 0.9f
+    // Bright over a dark page and deep over a light one. Fixed bright was the
+    // whole of this before there was a light side, and there it gave a pale
+    // icon on a white film — the tint was right and the direction was not.
+    hsv[2] = if (dev.lelonio.square.ui.theme.lightPage()) 0.38f else 0.9f
     return androidx.compose.ui.graphics.lerp(Ink, Color(android.graphics.Color.HSVToColor(hsv)), 0.3f)
 }
 
@@ -349,11 +353,6 @@ private fun rememberLocalAudioPermission(onAnswered: () -> Unit): () -> Unit {
         else launcher.launch(dev.lelonio.square.data.LocalLibrary.permission)
     }
 }
-
-private const val BACKDROP_DECODE_PX = 128
-
-/** Radius in pixels of the decoded image; see [BlurTransformation]. */
-private val BackdropBlur = BlurTransformation(radius = 14, passes = 2)
 
 @UnstableApi
 @Composable
@@ -694,6 +693,15 @@ fun SquareApp(
     val artBackdrop = rememberLayerBackdrop()
     val pageBackdrop = rememberLayerBackdrop()
 
+    // What the player's own glass refracts: the ambient field made from the
+    // record, and nothing of the page underneath.
+    //
+    // The panes in the player used to sample `artBackdrop`, which is the page's
+    // flat tone — drawn behind a screen that entirely covers it. So the pill
+    // under the title and the transport bent a colour that was not on screen,
+    // and sat on the ambient without ever picking anything up from it.
+    val playerBackdrop = rememberLayerBackdrop()
+
     // Everything the modals cover: the screens, the bars *and* the player. The
     // sheets used to sample `pageBackdrop`, which stops at the navigation host,
     // so opening one over the player blurred the home page behind it instead of
@@ -746,6 +754,13 @@ fun SquareApp(
     // How far the player is open, 0 to 1. A value rather than a destination:
     // see NowPlayingSheet for why the player stopped being a route.
     val expand = remember { Animatable(if (preferences.playerWasOpen()) 1f else 0f) }
+
+    // Open and standing still. Derived rather than read straight, so what
+    // depends on it recomposes twice a journey instead of on every frame of
+    // one; see the player's ambient background.
+    val playerSettled by remember {
+        derivedStateOf { expand.value > 0.999f && !expand.isRunning }
+    }
     val scope = rememberCoroutineScope()
 
     // Remembered for the next launch. Written when the animation settles rather
@@ -1288,7 +1303,6 @@ fun SquareApp(
                             artworkUrl = nowPlayingArt?.heroUrl
                                 ?: nowPlayingArt?.coverUrl
                                 ?: playback.artworkUrl,
-                            asColor = true,
                             tintHex = nowPlayingArt?.bgColor,
                         )
                     }
@@ -1986,9 +2000,22 @@ fun SquareApp(
                     //
                     // The listener's own slider still sets how far it goes; only
                     // the direction is fixed here.
-                    val puckWash = Color.Black.copy(
-                        alpha = (glassConfig.puckOpacity.coerceIn(0f, 1f) * 1.3f).coerceAtMost(0.5f),
-                    )
+                    // Far lighter on the light side. Sinking the lit slot works
+                    // over a dark bar, where the glass around it is already
+                    // dark; over a white film the same wash is a solid blob
+                    // with the page's colour in it, and what should be a mark
+                    // reads as a button someone pressed and left down.
+                    val puckWash = if (dev.lelonio.square.ui.theme.lightPage()) {
+                        Color.Black.copy(
+                            alpha = (glassConfig.puckOpacity.coerceIn(0f, 1f) * 0.13f)
+                                .coerceAtMost(0.11f),
+                        )
+                    } else {
+                        Color.Black.copy(
+                            alpha = (glassConfig.puckOpacity.coerceIn(0f, 1f) * 1.3f)
+                                .coerceAtMost(0.5f),
+                        )
+                    }
 
                     // Searching opens the bar and keeps it open.
                     //
@@ -2444,7 +2471,67 @@ fun SquareApp(
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = chrome }) {
                     NowPlayingSheet(
                         progress = expand,
-                        background = { AppBackdrop(playback.artworkUrl) },
+                        background = {
+                          Box(Modifier.fillMaxSize().layerBackdrop(playerBackdrop)) {
+                            // The player's own room, out of the record it is
+                            // playing: see AmbientArtworkBackground. The tone
+                            // is the catalogue's where it gave one and the
+                            // picture's own where it did not, which is the same
+                            // rule every page in the app follows.
+                            val ambientArt = nowPlayingArt?.heroUrl
+                                ?: nowPlayingArt?.coverUrl
+                                ?: playback.artworkUrl
+                            // The band the fade actually meets, so the screen
+                            // below the cover carries on from where the cover
+                            // stopped rather than jumping to the colour that
+                            // happens to identify the record. See
+                            // rememberArtworkFootColor.
+                            val ambientFoot by rememberArtworkFootColor(ambientArt)
+                            val ambientAccent by rememberArtworkColor(
+                                ambientArt.takeIf { nowPlayingArt?.bgColor == null },
+                            )
+                            dev.lelonio.square.ui.components.AmbientArtworkBackground(
+                                artworkModel = ambientArt,
+                                // The shape the cover above is drawn at, so
+                                // this lies exactly under it; see PlayerScreen.
+                                coverAspect = 3f / 4f,
+                                // The catalogue's colour first, and used the
+                                // way it was filed rather than taken towards
+                                // the theme's paper: it was picked for this
+                                // record, and it is what the reference puts
+                                // behind the same cover. The colour read off
+                                // the picture is the fallback for the records
+                                // it has never heard of.
+                                tone = when {
+                                    nowPlayingArt?.bgColor != null ->
+                                        pageColorForHex(nowPlayingArt?.bgColor, lift = false)
+                                    ambientFoot != null ->
+                                        footToneFor(ambientFoot, lift = false)
+                                    else -> pageColorFor(ambientAccent)
+                                },
+                                // Barely any colour over the picture.
+                                //
+                                // The reference does not put a tone behind its
+                                // player at all: what fills the screen above and
+                                // below the cover is the cover, blurred and
+                                // carried past its edges — dark grey at the top
+                                // because the sleeve's top is dark grey, red at
+                                // the foot because the sleeve ends in a red
+                                // coat. A wash of a chosen colour over that is
+                                // the thing that made ours stop looking like the
+                                // record. What is left is enough to keep the
+                                // controls legible.
+                                toneFloor = 0.08f,
+                                scrimFloor = 0.22f,
+                                // Still while the sheet is travelling: under a
+                                // moving, scaling, fading layer the drift
+                                // cannot be seen, and it is the one moment in
+                                // the app where an always-invalidating
+                                // background would be competing for the frame.
+                                motion = playerSettled,
+                            )
+                          }
+                        },
                         expandedContent = {
                           // The player is the largest glass surface in the app by
                           // a wide margin, so the settings' switch for it is the
@@ -2603,13 +2690,16 @@ fun SquareApp(
                                     )
                                 },
                                 onDeletePreset = viewModel::deleteEffectPreset,
-                                backdrop = artBackdrop,
+                                backdrop = playerBackdrop,
                                 canvas = canvas,
                                 // The record's own artwork from the other
                                 // catalogue, where it has any: the tall picture
                                 // and the moving cover a song inherits from its
                                 // album. Null leaves the player with the square
                                 // cover it always had.
+                                // The colours filed with this artwork, for the
+                                // light that moves behind it; see CoverAura.
+                                catalogPalette = nowPlayingArt?.inkPalette.orEmpty(),
                                 coverHeroUrl = nowPlayingArt?.heroUrl,
                                 coverMotionUrl = nowPlayingArt?.motionUrl,
                                 coverSquareUrl = nowPlayingArt?.coverUrl,
@@ -3177,101 +3267,31 @@ fun SquareApp(
 }
 
 /**
- * The blurred artwork every screen sits on.
+ * The colour every screen sits on, taken from what is playing.
  *
- * Blurred here rather than by the backdrop library: this is the *page*
- * background, not a glass pane, and it has to be soft even where no glass is
- * drawn over it. The scrim on top is what keeps text legible over a bright
- * cover — the palette is built for a dark page.
+ * The player is the exception and has its own: there the record is the subject
+ * and the screen is made of the picture itself — see AmbientArtworkBackground,
+ * which is where the blurred copy of the artwork went.
  */
 @Composable
 private fun AppBackdrop(
     artworkUrl: String?,
-    asColor: Boolean = false,
     /** The catalogue's own page colour for what is playing; see pageColorForHex. */
     tintHex: String? = null,
 ) {
-    // The pages are the colour of what is playing, not a picture of it.
-    //
-    // A blurred cover behind a home page full of covers is a picture behind
-    // pictures: every shelf sits on a different smear of the same artwork, and
-    // nothing on the page is helped by it. The detail pages already answer this
-    // properly — one tone taken from the record, falling away down the screen —
-    // and this is that same treatment for everywhere else, which is also what
-    // makes moving between them feel like one app rather than two.
-    //
-    // The player keeps the picture: there the cover is the subject, and a wash
-    // of its colour behind the very artwork it was taken from says nothing.
-    if (asColor) {
-        val accent by rememberArtworkColor(artworkUrl.takeIf { tintHex == null })
-        // Eased rather than cut: a track change would otherwise repaint the
-        // whole window in one frame, which reads as a flash.
-        val tone by animateColorAsState(
-            targetValue = tintHex?.let(::pageColorForHex) ?: pageColorFor(accent),
-            animationSpec = tween(durationMillis = 700),
-            label = "pageTone",
-        )
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0f to tone,
-                        0.45f to tone,
-                        1f to PageFloor,
-                    ),
-                ),
-        )
-        return
-    }
-
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0A0A0C)),
-    ) {
-        if (artworkUrl != null) {
-            // Blurred at decode time rather than by `Modifier.blur`. That
-            // modifier is a RenderEffect over the whole window, re-run whenever
-            // the layer changes — every frame while the player expands, which is
-            // most of what made it stutter. Stretching a 32px bitmap instead was
-            // free and looked it: bilinear upscaling from that size shows square
-            // blocks, not a wash. This does the blur once per cover, on a small
-            // bitmap, and Coil caches it.
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(artworkUrl)
-                    .size(BACKDROP_DECODE_PX)
-                    .transformations(BackdropBlur)
-                    .allowHardware(false)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        // Light enough that the cover's colour survives it.
-                        //
-                        // At 0.45 to 0.78 the blurred artwork under the player
-                        // arrived as grey: a red sleeve gave a grey-green
-                        // field, which is neither the record's colour nor
-                        // anything the sharp copy above could dissolve into.
-                        // The glass over the controls does its own darkening,
-                        // and the hero's scrim adds the rest at the foot.
-                        0f to Color.Black.copy(alpha = 0.18f),
-                        0.5f to Color.Black.copy(alpha = 0.24f),
-                        1f to Color.Black.copy(alpha = 0.34f),
-                    ),
-                ),
-        )
-    }
+    val accent by rememberArtworkColor(artworkUrl.takeIf { tintHex == null })
+    // Eased rather than cut: a track change would otherwise repaint the
+    // whole window in one frame, which reads as a flash.
+    val tone by animateColorAsState(
+        targetValue = if (tintHex != null) pageColorForHex(tintHex) else pageColorFor(accent),
+        animationSpec = tween(durationMillis = 700),
+        label = "pageTone",
+    )
+    // One colour, held. It used to slide to the floor over the lower half,
+    // which read as the page running out of light rather than as a page with a
+    // colour — and under a screen of shelves there is nothing for a gradient to
+    // describe anyway.
+    Box(Modifier.fillMaxSize().background(tone))
 }
 
 @Composable

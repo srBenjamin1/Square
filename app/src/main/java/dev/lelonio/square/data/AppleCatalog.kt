@@ -6,6 +6,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -80,7 +81,7 @@ object AppleCatalog {
         // bigger pictures means the old rows are answers to a different
         // question. A new name retires them in one line.
         store = context.getSharedPreferences(
-            "apple-catalog-v5",
+            "apple-catalog-v7",
             android.content.Context.MODE_PRIVATE,
         )
     }
@@ -136,6 +137,20 @@ object AppleCatalog {
          * same picture lands somewhere near it and often on a skin tone.
          */
         val bgColor: String? = null,
+        /** The picture's own proportions, width over height. */
+        val heroAspect: Float? = null,
+        /** The ink the catalogue picked for that ground; see textColor1. */
+        val textHex: String? = null,
+        /**
+         * The four inks filed with the picture, brightest first.
+         *
+         * They are not a theme — they are colours taken out of this artwork and
+         * chosen to sit together on it, which is exactly what a light moving
+         * behind the cover needs. A palette worked out here instead pulls
+         * whatever the swatch extractor finds most vivid, and on a crimson
+         * sleeve with a black rose on it that came back blue.
+         */
+        val inkPalette: List<String> = emptyList(),
         /** What Apple's editors wrote about it, where they wrote anything. */
         val notes: String? = null,
         /**
@@ -155,6 +170,20 @@ object AppleCatalog {
         val heroUrl: String?,
         /** The page's own tint, as six hex digits; see Album.bgColor. */
         val bgColor: String? = null,
+        /** The picture's own proportions, width over height. */
+        val heroAspect: Float? = null,
+        /** The ink the catalogue picked for that ground; see textColor1. */
+        val textHex: String? = null,
+        /**
+         * The four inks filed with the picture, brightest first.
+         *
+         * They are not a theme — they are colours taken out of this artwork and
+         * chosen to sit together on it, which is exactly what a light moving
+         * behind the cover needs. A palette worked out here instead pulls
+         * whatever the swatch extractor finds most vivid, and on a crimson
+         * sleeve with a black rose on it that came back blue.
+         */
+        val inkPalette: List<String> = emptyList(),
         /** What Apple's editors wrote about them, where they wrote anything. */
         val bio: String? = null,
         /** Where they are from, or where the band was formed. */
@@ -365,16 +394,65 @@ object AppleCatalog {
         // picture — the vertical crop, framed on the face. The default `bb`
         // fits the whole square inside the frame and pads the rest, which on a
         // header this tall is two bars of flat colour.
-        val hero = attributes["artwork"]?.jsonObject?.template()
-            ?: editorial?.get("subscriptionHero")?.jsonObject?.template()
+        // The picture and the colour have to come out of the same row.
+        //
+        // The colour was read off `artwork` alone while the picture could come
+        // from either that or the editorial one — so an artist filed with only
+        // an editorial portrait had a page with no colour at all, and fell back
+        // to a tone worked out from the photograph. On a portrait that is skin
+        // and hair, which is how a page the catalogue draws in dark brown
+        // arrived as pink.
+        // The tall editorial portrait first, and the square identity picture
+        // only as a fallback.
+        //
+        // `artwork` on an artist is a 2400x2400 square. Asked for a 3:4 header
+        // it is cropped to fit, and a square cropped that hard on a phone-height
+        // header arrives as an eye and an ear. The catalogue files a portrait
+        // drawn for exactly this slot — superHeroTall, 1680x2240 — and asking
+        // for the shape it already is leaves nothing to crop.
+        val heroArt = editorial?.get("superHeroTall")?.jsonObject
+            ?: editorial?.get("staticDetailTall")?.jsonObject
+            ?: attributes["artwork"]?.jsonObject
+            ?: editorial?.get("subscriptionHero")?.jsonObject
+        val hero = heroArt?.template()
+
+        // The colour, though, comes off the identity picture where there is
+        // one. The tall portrait carries the colour of its own padding — white,
+        // usually — while the square one carries the colour the catalogue uses
+        // for the artist's page: dark brown for the artist whose page is dark
+        // brown.
+        val colourArt = attributes["artwork"]?.jsonObject ?: heroArt
 
         val logo = listOf("musicContentColorLogoTrimmed", "brandLogo", "logo")
             .firstNotNullOfOrNull { editorial?.get(it)?.jsonObject }
 
         if (hero == null && logo == null) return null
         return Artist(
-            heroUrl = hero?.let { size(it, HERO_W, HERO_H, crop = "va") },
-            bgColor = attributes["artwork"]?.jsonObject?.get("bgColor")?.jsonPrimitive?.content,
+            // At the picture's own proportions rather than forced into a
+            // portrait shape.
+            //
+            // Some artists are filed with a tall portrait drawn for this slot
+            // and some with only a square identity picture. Asking every one of
+            // them for 3:4 crops the square ones hard, and a square face cropped
+            // to a phone-tall header is an eye and an ear. Asked for the shape
+            // it already is, nothing is cut; the page below is what makes up the
+            // height, the way the reference does it.
+            heroUrl = hero?.let {
+                val ratio = heroRatio(heroArt)
+                if (ratio == null) {
+                    size(it, HERO_W, HERO_H, crop = "va")
+                } else {
+                    size(it, HERO_W, (HERO_W / ratio).toInt().coerceAtLeast(1))
+                }
+            },
+            heroAspect = heroRatio(heroArt),
+            bgColor = colourArt?.get("bgColor")?.jsonPrimitive?.content,
+            // The catalogue files the ink beside the ground, picked for it.
+            // Working one out ourselves from the ground's brightness is a
+            // guess at a decision somebody already made, and it shows: theirs
+            // is a near-white with a trace of the photograph in it.
+            textHex = colourArt?.get("textColor1")?.jsonPrimitive?.content,
+            inkPalette = inkPaletteOf(colourArt),
             bio = attributes["artistBio"]?.jsonPrimitive?.content,
             origin = attributes["bornOrFormed"]?.jsonPrimitive?.content,
             // At the picture's own proportions, whatever they are. Every crop
@@ -481,19 +559,34 @@ object AppleCatalog {
             ?.let { it["standard"] ?: it["short"] }
             ?.jsonPrimitive?.content
 
+        // One row for the colour and the ink, the way the artist's is read.
+        val pageArt = attributes["editorialArtwork"]?.jsonObject
+            ?.get("staticDetailTall")?.jsonObject
+            ?: attributes["artwork"]?.jsonObject
+
         if (tall == null && cover == null) return null
         return Album(
             heroUrl = (tall ?: motionStill)?.let { size(it, DETAIL_W, DETAIL_H) },
             motionUrl = motionUrl,
-            bgColor = (
-                attributes["editorialArtwork"]?.jsonObject
-                    ?.get("staticDetailTall")?.jsonObject
-                    ?: attributes["artwork"]?.jsonObject
-                )?.get("bgColor")?.jsonPrimitive?.content,
+            bgColor = pageArt?.get("bgColor")?.jsonPrimitive?.content,
+            textHex = pageArt?.get("textColor1")?.jsonPrimitive?.content,
+            inkPalette = inkPaletteOf(pageArt),
             coverUrl = cover?.let { size(it, COVER_PX, COVER_PX) },
             notes = notes,
         )
     }
+
+    /** An artwork row's own proportions, width over height. */
+    private fun heroRatio(art: JsonObject?): Float? {
+        val w = art?.get("width")?.jsonPrimitive?.content?.toFloatOrNull() ?: return null
+        val h = art["height"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return null
+        return (w / h).takeIf { it.isFinite() && it > 0f }
+    }
+
+    /** The four text colours filed with an artwork row, in order. */
+    private fun inkPaletteOf(art: JsonObject?): List<String> =
+        listOf("textColor1", "textColor2", "textColor3", "textColor4")
+            .mapNotNull { art?.get(it)?.jsonPrimitive?.content }
 
     /**
      * The full-height picture a record's page opens with, where it has one.

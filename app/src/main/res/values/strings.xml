@@ -419,4 +419,6 @@
     <string name="canvas">Canvas</string>
     <string name="canvas_show">Show looping clips</string>
     <string name="canvas_note">The short video some tracks come with. Off, none is downloaded either.</string>
+    <string name="show_all">Show all</string>
+    <string name="show_less">Show less</string>
 </resources>

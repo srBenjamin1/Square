@@ -413,4 +413,6 @@
     <string name="canvas">Canvas</string>
     <string name="canvas_show">लूप क्लिप दिखाएँ</string>
     <string name="canvas_note">कुछ गानों के साथ आने वाला छोटा वीडियो. बंद होने पर डाउनलोड भी नहीं होता.</string>
+    <string name="show_all">सभी दिखाएँ</string>
+    <string name="show_less">कम दिखाएँ</string>
 </resources>

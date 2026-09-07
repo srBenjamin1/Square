@@ -399,4 +399,6 @@
     <string name="canvas">Canvas</string>
     <string name="canvas_show">Mostra i video in loop</string>
     <string name="canvas_note">Il breve video che alcuni brani portano con sé. Disattivato, non viene nemmeno scaricato.</string>
+    <string name="show_all">Mostra tutto</string>
+    <string name="show_less">Mostra meno</string>
 </resources>

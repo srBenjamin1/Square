@@ -47,6 +47,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.lerp
@@ -100,9 +101,11 @@ import dev.lelonio.square.ui.glass.LiquidButton
 import dev.lelonio.square.ui.glass.shapes.ContinuousCapsule
 import dev.lelonio.square.ui.glass.pressable
 import dev.lelonio.square.ui.theme.InkDim
+import dev.lelonio.square.ui.theme.footToneFor
 import dev.lelonio.square.ui.theme.rememberArtworkColor
-import dev.lelonio.square.ui.theme.PageFloor
+import dev.lelonio.square.ui.theme.rememberArtworkFootColor
 import dev.lelonio.square.ui.theme.pageColorFor
+import dev.lelonio.square.ui.theme.pageColorForHex
 import dev.lelonio.square.ui.theme.softShadow
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -110,6 +113,7 @@ import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.Bold
 import com.adamglin.phosphoricons.Regular
+import com.adamglin.phosphoricons.regular.CaretRight
 import com.adamglin.phosphoricons.fill.ArrowCircleDown
 import com.adamglin.phosphoricons.fill.Check
 import com.adamglin.phosphoricons.fill.MagnifyingGlass
@@ -272,6 +276,13 @@ fun PlaylistScreen(
     // one on screen.
     val asContext = sort == TrackSort.ORIGINAL && !descending && query.isBlank()
 
+    // Whether the top songs are shown in full.
+    //
+    // An artist page is several sections and the songs are one of them, so it
+    // opens on the handful the reference shows and the heading is the way to
+    // the rest. Kept per artist: opening a second artist starts closed again.
+    var topSongsOpen by remember(state.uri) { mutableStateOf(false) }
+
     // Derived, not stored: keeping a second list in state would leave the two
     // able to disagree after a reload.
     val visible = remember(state.tracks, query, sort, descending) {
@@ -314,6 +325,13 @@ fun PlaylistScreen(
     // image it is not displaying is what leaves the header and the page below it
     // visibly two different browns.
     val accent by rememberArtworkColor(state.heroUrl ?: state.coverUrl ?: state.artworkUrl)
+
+    // The colour of the picture's own bottom edge, which is what the page below
+    // it carries on in; see rememberArtworkFootColor.
+    val heroFoot by rememberArtworkFootColor(
+        (state.heroUrl ?: state.coverUrl ?: state.artworkUrl)
+            .takeIf { state.heroUrl != null || !state.heroPending },
+    )
     // The catalogue's own colour for the page where there is one, and a colour
     // worked out from the cover where there is not. Theirs is chosen for the
     // record; ours is the most common colour in a photograph, which on a
@@ -324,16 +342,45 @@ fun PlaylistScreen(
     // its icons are a green-tinted white, and that is most of why the controls
     // look like part of the picture rather than pasted onto it. A sixth of the
     // page colour is enough to see and not enough to read as grey.
-    val pageInk = remember(accent, state.tintHex) {
-        val source = state.tintHex
+    // Not remembered: the tint it is built from now depends on which way the
+    // app is being read, and that changes under the composition rather than
+    // with the record.
+    val inkSource = remember(accent, state.tintHex) {
+        state.tintHex
             ?.let { hex -> runCatching { Color(android.graphics.Color.parseColor("#$hex")) }.getOrNull() }
             ?: accent
-        source?.let(::inkTintedBy) ?: Color.White
     }
 
-    val pageColor = remember(accent, state.tintHex) {
-        state.tintHex?.let(::tintOf) ?: pageColorFor(accent)
+    // Not remembered: both halves of this read the theme now, so the answer
+    // changes when the system does. It is two lerps.
+    // The record's own colour, as dark or as light as it is.
+    //
+    // Not taken up towards paper on the light side, which is what had a page
+    // the reference draws in dark brown coming out pink: the catalogue picked
+    // that colour to be a page, and the reference uses it the same way whether
+    // the phone is set to light or dark. The app's own chrome still follows the
+    // system; this is the record's, and it owns its ground.
+    val pageColor = if (state.tintHex != null) {
+        pageColorForHex(state.tintHex, lift = false)
+    } else {
+        footToneFor(heroFoot ?: accent, mix = 0.5f, lift = false)
     }
+
+    // And the ink this page needs, which its own ground decides — not the
+    // system's setting. A brown page wants light letters in both settings, and
+    // that is exactly what the reference does; see inkOn.
+    // The catalogue's own ink for this page where it gave one — which is what
+    // makes the letters the same letters as the reference's, rather than a
+    // near-white we worked out ourselves and got slightly pink.
+    val catalogueInk = remember(state.inkHex) {
+        state.inkHex?.let { hex ->
+            runCatching { Color(android.graphics.Color.parseColor("#$hex")) }.getOrNull()
+        }
+    }
+    val baseInk = dev.lelonio.square.ui.theme.inkOn(pageColor)
+    val pageInk = catalogueInk
+        ?: inkSource?.let { inkTintedBy(it, baseInk) }
+        ?: baseInk
 
     // What the glass on this screen refracts.
     //
@@ -397,6 +444,39 @@ fun PlaylistScreen(
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
     val floorStart = ((heroHeight + 40.dp) / screenHeight).coerceIn(0.35f, 0.95f)
 
+    // How tall the picture itself is, which is not the same as how tall the
+    // header is: the catalogue files some artists as a tall portrait and some
+    // as a square, and each is drawn at the shape it was made in. What is left
+    // of the header below it is the picture carrying on, blurred.
+    val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    val artHeight = state.heroAspect
+        ?.let { (screenWidth / it).coerceIn(200.dp, heroHeight) }
+        ?: heroHeight
+
+    /** Where the picture's own bottom edge falls, as a fraction of the screen. */
+    val heroFraction = (artHeight / screenHeight).coerceIn(0.3f, 0.95f)
+
+
+    // Everything on this page reads the app's ink, and on this page the app's
+    // ink is the page's own: see LocalInkOverride. It saves every row, label
+    // and icon here from having to know that a record's page does not follow
+    // the system's light and dark.
+    // Everything here reads either the app's ink or Material's own colours, and
+    // on this page both have to come from the record rather than from the
+    // phone: a dark brown page in the system's light setting was drawing its
+    // track titles in the light theme's near-black.
+    androidx.compose.runtime.CompositionLocalProvider(
+        dev.lelonio.square.ui.theme.LocalInkOverride provides pageInk,
+        androidx.compose.material3.LocalContentColor provides pageInk,
+    ) {
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme.copy(
+            onSurface = pageInk,
+            onSurfaceVariant = pageInk.copy(alpha = 0.66f),
+            onBackground = pageInk,
+        ),
+        typography = MaterialTheme.typography,
+    ) {
     Box(Modifier.fillMaxSize()) {
         // The page, without the things that sample it.
         //
@@ -413,24 +493,16 @@ fun PlaylistScreen(
         Box(
             Modifier
                 .fillMaxSize()
-                // Opaque, so the app-wide blurred artwork of the playing track
-                // does not show through and re-tint the page.
-                .background(
-                    Brush.verticalGradient(
-                        // Held flat until below the header, then falling away.
-                        //
-                        // Not a fixed fraction, which is what this was: the
-                        // header's last row is opaque page colour, so wherever
-                        // the fall starts above its bottom edge the page under
-                        // it is already darker — and the two meet as a line
-                        // across the screen. Starting the fall where the header
-                        // ends is what makes the picture and the page one
-                        // surface.
-                        0f to pageColor,
-                        floorStart to pageColor,
-                        1f to PageFloor,
-                    ),
-                )
+                // One colour, held all the way down, and the picture ends on it.
+                //
+                // The player is the screen made of the record — there the cover
+                // is carried past its own edge and nothing covers it. A page is
+                // not that: it is a list with a picture at the top, and the
+                // reference gives it a single flat ground, the colour the
+                // catalogue filed for this record, with the photograph
+                // dissolving into that colour rather than into a blurred
+                // continuation of itself.
+                .background(pageColor)
                 .layerBackdrop(pageBackdrop),
         ) {
             // Every page is its own picture, filling the top of the screen:
@@ -454,6 +526,7 @@ fun PlaylistScreen(
                 heroPx = heroPx,
                 collapsedPx = collapsedPx,
                 collapse = collapseFraction,
+                imageAspect = state.heroAspect,
             )
         }
 
@@ -527,22 +600,6 @@ fun PlaylistScreen(
         )
         }
 
-        // Behind the "i", and above the list rather than inside it. On the
-        // reference this is a screen of its own; unfolding it under the
-        // photograph says the same thing without taking the reader off the page
-        // they came for — and outside the lazy list, because a row that is not
-        // currently composed does not notice the button being pressed.
-        if (isArtist) {
-            AnimatedVisibility(visible = infoOpen) {
-                ArtistAbout(
-                    followers = state.followers,
-                    genres = state.genres,
-                    origin = state.origin,
-                    bio = state.notes,
-                )
-            }
-        }
-
         LazyColumn(
             state = listState,
             // Recorded so the sort menu has something to blur. It opens over
@@ -555,6 +612,29 @@ fun PlaylistScreen(
                 .nestedScroll(headerScroll),
             contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
         ) {
+            // Behind the "i". On the reference this is a screen of its own;
+            // unfolding it under the photograph says the same thing without
+            // taking the reader off the page they came for.
+            //
+            // Inside the list, not above it. Above it, in the column that holds
+            // the header, it took its height out of the list's — and a bio long
+            // enough to fill the rest of the screen left the list with none, so
+            // opening the "i" stopped the page scrolling entirely. The button
+            // that opens it is still outside the list, which is what the old
+            // note here was actually about.
+            if (isArtist) {
+                item(contentType = "about") {
+                    AnimatedVisibility(visible = infoOpen) {
+                        ArtistAbout(
+                            followers = state.followers,
+                            genres = state.genres,
+                            origin = state.origin,
+                            bio = state.notes,
+                        )
+                    }
+                }
+            }
+
             if (isArtist) {
                 state.latest?.let { release ->
                     item(contentType = "latestRelease") {
@@ -599,6 +679,12 @@ fun PlaylistScreen(
                         sort = sort,
                         onSortOpen = { sortOpen = it },
                         onAnchor = { sortAnchor = it },
+                        // Only where there is more than what is shown.
+                        expandable = isArtist &&
+                            query.isBlank() &&
+                            visible.size > TOP_SONGS,
+                        expanded = topSongsOpen,
+                        onToggle = { topSongsOpen = !topSongsOpen },
                     )
                 }
 
@@ -681,7 +767,13 @@ fun PlaylistScreen(
                 }
 
                 else -> itemsIndexed(
-                    items = visible,
+                    // Cut to the first few on an artist, unless the heading has
+                    // been opened; every other page shows what it holds.
+                    items = if (isArtist && !topSongsOpen && query.isBlank()) {
+                        visible.take(TOP_SONGS)
+                    } else {
+                        visible
+                    },
                     // Index in the key as well as the URI: a playlist may hold
                     // the same track twice, and duplicate keys crash the list.
                     key = { index, track -> "$index ${track.uri}" },
@@ -946,6 +1038,8 @@ fun PlaylistScreen(
             }
         }
 
+    }
+    }
     }
 }
 
@@ -1273,6 +1367,8 @@ private fun HeroArt(
     heroPx: Int,
     collapsedPx: Int,
     collapse: () -> Float,
+    /** The picture's own proportions, where the catalogue gave them. */
+    imageAspect: Float? = null,
 ) {
     // The picture and its fade are the same everywhere the app shows a cover
     // large — here and in the player; see HeroBackdrop. What belongs to this
@@ -1282,6 +1378,33 @@ private fun HeroArt(
         title = name,
         pageColor = pageColor,
         motionUrl = motionUrl,
+        imageAspect = imageAspect,
+        // Measured against the reference rather than chosen.
+        //
+        // Ours was flat page colour by 38% of the way down the screen; theirs
+        // still has the curtain behind the name at 44% and does not finish
+        // until past halfway. A picture that ends above the title leaves the
+        // title sitting on a panel, which is the difference you can see between
+        // the two screens even when the colour underneath is identical.
+        // Late, now that the picture is drawn at its own shape rather than
+        // cropped into the header's.
+        //
+        // These are fractions of the picture, not of the screen. While it was
+        // stretched over the whole header, starting at 44% put the fade
+        // somewhere near the bottom of the frame; at its own height that same
+        // number has the photograph half gone by its middle. What is wanted is
+        // a picture that reads as a picture and gives way in its last stretch —
+        // which is what the player does, and the reference with it.
+        softenFrom = if (imageAspect != null) 0.58f else 0.44f,
+        // Finished before the edge, not on it: a picture that is one percent
+        // still there where it stops has a border, and that border is the line.
+        // A long tail. The reference still has the curtain faintly behind its
+        // name and buttons at 48% of the screen and only settles past 60%; ours
+        // was flat page colour by 42%, which is the picture ending rather than
+        // giving way. Past the picture's own foot the fade has nothing left to
+        // thin, so the length has to come from starting it earlier and taking
+        // it all the way to the edge.
+        softenTo = if (imageAspect != null) 1f else 0.96f,
         modifier = Modifier
             .fillMaxWidth()
             .heroCollapse(heroPx, collapsedPx, collapse),
@@ -1375,10 +1498,25 @@ private fun ArtistHeader(
                         // The photo behind it is somebody's face and cannot be
                         // relied on for contrast. A soft shadow costs nothing
                         // and keeps the name readable over a white shirt.
-                        shadow = Shadow(Color.Black.copy(alpha = 0.5f), Offset(0f, 2f), 18f),
+                        // Cast the other way on a light page, where a black
+                        // shadow under dark letters is a smudge and what the
+                        // name needs is a halo.
+                        shadow = Shadow(
+                            if (ink.luminance() > 0.5f) {
+                                Color.Black.copy(alpha = 0.5f)
+                            } else {
+                                Color.White.copy(alpha = 0.75f)
+                            },
+                            Offset(0f, 2f),
+                            18f,
+                        ),
                     ),
                     fontWeight = FontWeight.Black,
-                    color = Color.White,
+                    // The name sits partly on the photograph and partly on the
+                    // page, so it takes the page's ink rather than a fixed
+                    // white: on a light page a white name over a pale ground is
+                    // not a name.
+                    color = ink,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -1416,11 +1554,17 @@ private fun ArtistHeader(
                         contentDescription = stringResource(R.string.play),
                         tint = pageColor,
                         modifier = Modifier
-                            .size(28.dp)
-                            // The glyph's own weight sits left of the circle's
-                            // centre; nudged back, or the triangle looks like it
-                            // is falling out of the button.
-                            .padding(start = 3.dp),
+                            // Measured off the reference: their triangle is
+                            // about 45% of the circle across, and ours was 30%
+                            // — a small mark in a large button, which reads as
+                            // the button being empty. The glyph carries its own
+                            // margin inside the icon's box, so the box has to be
+                            // larger than the triangle wanted.
+                            .size(40.dp)
+                            // The triangle's weight sits left of its own centre;
+                            // nudged back so it looks centred rather than
+                            // measuring centred.
+                            .padding(start = 2.dp),
                     )
                 }
 
@@ -1829,6 +1973,10 @@ private fun SectionHeader(
     onSortOpen: (Boolean) -> Unit,
     /** Where the sort button is, for the menu drawn above the list. */
     onAnchor: (IntOffset) -> Unit,
+    /** Whether there is more of this section than the page is showing. */
+    expandable: Boolean = false,
+    expanded: Boolean = false,
+    onToggle: () -> Unit = {},
 ) {
     Row(
         Modifier
@@ -1836,6 +1984,23 @@ private fun SectionHeader(
             .padding(start = 24.dp, end = 14.dp, top = 22.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The heading itself is the way in, which is how the reference does it:
+        // the title and the mark after it are one target, and there is no
+        // separate "see all" anywhere on the page.
+        Row(
+            Modifier
+                .weight(1f)
+                .then(
+                    if (expandable) {
+                        Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .pressable(onToggle, pressedScale = 0.97f)
+                    } else {
+                        Modifier
+                    },
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
         Text(
             title,
             style = if (large) {
@@ -1844,8 +2009,29 @@ private fun SectionHeader(
                 MaterialTheme.typography.titleMedium
             },
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f),
         )
+
+        if (expandable) {
+            // Pointing on, and turning down once the rest is out: the same mark
+            // saying both "there is more" and "this is all of it".
+            val turn by animateFloatAsState(
+                targetValue = if (expanded) 90f else 0f,
+                animationSpec = tween(220),
+                label = "sectionCaret",
+            )
+            Icon(
+                PhosphorIcons.Regular.CaretRight,
+                contentDescription = stringResource(
+                    if (expanded) R.string.show_less else R.string.show_all,
+                ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .size(16.dp)
+                    .graphicsLayer { rotationZ = turn },
+            )
+        }
+        }
 
         IconButton(
             onClick = { onSortOpen(true) },
@@ -1870,6 +2056,9 @@ private fun SectionHeader(
     }
 }
 
+/** How many songs an artist page opens on; the heading holds the rest. */
+private const val TOP_SONGS = 5
+
 /** What the hero shrinks to: a bar, under the status bar's own inset. */
 private val COLLAPSED_BAR_HEIGHT = 56.dp
 
@@ -1893,16 +2082,6 @@ private const val HERO_BLUR_PX = 240
 private val HeroBlur = BlurTransformation(radius = 10, passes = 2)
 
 /**
- * A page tone from the six hex digits the catalogue files with the artwork.
- *
- * Darkened, but much less than a colour taken out of a photograph: this one was
- * picked to be a background and is already the right kind of colour, where a
- * dominant colour arrives at whatever saturation the picture had.
- */
-private fun tintOf(hex: String): Color =
-    dev.lelonio.square.ui.theme.pageColorForHex(hex)
-
-/**
  * White, carrying a colour's hue and none of its darkness.
  *
  * Mixing white with the page colour itself is what this did first, and on a page
@@ -1911,13 +2090,15 @@ private fun tintOf(hex: String): Color =
  * tint belongs, and only then mixing gives a purple-white on a purple page and a
  * green-white on a green one.
  */
-private fun inkTintedBy(color: Color): Color {
+private fun inkTintedBy(color: Color, ink: Color): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(color.toArgb(), hsv)
-    if (hsv[1] < 0.06f) return Color.White
+    if (hsv[1] < 0.06f) return ink
     hsv[1] = hsv[1].coerceIn(0.5f, 1f)
-    hsv[2] = 0.92f
-    return lerp(Color.White, Color(android.graphics.Color.HSVToColor(hsv)), 0.26f)
+    // Bright where the ink is light and deep where it is dark: the tint is the
+    // page's either way, and only the direction changes.
+    hsv[2] = if (ink.luminance() > 0.5f) 0.92f else 0.36f
+    return lerp(ink, Color(android.graphics.Color.HSVToColor(hsv)), 0.26f)
 }
 
 
@@ -2394,13 +2575,17 @@ private fun ArtistAbout(
 @Composable
 private fun FollowPill(following: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(percent = 50)
+    // Filled with the ink and lettered in whatever the ink is not: white on
+    // black over a dark page, black on white over a light one.
+    val pillInk = dev.lelonio.square.ui.theme.Ink
+    val onPillInk = if (dev.lelonio.square.ui.theme.lightPage()) Color.White else Color.Black
     Row(
         Modifier
             .clip(shape)
-            .background(if (following) Color.Transparent else Color.White, shape)
+            .background(if (following) Color.Transparent else pillInk, shape)
             .then(
                 if (following) {
-                    Modifier.border(1.dp, Color.White.copy(alpha = 0.4f), shape)
+                    Modifier.border(1.dp, pillInk.copy(alpha = 0.4f), shape)
                 } else {
                     Modifier
                 },
@@ -2413,7 +2598,7 @@ private fun FollowPill(following: Boolean, onClick: () -> Unit) {
             stringResource(if (following) R.string.following else R.string.follow),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
-            color = if (following) Color.White else Color.Black,
+            color = if (following) pillInk else onPillInk,
             maxLines = 1,
         )
     }

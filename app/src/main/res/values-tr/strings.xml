@@ -412,4 +412,6 @@
     <string name="canvas">Canvas</string>
     <string name="canvas_show">Döngü kliplerini göster</string>
     <string name="canvas_note">Bazı şarkıların getirdiği kısa video. Kapalıyken indirilmez de.</string>
+    <string name="show_all">Tümünü göster</string>
+    <string name="show_less">Daha az göster</string>
 </resources>
