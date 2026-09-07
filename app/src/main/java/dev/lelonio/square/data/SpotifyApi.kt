@@ -94,7 +94,11 @@ interface SpotifyApi {
      * what they actually played.
      */
     @GET("v1/browse/new-releases")
-    suspend fun newReleases(@Query("limit") limit: Int = 12): NewReleasesDto
+    suspend fun newReleases(
+        @Query("limit") limit: Int = 12,
+        /** Fifty at a time is this endpoint's maximum, so more means paging. */
+        @Query("offset") offset: Int = 0,
+    ): NewReleasesDto
 
     /** Needs the `user-top-read` scope; 403 without it. */
     @GET("v1/me/top/artists")
@@ -339,7 +343,8 @@ interface SpotifyApi {
     suspend fun search(
         @Query("q") query: String,
         @Query("type") type: String = "track,album,artist,playlist",
-        @Query("limit") limit: Int = 20,
+        /** Fifty is this endpoint's maximum, and the fallback should not be thinner. */
+        @Query("limit") limit: Int = 40,
     ): SearchDto
 }
 

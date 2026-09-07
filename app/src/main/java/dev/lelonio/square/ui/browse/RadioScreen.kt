@@ -10,9 +10,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as rowItems
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,11 +60,24 @@ import dev.lelonio.square.ui.theme.InkDim
 fun RadioScreen(
     /** Seeds, already reduced to one per artist by the caller. */
     seeds: List<CatalogTrack>,
+    /**
+     * Spotify's own mixes and stations, as it makes them for this account.
+     *
+     * The grid below is built here — one station per artist the account plays —
+     * and it can only ever be as varied as what has been listened to. These are
+     * assembled on their side, out of things the listener has not played yet,
+     * and they change from one day to the next.
+     */
+    shelves: List<dev.lelonio.square.data.HomeShelf>,
+    /** Whether those rows are still coming; see SkeletonRow. */
+    shelvesLoading: Boolean,
     loading: Boolean,
     contentPadding: PaddingValues,
     onOpen: (CatalogTrack) -> Unit,
+    /** Opens one of Spotify's own, which is a context rather than a seed. */
+    onOpenMix: (dev.lelonio.square.data.CatalogPlaylist) -> Unit,
 ) {
-    if (seeds.isEmpty()) {
+    if (seeds.isEmpty() && shelves.isEmpty() && !shelvesLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             if (loading) {
                 CircularProgressIndicator(strokeWidth = 2.dp)
@@ -98,18 +114,93 @@ fun RadioScreen(
             )
         }
 
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text(
-                stringResource(R.string.stations_for_you),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 2.dp),
-            )
+        // The outline of what is coming, while it is coming.
+        if (shelvesLoading && shelves.isEmpty()) {
+            items(
+                count = SKELETON_ROWS,
+                span = { GridItemSpan(maxLineSpan) },
+                key = { "skeleton $it" },
+                contentType = { "skeleton" },
+            ) {
+                SkeletonRow(tiles = 3)
+            }
         }
 
-        items(seeds, key = { it.uri }) { seed ->
-            StationTile(seed) { onOpen(seed) }
+        // Spotify's own first, under its own headings: they are titled for
+        // this listener, and they are the half of the page that is new every
+        // day rather than as old as the listening behind it.
+        shelves.forEach { shelf ->
+            item(span = { GridItemSpan(maxLineSpan) }, key = "shelf ${shelf.title}") {
+                Text(
+                    shelf.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 2.dp),
+                )
+            }
+            item(span = { GridItemSpan(maxLineSpan) }, key = "row ${shelf.title}") {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    rowItems(shelf.items, key = { it.uri }) { mix ->
+                        MixTile(mix) { onOpenMix(mix) }
+                    }
+                }
+            }
         }
+
+        if (seeds.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    stringResource(R.string.stations_for_you),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 18.dp, bottom = 2.dp),
+                )
+            }
+
+            items(seeds, key = { it.uri }) { seed ->
+                StationTile(seed) { onOpen(seed) }
+            }
+        }
+    }
+}
+
+/** How many outlines stand in for the rows that are coming. */
+private const val SKELETON_ROWS = 2
+
+/**
+ * One of Spotify's own mixes, in a row rather than in the grid.
+ *
+ * Smaller than a station tile and named under the cover instead of over it:
+ * these arrive with names their covers already carry — "Daily Mix 1", "Radio di
+ * Madame" — and printing the name twice over the artwork is how a page of tiles
+ * turns into a page of labels.
+ */
+@Composable
+private fun MixTile(
+    mix: dev.lelonio.square.data.CatalogPlaylist,
+    onClick: () -> Unit,
+) {
+    Column(
+        Modifier
+            .width(146.dp)
+            .pressable(onClick, pressedScale = 0.97f),
+    ) {
+        Artwork(
+            url = mix.artworkUrl,
+            title = mix.name,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f),
+            corner = 12.dp,
+            decodeSize = 146.dp,
+        )
+        Text(
+            mix.name,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 

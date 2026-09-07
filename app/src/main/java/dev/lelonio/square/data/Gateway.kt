@@ -114,6 +114,58 @@ class Gateway(private val keys: PathfinderKeys) {
     }
 
     /**
+     * One page of Spotify's own browse, as rows.
+     *
+     * The home query answers with what this account is shown when it opens the
+     * app; this answers with what the catalogue has to offer — new releases
+     * chosen for the listener, the editors' playlists, the charts, the daily
+     * mixes — which is a different question and a much larger answer. Pages are
+     * addressed by uri: see BrowsePages.
+     *
+     * Null when the gateway will not answer, which is the ordinary case for a
+     * retired hash; every caller draws its page without it.
+     */
+    suspend fun browsePage(uri: String, sections: Int = BROWSE_SECTIONS): String? {
+        keys.refresh()
+        return runCatching {
+            query(
+                operation = "browsePage",
+                hash = keys.browsePage,
+                // Exactly the shape the web player sends, values included; see
+                // the note on search.
+                variables = """{"pagePagination":{"offset":0,"limit":$sections},""" +
+                    """"sectionPagination":{"offset":0,"limit":$BROWSE_ITEMS},""" +
+                    """"uri":"$uri","browseEndUserIntegration":"INTEGRATION_WEB_PLAYER",""" +
+                    """"includeEpisodeContentRatingsV2":true}""",
+            )
+        }
+            .onFailure { android.util.Log.i(TAG, "browse page unavailable: ${it.message}") }
+            .getOrNull()
+    }
+
+    /**
+     * One row of a browse page, past the handful the page itself carries.
+     *
+     * The page answers with ten items a row and says how many there are — a
+     * thousand, for the new releases picked for a listener — so a row worth
+     * scrolling is this query, not that one.
+     */
+    suspend fun browseSection(uri: String, offset: Int, limit: Int = BROWSE_PAGE): String? {
+        keys.refresh()
+        return runCatching {
+            query(
+                operation = "browseSection",
+                hash = keys.browseSection,
+                variables = """{"pagination":{"offset":$offset,"limit":$limit},""" +
+                    """"uri":"$uri","browseEndUserIntegration":"INTEGRATION_WEB_PLAYER",""" +
+                    """"includeEpisodeContentRatingsV2":true}""",
+            )
+        }
+            .onFailure { android.util.Log.i(TAG, "browse section unavailable: ${it.message}") }
+            .getOrNull()
+    }
+
+    /**
      * Reads a list to its end.
      *
      * Null when the first page will not come back, and null part way through
@@ -173,10 +225,25 @@ class Gateway(private val keys: PathfinderKeys) {
          */
         const val PAGE = 200
 
-        /** What one page of each kind of search result holds, as the web player asks. */
-        const val SEARCH_LIMIT = 10
+        /**
+         * What one page of each kind of search result holds.
+         *
+         * Twenty rather than the ten the web player's overview asks for — that
+         * is the size it uses itself the moment you open one of the categories,
+         * so it is still a page shape this endpoint sees all day, and it is the
+         * difference between four songs under a heading and a list worth
+         * scrolling.
+         */
+        const val SEARCH_LIMIT = 20
 
         /** And how many of the best of everything it asks for; see [search]. */
-        const val TOP_RESULTS = 5
+        const val TOP_RESULTS = 8
+
+        /** How many rows of a browse page to read, and how much of each. */
+        const val BROWSE_SECTIONS = 10
+        const val BROWSE_ITEMS = 10
+
+        /** And how much of a single row, when one is read on its own. */
+        const val BROWSE_PAGE = 20
     }
 }

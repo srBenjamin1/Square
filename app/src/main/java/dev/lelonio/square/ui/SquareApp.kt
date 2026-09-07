@@ -315,7 +315,15 @@ private val TAB_ROUTES =
     setOf(Routes.HOME, Routes.NEW, Routes.RADIO, Routes.LIBRARY, Routes.SEARCH)
 
 /** How many stations the radio tab offers. Enough to scroll, few enough to read. */
-private const val RADIO_SEEDS = 14
+private const val RADIO_SEEDS = 36
+
+/**
+ * How far the radio page's order moves each day.
+ *
+ * A prime, so a list of any length works its way through all of itself rather
+ * than landing on the same few starting points.
+ */
+private const val DAILY_TURN = 7
 
 /**
  * Decode size of the page backdrop, in pixels.
@@ -549,10 +557,36 @@ fun SquareApp(
         }
     }
 
-    val radioSeeds = remember(feed.topTracks, feed.allTimeTracks) {
-        (feed.topTracks + feed.allTimeTracks)
-            .filter { it.uri.startsWith("spotify:track:") }
+    // Everything the account has actually touched, one station per artist.
+    //
+    // It used to be the two lists of top tracks and nothing else, and those are
+    // computed monthly at best: the page was the same fourteen names for weeks
+    // at a time. These sources move at different speeds — what was played this
+    // hour, what was searched for, what came out this week, what is on repeat
+    // this month, what has been on repeat for years — so between them there is
+    // always something the page did not show yesterday.
+    // Spotify's own browse pages, one tab each; see loadBrowse. Filtering the
+    // home page's rows into these two tabs was the first attempt and it only
+    // moved the same rows around the app.
+    val newShelves by viewModel.newBrowse.collectAsStateWithLifecycle()
+    val browseLoading by viewModel.browseLoading.collectAsStateWithLifecycle()
+    val radioShelves by viewModel.radioBrowse.collectAsStateWithLifecycle()
+
+    val radioSeeds = remember(recent, searchHistory, newPage.songs, feed.topTracks, feed.allTimeTracks) {
+        (recent + feed.topTracks + searchHistory + newPage.songs + feed.allTimeTracks)
+            .filter { it.uri.startsWith("spotify:track:") && it.artist.isNotBlank() }
             .distinctBy { it.artist.lowercase() }
+            // Turned over daily rather than shuffled: a page that rearranges
+            // itself every time it is opened is not richer, it is unreadable.
+            // The same list, started at a different name each day.
+            .let { seeds ->
+                if (seeds.isEmpty()) seeds
+                else {
+                    val day = java.time.LocalDate.now().toEpochDay().toInt()
+                    val from = Math.floorMod(day * DAILY_TURN, seeds.size)
+                    seeds.drop(from) + seeds.take(from)
+                }
+            }
             .take(RADIO_SEEDS)
     }
     val playlistOrder by viewModel.playlistOrder.collectAsStateWithLifecycle()
@@ -1350,9 +1384,14 @@ fun SquareApp(
                         }
 
                         composable(Routes.NEW) {
-                            LaunchedEffect(Unit) { viewModel.loadNewPage() }
+                            LaunchedEffect(Unit) {
+                                viewModel.loadNewPage()
+                                viewModel.loadBrowse()
+                            }
                             NewScreen(
                                 page = newPage,
+                                shelves = newShelves,
+                                shelvesLoading = browseLoading,
                                 contentPadding = listPadding,
                                 onPlaySong = { tracks, index ->
                                     onPlay(tracks, index, null, false, newLabel, 0L)
@@ -1369,10 +1408,17 @@ fun SquareApp(
                         }
 
                         composable(Routes.RADIO) {
+                            LaunchedEffect(Unit) { viewModel.loadBrowse() }
                             RadioScreen(
                                 seeds = radioSeeds,
+                                shelves = radioShelves,
+                                shelvesLoading = browseLoading,
                                 loading = feed.loading,
                                 contentPadding = listPadding,
+                                onOpenMix = { mix ->
+                                    viewModel.openContext(mix.uri, mix.name, mix.artworkUrl)
+                                    navController.navigate(Routes.PLAYLIST)
+                                },
                                 onOpen = { seed ->
                                     scope.launch {
                                         val tracks = viewModel.radioFor(seed.uri)

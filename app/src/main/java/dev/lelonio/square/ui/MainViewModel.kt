@@ -35,6 +35,9 @@ import dev.lelonio.square.nativecore.NativeBridge
 import dev.lelonio.square.playback.BuiltInPresets
 import dev.lelonio.square.playback.EffectPreset
 import dev.lelonio.square.playback.PlaybackService
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.currentCoroutineContext
@@ -311,11 +314,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         _newPage.value = _newPage.value.copy(loading = true)
         newPageJob = viewModelScope.launch {
+            // Three pages rather than one. Fifty is what this endpoint will
+            // answer with at a time, and one page of it is two shelves' worth
+            // on a page that is meant to be browsed — the whole complaint about
+            // this tab was that it ended almost as soon as it started.
             val albums = runCatching {
-                container.api.newReleases(limit = NEW_RELEASES).albums?.items.orEmpty()
+                withContext(Dispatchers.IO) {
+                    coroutineScope {
+                    (0 until NEW_PAGES).map { page ->
+                        async {
+                            container.api
+                                .newReleases(limit = NEW_RELEASES, offset = page * NEW_RELEASES)
+                                .albums?.items.orEmpty()
+                        }
+                    }.awaitAll().flatten()
+                    }
+                }
             }
                 .onFailure { android.util.Log.w(TAG, "new releases unavailable: ${describe(it)}") }
                 .getOrDefault(emptyList())
+                .distinctBy { it.uri }
                 .sortedByDescending { it.releaseDate.orEmpty() }
 
             val week = java.time.LocalDate.now().minusDays(7).toString()
@@ -333,7 +351,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // because "new" without "to you" is a catalogue. The global list is
             // the fallback for an account too young to have artists of its own.
             val mine = _feed.value.fromYourArtists
-            val hero = (if (mine.isNotEmpty()) mine else thisWeek + rest).take(HERO_RELEASES)
+            // Turned over daily, like the radio page's stations: the six the
+            // page leads with are drawn from a list that changes slowly, and
+            // showing the same six until it does made a page that is supposed
+            // to be about what is out look like it had stopped.
+            val leading = (if (mine.isNotEmpty()) mine else thisWeek + rest)
+            val hero = leading.turnedDaily().take(HERO_RELEASES)
 
             _newPage.value = NewPage(
                 hero = hero,
@@ -349,10 +372,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // it does not come out of the account's own quota.
             if (!awaitEngine()) return@launch
             val songs = withContext(Dispatchers.IO) {
-                (thisWeek + rest).take(NEW_SONGS).mapNotNull { album ->
-                    runCatching {
-                        Catalog.tracks(Catalog.contextTrackUris(album.uri).take(1)).firstOrNull()
-                    }.getOrNull()
+                coroutineScope {
+                (thisWeek + rest).turnedDaily().take(NEW_SONGS).map { album ->
+                    async {
+                        runCatching {
+                            Catalog.tracks(Catalog.contextTrackUris(album.uri).take(1)).firstOrNull()
+                        }.getOrNull()
+                    }
+                }.awaitAll().filterNotNull()
                 }
             }
             _newPage.value = _newPage.value.copy(songs = songs)
@@ -539,6 +566,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * The same list, started at a different place each day.
+     *
+     * Not a shuffle: a page that rearranges itself every time it is opened is
+     * not richer, it is unreadable. This moves the starting point once a day,
+     * so a list that Spotify itself only recomputes weekly still shows
+     * something different when the tab is opened tomorrow.
+     */
+    private fun <T> List<T>.turnedDaily(): List<T> {
+        if (size < 2) return this
+        val day = java.time.LocalDate.now().toEpochDay().toInt()
+        val from = Math.floorMod(day * DAILY_TURN, size)
+        return drop(from) + take(from)
+    }
+
     private suspend fun topTracks(range: String): List<CatalogTrack> = runCatching {
         container.api.topTracks(timeRange = range).items.map { it.toCatalogTrack() }
     }.onFailure { android.util.Log.w(TAG, "top tracks ($range) unavailable: ${describe(it)}") }
@@ -554,10 +596,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private suspend fun freshFromArtists(artists: List<SearchItem>): List<SearchItem> {
         val cutoff = java.time.LocalDate.now().minusMonths(12).toString()
-        return artists.take(FRESH_ARTISTS).flatMap { artist ->
-            runCatching {
-                container.api.artistAlbums(artist.uri.substringAfterLast(':'), limit = 6).items
-            }.getOrDefault(emptyList())
+        // All of them at once. One request per artist is what this costs
+        // whatever happens, but asked in turn a dozen of them is several
+        // seconds of the home page waiting on a shelf that is not even the
+        // first thing on it.
+        return coroutineScope {
+            artists.take(FRESH_ARTISTS).map { artist ->
+                async(Dispatchers.IO) {
+                    runCatching {
+                        container.api.artistAlbums(
+                            artist.uri.substringAfterLast(':'),
+                            limit = 6,
+                        ).items
+                    }.getOrDefault(emptyList())
+                }
+            }.awaitAll().flatten()
         }
             .filter { (it.releaseDate ?: "") >= cutoff }
             .sortedByDescending { it.releaseDate }
@@ -2232,6 +2285,87 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     val homeShelves: StateFlow<List<HomeShelf>> = _homeShelves.asStateFlow()
 
+    private val _newBrowse = MutableStateFlow<List<dev.lelonio.square.data.HomeShelf>>(emptyList())
+
+    /** Spotify's own new-releases page, as rows; see SpotifyBrowse. */
+    val newBrowse: StateFlow<List<dev.lelonio.square.data.HomeShelf>> = _newBrowse.asStateFlow()
+
+    private val _radioBrowse =
+        MutableStateFlow<List<dev.lelonio.square.data.HomeShelf>>(emptyList())
+
+    /** And its "made for you" and charts pages, which is what a radio tab is. */
+    val radioBrowse: StateFlow<List<dev.lelonio.square.data.HomeShelf>> = _radioBrowse.asStateFlow()
+
+    private var browseJob: Job? = null
+
+    private val _browseLoading = MutableStateFlow(false)
+
+    /**
+     * Whether the browse rows are still on their way.
+     *
+     * The two tabs draw an outline of what is coming rather than growing a row
+     * at a time under the reader's thumb: a page that assembles itself while
+     * being read moves what is being looked at.
+     */
+    val browseLoading: StateFlow<Boolean> = _browseLoading.asStateFlow()
+
+    /**
+     * Reads Spotify's own browse pages for the two tabs that show them.
+     *
+     * Kept apart from the personalised home on purpose. Both come off the same
+     * gateway, but home answers "what should this account see on opening the
+     * app" — which is the home page's question, and putting its answer on two
+     * more tabs is how those tabs ended up repeating it. These pages answer
+     * what the catalogue is offering: the releases picked for this listener,
+     * the editors' lists, the charts, the mixes.
+     *
+     * Whatever the home page is already showing is dropped here, by title: the
+     * two do overlap, and a row that appears twice in one app is worse than a
+     * row that appears once.
+     */
+    fun loadBrowse() {
+        if (browseJob?.isActive == true) return
+        if (_newBrowse.value.isNotEmpty() && _radioBrowse.value.isNotEmpty()) return
+
+        _browseLoading.value = true
+        browseJob = viewModelScope.launch {
+            val onHome = _homeShelves.value.map { it.title.lowercase() }.toSet()
+            suspend fun page(uri: String) = withContext(Dispatchers.IO) {
+                container.gateway.browsePage(uri)
+                    ?.let { dev.lelonio.square.data.SpotifyBrowse.parse(it) }
+                    .orEmpty()
+                    .filter { it.title.lowercase() !in onHome }
+            }
+
+            val releases = page(dev.lelonio.square.data.SpotifyBrowse.Pages.NEW_RELEASES)
+            if (releases.isNotEmpty()) _newBrowse.value = releases
+
+            // Two pages behind one tab: the mixes made for this listener, and
+            // the charts, which are the other half of what a radio is for.
+            val mixes = page(dev.lelonio.square.data.SpotifyBrowse.Pages.MADE_FOR_YOU)
+            val charts = page(dev.lelonio.square.data.SpotifyBrowse.Pages.CHARTS)
+            val forRadio = (mixes + charts).distinctBy { it.title.lowercase() }
+            if (forRadio.isNotEmpty()) _radioBrowse.value = forRadio
+
+            android.util.Log.i(
+                TAG,
+                "browse: ${releases.size} rows for new, ${forRadio.size} for radio",
+            )
+            _browseLoading.value = false
+        }
+    }
+
+    /**
+     * Asks for the personalised shelves if they are not already here.
+     *
+     * The home page loads them with the library; the two browse tabs show them
+     * too and can be opened without ever visiting home — on a cold start
+     * straight into Radio, for instance.
+     */
+    fun ensureHomeShelves() {
+        if (_homeShelves.value.isEmpty()) loadHomeShelves()
+    }
+
     private fun loadHomeShelves() = viewModelScope.launch {
         val keys = container.pathfinderKeys
         keys.refresh()
@@ -3879,7 +4013,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         const val TAG = "SquareUi"
 
         /** Artists asked for new records on the home page; one request each. */
-        const val FRESH_ARTISTS = 6
+        const val FRESH_ARTISTS = 14
+
+        /** How far the daily turn moves; a prime, so it works through the list. */
+        const val DAILY_TURN = 7
 
         /** A page of saved albums; the API's own maximum. */
         const val ALBUM_PAGE = 50
@@ -3891,13 +4028,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         const val FEED_ROW = 12
 
         /** Records asked of Spotify's own new-releases list for the New tab. */
-        const val NEW_RELEASES = 40
+        const val NEW_RELEASES = 50
+
+        /** How many of those pages to read; see loadNewPage. */
+        const val NEW_PAGES = 3
 
         /** How many of them the page leads with, drawn large. */
         const val HERO_RELEASES = 6
 
         /** And how many are opened for a song to put in the list under them. */
-        const val NEW_SONGS = 10
+        const val NEW_SONGS = 18
 
         /**
          * How long a header holds its picture back for the other catalogue.

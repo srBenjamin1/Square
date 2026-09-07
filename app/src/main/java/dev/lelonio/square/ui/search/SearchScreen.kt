@@ -444,5 +444,12 @@ private val SelectedFilm = androidx.compose.ui.graphics.Color.White.copy(alpha =
  */
 private val BadgeFilm = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f)
 
-/** How many of each kind the combined page shows before the chips take over. */
-private const val TOP_RESULTS = 4
+/**
+ * How many of each kind the combined page shows before the chips take over.
+ *
+ * Four was a taste of each kind and nothing to read: a search for an artist
+ * answered with four songs, four albums and four playlists on a screen that
+ * holds far more. The filters above are still where a long list of one kind
+ * belongs, but the page they sit on should be worth scrolling first.
+ */
+private const val TOP_RESULTS = 8

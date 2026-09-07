@@ -55,11 +55,23 @@ import dev.lelonio.square.ui.theme.InkDim
 @Composable
 fun NewScreen(
     page: MainViewModel.NewPage,
+    /**
+     * Spotify's own rows, as it lays them out for this account.
+     *
+     * The rest of this page is built out of the catalogue-wide list of what
+     * came out, which is the same for everyone and moves once a week. These are
+     * assembled per listener and change daily, and they are the reason the tab
+     * has something to say on a Tuesday.
+     */
+    shelves: List<dev.lelonio.square.data.HomeShelf>,
+    /** Whether those rows are still coming; see SkeletonRow. */
+    shelvesLoading: Boolean,
     contentPadding: PaddingValues,
     onOpen: (SearchItem) -> Unit,
     onPlaySong: (List<CatalogTrack>, Int) -> Unit,
 ) {
-    val empty = page.hero.isEmpty() && page.thisWeek.isEmpty() && page.recent.isEmpty()
+    val empty = page.hero.isEmpty() && page.thisWeek.isEmpty() &&
+        page.recent.isEmpty() && shelves.isEmpty()
     if (empty) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             if (page.loading) {
@@ -108,12 +120,53 @@ fun NewScreen(
             songRows(page.songs, onPlaySong)
         }
 
+        // The outline of what is coming, while it is coming.
+        if (shelvesLoading && shelves.isEmpty()) {
+            items(
+                count = SKELETON_ROWS,
+                key = { "skeleton $it" },
+                contentType = { "skeleton" },
+            ) {
+                SkeletonRow()
+            }
+        }
+
+        // Spotify's own rows, under its own headings: they are titled for this
+        // listener and renaming them would be this app pretending to have
+        // assembled them.
+        shelves.forEach { shelf ->
+            item(key = "shelf ${shelf.title}", contentType = "shelfHeading") {
+                Heading(shelf.title)
+            }
+            item(key = "shelfRow ${shelf.title}", contentType = "shelfRow") {
+                Shelf(
+                    shelf.items.map { entry ->
+                        SearchItem(
+                            uri = entry.uri,
+                            title = entry.name,
+                            subtitle = "",
+                            artworkUrl = entry.artworkUrl,
+                        )
+                    },
+                    onOpen,
+                )
+            }
+        }
+
         if (page.thisWeek.isNotEmpty()) {
             item(contentType = "weekHeading") { Heading(stringResource(R.string.new_this_week)) }
             item(contentType = "week") { Shelf(page.thisWeek, onOpen) }
         }
 
-        if (page.recent.isNotEmpty()) {
+        // The catalogue-wide list of what came out, and only when Spotify's
+        // own picked one is not here.
+        //
+        // The two are the same shelf twice: theirs is chosen for this listener
+        // and ours is what the market got, and on a page that shows both, the
+        // reader sees "new releases" and "new releases for you" one under the
+        // other with half the same covers. Ours is the fallback for an account
+        // the gateway will not answer for.
+        if (page.recent.isNotEmpty() && shelves.isEmpty()) {
             item(contentType = "recentHeading") {
                 Heading(stringResource(R.string.new_releases_title))
             }
@@ -121,6 +174,9 @@ fun NewScreen(
         }
     }
 }
+
+/** How many outlines stand in for the rows that are coming. */
+private const val SKELETON_ROWS = 3
 
 /** The songs, one row each, played as a list rather than one at a time. */
 private fun LazyListScope.songRows(

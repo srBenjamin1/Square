@@ -46,6 +46,13 @@ class PathfinderKeys(context: Context) {
     /** And for `searchDesktop`, which is what the search box asks. */
     val search: String get() = prefs.getString(KEY_SEARCH, null) ?: DEFAULT_SEARCH
 
+    /** And for `browsePage`, which is a whole page of Spotify's own browse. */
+    val browsePage: String get() = prefs.getString(KEY_BROWSE_PAGE, null) ?: DEFAULT_BROWSE_PAGE
+
+    /** And `browseSection`, for reading one of that page's rows past its first few. */
+    val browseSection: String
+        get() = prefs.getString(KEY_BROWSE_SECTION, null) ?: DEFAULT_BROWSE_SECTION
+
     /** The web client version the gateway is told about. */
     val appVersion: String get() = prefs.getString(KEY_VERSION, null) ?: DEFAULT_VERSION
 
@@ -76,6 +83,10 @@ class PathfinderKeys(context: Context) {
                     ?.let { edit.putString(KEY_LIBRARY, it) }
                 body.optString("search").takeIf { it.length == HASH_LENGTH }
                     ?.let { edit.putString(KEY_SEARCH, it) }
+                body.optString("browsePage").takeIf { it.length == HASH_LENGTH }
+                    ?.let { edit.putString(KEY_BROWSE_PAGE, it) }
+                body.optString("browseSection").takeIf { it.length == HASH_LENGTH }
+                    ?.let { edit.putString(KEY_BROWSE_SECTION, it) }
                 body.optString("appVersion").takeIf { it.isNotEmpty() }
                     ?.let { edit.putString(KEY_VERSION, it) }
                 edit.apply()
@@ -91,6 +102,8 @@ class PathfinderKeys(context: Context) {
         const val KEY_PLAYLIST = "playlist"
         const val KEY_LIBRARY = "library"
         const val KEY_SEARCH = "search"
+        const val KEY_BROWSE_PAGE = "browse_page"
+        const val KEY_BROWSE_SECTION = "browse_section"
         const val KEY_VERSION = "app_version"
         const val KEY_CHECKED = "checked_at"
 
@@ -115,6 +128,10 @@ class PathfinderKeys(context: Context) {
             "134337999233cc6fdd6b1e6dbf94841409f04a946c5c7b744b09ba0dfe5a85ed"
         const val DEFAULT_SEARCH =
             "db61238974d27839a136c9dc02bfdbe3fab7635f21cf85976ebff9a1ee281345"
+        const val DEFAULT_BROWSE_PAGE =
+            "f5c4e6d668f5716464a231c1cc8b22c1cbf6ad68b09929fd7de813a30581298b"
+        const val DEFAULT_BROWSE_SECTION =
+            "b13c1cccbfcb6947753c2613411b3566485c21fd5f36d80a80bb64be61ba2d51"
         const val DEFAULT_VERSION = "1.2.97.155.g5dd0dcaf-development"
     }
 }
