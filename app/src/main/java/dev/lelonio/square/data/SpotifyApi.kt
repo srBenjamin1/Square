@@ -345,6 +345,8 @@ interface SpotifyApi {
         @Query("type") type: String = "track,album,artist,playlist",
         /** Fifty is this endpoint's maximum, and the fallback should not be thinner. */
         @Query("limit") limit: Int = 40,
+        /** Where the page starts, for a second helping of the same search. */
+        @Query("offset") offset: Int = 0,
     ): SearchDto
 }
 

@@ -576,9 +576,17 @@ private fun Header(
             .fillMaxWidth()
             // Seats the header on the page instead of leaving it floating over
             // whatever the list has scrolled underneath it.
+            //
+            // In the page's own colour rather than in black. Black was right
+            // while every page was a tinted wash and a little more darkness at
+            // the top read as depth; over a neutral ground it is a grey band
+            // across the top of every screen, and on the light side it is a
+            // smudge. Fading from the ground colour does the same job — the
+            // rows disappear under the header instead of running into it — and
+            // leaves no band when there is nothing scrolled under it.
             .background(
                 Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.45f),
+                    0f to dev.lelonio.square.ui.theme.pageGround(),
                     1f to Color.Transparent,
                 ),
             )
@@ -718,26 +726,11 @@ private fun FilterRow(selected: Feed, backdrop: Backdrop, onSelect: (Feed) -> Un
         modifier = Modifier.padding(top = 14.dp, bottom = 10.dp),
     ) {
         items(Feed.entries.toList(), key = { it.name }) { entry ->
-            val isSelected = entry == selected
-            LiquidButton(
+            dev.lelonio.square.ui.components.FilterChip(
+                label = stringResource(entry.label),
+                selected = entry == selected,
                 onClick = { onSelect(entry) },
-                backdrop = backdrop,
-                // Scrolls with the page; see LiquidButton's `flat`.
-                flat = true,
-                contentHeight = 38.dp,
-                contentPadding = 18.dp,
-                // The selected chip is the same glass, filled a little harder.
-                // A tinted fill would put the artwork's colour on a control
-                // whose whole job is to be legible over any artwork.
-                surfaceColor = if (isSelected) SelectedFilm else Color.Unspecified,
-                wash = dev.lelonio.square.ui.glass.chipWash(isSelected),
-            ) {
-                Text(
-                    stringResource(entry.label),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isSelected) Ink else InkDim,
-                )
-            }
+            )
         }
     }
 }
@@ -1187,23 +1180,13 @@ private fun ChipRow(
     ) {
         items(chips, key = { it.title }) { chip ->
             val isSelected = chip.title == selected
-            LiquidButton(
+            dev.lelonio.square.ui.components.FilterChip(
+                label = chip.title,
+                selected = isSelected,
                 // Pressing the chip that is already on takes the filter off,
                 // which is what the service's own deselect does.
                 onClick = { onPick(if (isSelected) null else chip) },
-                backdrop = backdrop,
-                flat = true,
-                contentHeight = 38.dp,
-                contentPadding = 18.dp,
-                surfaceColor = if (isSelected) SelectedFilm else Color.Unspecified,
-                wash = dev.lelonio.square.ui.glass.chipWash(isSelected),
-            ) {
-                Text(
-                    chip.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isSelected) Ink else InkDim,
-                )
-            }
+            )
         }
     }
 }

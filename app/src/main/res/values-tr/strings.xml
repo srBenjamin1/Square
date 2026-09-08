@@ -414,4 +414,5 @@
     <string name="canvas_note">Bazı şarkıların getirdiği kısa video. Kapalıyken indirilmez de.</string>
     <string name="show_all">Tümünü göster</string>
     <string name="show_less">Daha az göster</string>
+    <string name="search_library">Kitaplıkta ara</string>
 </resources>

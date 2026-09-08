@@ -400,4 +400,5 @@
     <string name="canvas_note">La courte vidéo que portent certains titres. Désactivé, elle n\'est pas téléchargée non plus.</string>
     <string name="show_all">Tout afficher</string>
     <string name="show_less">Afficher moins</string>
+    <string name="search_library">Rechercher dans la bibliothèque</string>
 </resources>

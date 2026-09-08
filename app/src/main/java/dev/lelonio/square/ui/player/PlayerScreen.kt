@@ -68,6 +68,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -158,6 +160,25 @@ private const val CANVAS_HANDOVER = 500
 /** The shape the catalogue files an extended cover in: three by four. */
 private const val DETAIL_ASPECT = 3f / 4f
 
+/**
+ * Where a Canvas stops being a picture, in its own slot's terms.
+ *
+ * The same shape as the cover's fade — see HeroBackdrop's `softening` — written
+ * out here because a clip is drawn by a different path and there is nothing to
+ * share but the numbers. Eased rather than straight: a linear ramp has a corner
+ * at each end, and a corner across a moving picture is a band.
+ */
+private val CLIP_FADE: Array<Pair<Float, Color>> = run {
+    val from = 0.82f
+    val to = 0.97f
+    val steps = 8
+    Array(steps + 1) { index ->
+        val t = index.toFloat() / steps
+        val eased = t * t * (3f - 2f * t)
+        (from + (to - from) * t) to Color.Black.copy(alpha = 1f - eased)
+    }
+}
+
 /** How long each half of a change between the cover and a panel takes. */
 private const val STAGE_FADE_MS = 180
 
@@ -222,6 +243,15 @@ fun PlayerScreen(
      */
     /** The colours the catalogue filed with this artwork; see CoverAura. */
     catalogPalette: List<String> = emptyList(),
+    /**
+     * The foot of the Canvas, across its width, as it plays.
+     *
+     * The field this player sits on is built from the cover, and a Canvas is
+     * very often nothing like its sleeve: the clip faded into a colour that was
+     * not in it. Empty whenever no clip is showing, which puts the cover's own
+     * colours back.
+     */
+    onClipColumns: (List<Color>) -> Unit = {},
     coverHeroUrl: String? = null,
     /** And the moving version of it, for the records that have one. */
     coverMotionUrl: String? = null,
@@ -379,6 +409,12 @@ fun PlayerScreen(
     // showing, which is what puts the ordinary backdrop back.
     var ambient by remember { mutableStateOf<AmbientEdges?>(null) }
     LaunchedEffect(videoOn) { if (!videoOn) ambient = null }
+
+    // Nothing of the last clip left behind on a track with no Canvas.
+    val clipReport = androidx.compose.runtime.rememberUpdatedState(onClipColumns)
+    LaunchedEffect(canvas?.url, canvas?.isVideo) {
+        if (canvas?.isVideo != true) clipReport.value(emptyList())
+    }
 
     val readPalette by dev.lelonio.square.ui.theme.rememberArtworkPalette(
         state.artworkUrl.takeIf { canvas == null },
@@ -573,6 +609,30 @@ fun PlayerScreen(
                 label = "clipAlpha",
             )
 
+            // The clip takes the cover's place rather than the screen's.
+            //
+            // Full-bleed, a Canvas ran under the title, the transport and the
+            // tab bar — every one of them a pane of glass, and glass over a
+            // bright, moving, ungraded picture is not readable at any tint. The
+            // page already knows how to end a picture: the cover sits in this
+            // slot and dissolves into a blurred field made of itself. A clip is
+            // a cover that moves, so it goes in the same slot and gets the same
+            // ending, and the controls sit on the field the way they do for
+            // every other track.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(DETAIL_ASPECT)
+                    .align(Alignment.TopCenter)
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.verticalGradient(*CLIP_FADE),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    },
+            ) {
             Crossfade(
                 targetState = canvas,
                 animationSpec = tween(500),
@@ -597,6 +657,18 @@ fun PlayerScreen(
                         url = clip.url,
                         isPlaying = state.isPlaying,
                         onFirstFrame = { canvasReady = true },
+                        // Only while this clip is still the one playing.
+                        //
+                        // A Crossfade keeps the outgoing content alive for the
+                        // length of the fade, and a Canvas that is leaving goes
+                        // on reading itself for those few hundred milliseconds.
+                        // Its last report landed *after* the track change had
+                        // emptied the field, so a song with no clip of its own
+                        // kept the previous one's colours — there was nothing
+                        // left to clear them again.
+                        onTone = { columns ->
+                            if (clip.url == canvas?.url) onClipColumns(columns)
+                        },
                         modifier = Modifier.fillMaxSize(),
                     )
 
@@ -654,6 +726,7 @@ fun PlayerScreen(
                             drawRect(Color.Black, alpha = dim * PAUSED_DIM)
                         },
                 )
+            }
             }
         }
 
@@ -1486,9 +1559,26 @@ private fun TopBar(
             // being shown: the panel names above it are labels for what is on
             // screen already.
             val open = onOpenSource.takeIf { panel == PlayerPanel.NONE && source.isNotBlank() }
+            // Light, with a shadow, whichever way the phone is set.
+            //
+            // This line is the only text on the player with nothing behind it
+            // but the picture — the title and the transport sit on the field
+            // below the fade, and the buttons beside it have their own glass.
+            // Following the theme put black letters straight onto a Canvas in
+            // the light setting, and pausing made it worse, since the veil that
+            // dims a stopped clip was then darkening the very thing those
+            // letters needed to be lighter than. A photograph has no side to
+            // be on: what works over one is light type with a shadow under it.
             Text(
                 title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.55f),
+                        offset = Offset(0f, 1f),
+                        blurRadius = 14f,
+                    ),
+                ),
+                color = Color.White,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()

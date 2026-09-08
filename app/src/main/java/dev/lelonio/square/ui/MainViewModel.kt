@@ -1125,11 +1125,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
          * application that used to be the only way in.
          */
         val needsSetup: Boolean = false,
+        /** A second helping of the same search, on its way. */
+        val loadingMore: Boolean = false,
+        /** Set once a page comes back with nothing new to add. */
+        val exhausted: Boolean = false,
     )
 
     private val _search = MutableStateFlow(SearchState())
     val search: StateFlow<SearchState> = _search.asStateFlow()
     private var searchJob: Job? = null
+
+    /** How far into the results the next page starts. */
+    private var searchOffset = 0
+    private var searchMoreJob: Job? = null
 
     /**
      * Runs a search, debounced.
@@ -1141,6 +1149,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val backend = container.activeBackend
         _search.value = _search.value.copy(query = query)
         searchJob?.cancel()
+
+        searchMoreJob?.cancel()
+        searchOffset = 0
 
         if (query.isBlank()) {
             _search.value = SearchState(query = query)
@@ -1165,10 +1176,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // not shown: a slow search that was replaced while it ran
                     // would otherwise land on top of the newer one.
                     currentCoroutineContext().ensureActive()
+                    searchOffset = SEARCH_PAGE
                     _search.value = _search.value.copy(
                         loading = false,
                         results = results,
                         needsSetup = backend.searchNeedsSetup,
+                        loadingMore = false,
+                        exhausted = results.isEmpty,
                     )
                 }
                 .onFailure {
@@ -1180,6 +1194,59 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (it is kotlinx.coroutines.CancellationException) throw it
                     android.util.Log.e(TAG, "search failed: ${chain(it)}", it)
                     _search.value = _search.value.copy(loading = false, error = describe(it))
+                }
+        }
+    }
+
+    /**
+     * The next page of the same search, appended.
+     *
+     * Called by the list as it nears its end rather than by a button: twenty of
+     * each kind is the web player's own page size and a fine first answer, but
+     * a search for a name that a hundred records share stopped dead at twenty
+     * with no way to see the rest.
+     *
+     * Appended rather than replaced, and de-duplicated by address: the offset
+     * is the server's idea of where the page starts, and a catalogue that has
+     * changed under it can hand back a row that is already on the screen.
+     */
+    fun loadMoreSearch() {
+        val state = _search.value
+        if (state.query.isBlank() || state.loading || state.loadingMore) return
+        if (state.exhausted) return
+        val backend = container.activeBackend
+        searchMoreJob?.cancel()
+        _search.value = state.copy(loadingMore = true)
+        searchMoreJob = viewModelScope.launch {
+            runCatching {
+                backend.search(
+                    state.query,
+                    SearchLabels(
+                        artist = string(R.string.artist),
+                        album = string(R.string.album),
+                        playlist = string(R.string.playlist),
+                    ),
+                    offset = searchOffset,
+                )
+            }
+                .onSuccess { page ->
+                    currentCoroutineContext().ensureActive()
+                    // Still the same search: a page that arrives after the box
+                    // has been retyped belongs to a question nobody is asking.
+                    if (_search.value.query != state.query) return@onSuccess
+                    val grown = _search.value.results.plus(page)
+                    val added = grown.count - _search.value.results.count
+                    searchOffset += SEARCH_PAGE
+                    _search.value = _search.value.copy(
+                        results = grown,
+                        loadingMore = false,
+                        exhausted = added == 0,
+                    )
+                }
+                .onFailure {
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    android.util.Log.e(TAG, "search page failed: ${chain(it)}", it)
+                    _search.value = _search.value.copy(loadingMore = false, exhausted = true)
                 }
         }
     }
@@ -1502,6 +1569,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             tracks.filter { container.activeBackend.owns(it.uri) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /**
+     * Everything a search led to, newest first — songs, artists, records, lists.
+     *
+     * The list the search page draws. [searchHistory] is the songs among these,
+     * for the places that can only use a song: the radio's seeds, and anything
+     * that plays rather than opens.
+     */
+    val searchTrail: StateFlow<List<dev.lelonio.square.data.SearchHistoryEntry>> =
+        combine(container.searchHistory.entries, container.preferences.backend) { entries, _ ->
+            entries.filter { container.activeBackend.owns(it.uri) }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     private val _credits =
         MutableStateFlow<dev.lelonio.square.backend.spotify.SpotifyCredits.Credits?>(null)
 
@@ -1548,6 +1627,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Called when a search result is played, rather than when a track starts. */
     fun recordSearchPlay(track: CatalogTrack) = viewModelScope.launch {
         container.searchHistory.record(track)
+    }
+
+    /** And when a search result that is a page rather than a song is opened. */
+    fun recordSearchOpen(item: dev.lelonio.square.data.SearchItem) = viewModelScope.launch {
+        container.searchHistory.record(
+            dev.lelonio.square.data.SearchHistoryEntry(
+                uri = item.uri,
+                title = item.title,
+                subtitle = item.subtitle,
+                artworkUrl = item.artworkUrl,
+            ),
+        )
     }
 
     fun forgetSearchPlay(uri: String) = viewModelScope.launch {
@@ -4107,6 +4198,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         const val CONTEXT_CACHE_SIZE = 8
 
         const val SEARCH_DEBOUNCE_MS = 350L
+
+        /** How many of each kind a page of results holds; see Gateway. */
+        const val SEARCH_PAGE = 20
 
         /** Spotify acknowledges a transfer before it has taken effect. */
         const val TRANSFER_SETTLE_MS = 700L

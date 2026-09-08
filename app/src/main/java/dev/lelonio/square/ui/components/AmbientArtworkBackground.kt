@@ -140,6 +140,17 @@ fun AmbientArtworkBackground(
      * this could cost a frame.
      */
     motion: Boolean = true,
+    /**
+     * The foot of a moving picture, across its width — see CanvasSurface.
+     *
+     * When a Canvas is playing, the picture the screen is made of is the clip,
+     * not the sleeve, and the field under it has to be the clip's. These are
+     * column averages of the clip's own bottom band, painted across the width
+     * the way the still copy's last row is carried down: a red shape at the
+     * foot of the frame goes on being red under it, and a dark corner stays
+     * dark. Empty puts the cover's own copies back.
+     */
+    columns: List<Color> = emptyList(),
 ) {
     val context = LocalContext.current
 
@@ -242,7 +253,85 @@ fun AmbientArtworkBackground(
     }
 
     BoxWithConstraints(modifier.fillMaxSize().background(settledTone)) {
-        if (enabled) {
+        if (columns.isNotEmpty()) {
+            // Eased one column at a time, and slowly: a field that tracked
+            // every cut would strobe, and this is meant to read as the light
+            // the clip is throwing rather than as the clip itself.
+            // Smoothed across before anything is drawn.
+            //
+            // The columns are averages of neighbouring strips of one frame, so
+            // where the clip has an edge the two strips either side of it are
+            // genuinely different colours — and a gradient between them puts
+            // that edge back on the screen as a seam. Averaged with their
+            // neighbours a few times over, what is left is where the colour is
+            // rather than where the shape was: it reads as light, which is the
+            // whole point of it.
+            val spread = remember(columns) { columns.spread(SPREAD_PASSES, SPREAD_RADIUS) }
+            val eased = spread.map { target ->
+                animateColorAsState(
+                    targetValue = target,
+                    animationSpec = tween(durationMillis = CLIP_TONE_MS),
+                    label = "clipColumn",
+                ).value
+            }
+            Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(eased)))
+
+            // The shapes merge into one colour as they go down.
+            //
+            // A gradient repeated unchanged down the screen keeps the clip's
+            // red flood as a hard-edged stripe running the whole height, which
+            // is not what carrying a picture's foot downwards looks like — the
+            // still copy's own stretch is blurred, so its shapes dissolve. This
+            // is that dissolve: the columns are what meets the fade, and a few
+            // hundred points lower they have become their own average.
+            val mean = remember(eased) {
+                if (eased.isEmpty()) {
+                    Color.Transparent
+                } else {
+                    Color(
+                        red = eased.sumOf { it.red.toDouble() }.toFloat() / eased.size,
+                        green = eased.sumOf { it.green.toDouble() }.toFloat() / eased.size,
+                        blue = eased.sumOf { it.blue.toDouble() }.toFloat() / eased.size,
+                    )
+                }
+            }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            settleFrom to Color.Transparent,
+                            (settleFrom + (1f - settleFrom) * 0.42f) to mean.copy(alpha = 0.72f),
+                            1f to mean,
+                        ),
+                    ),
+            )
+
+            // And damped on the way down.
+            //
+            // The columns are the clip's own foot, and a clip's foot is often
+            // the brightest thing in it: painted flat down the screen it left
+            // the transport sitting on a field louder than the picture it came
+            // from. This keeps the colour where the fade meets it and takes the
+            // light out of it further down, which is what the still copy's own
+            // stretch does by simply running out of picture.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            settleFrom to Color.Transparent,
+                            (settleFrom + (1f - settleFrom) * 0.45f)
+                                to Color.Black.copy(alpha = 0.20f),
+                            1f to Color.Black.copy(alpha = 0.46f),
+                        ),
+                    ),
+            )
+        }
+
+        if (enabled && columns.isEmpty()) {
             // The far copy, laid over the sharp one exactly.
             //
             // Same width, same top, same proportions, so every row of it is the
@@ -584,6 +673,44 @@ private const val READY_MS = 1_800
 
 /** And the colour under it, which is slower still. */
 private const val TONE_MS = 900
+
+/** How long the field takes to become the clip's next colours. */
+private const val CLIP_TONE_MS = 1_800
+
+/** How far each colour is averaged into its neighbours, and how many times. */
+private const val SPREAD_RADIUS = 4
+private const val SPREAD_PASSES = 3
+
+/**
+ * A list of colours with the edges taken out of it.
+ *
+ * A box blur along the list, repeated: three passes of a running mean is close
+ * enough to a gaussian that nothing in it can be found, and on two dozen
+ * values it costs nothing. The ends are held rather than wrapped — the left of
+ * the screen is not next to the right.
+ */
+private fun List<Color>.spread(passes: Int, radius: Int): List<Color> {
+    if (size < 3 || radius < 1) return this
+    var current = this
+    repeat(passes) {
+        current = current.mapIndexed { index, _ ->
+            var r = 0f
+            var g = 0f
+            var b = 0f
+            var count = 0
+            for (offset in -radius..radius) {
+                val at = (index + offset).coerceIn(0, current.lastIndex)
+                val colour = current[at]
+                r += colour.red
+                g += colour.green
+                b += colour.blue
+                count++
+            }
+            Color(r / count, g / count, b / count)
+        }
+    }
+    return current
+}
 
 /** How much the picture leaving grows, and the one arriving shrinks. */
 private const val LEAVE_SWELL = 0.05f

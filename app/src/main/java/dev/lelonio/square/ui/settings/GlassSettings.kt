@@ -101,13 +101,6 @@ fun GlassSection(backdrop: Backdrop) {
                 selected = entry == profile,
             ) { store.setProfile(entry) }
         }
-        SettingsDivider()
-        Text(
-            stringResource(profile.note),
-            style = MaterialTheme.typography.bodySmall,
-            color = InkDim,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-        )
 
         SettingsDivider()
         GlassPreview(config = config, backdrop = backdrop)
@@ -217,7 +210,6 @@ fun GlassSection(backdrop: Backdrop) {
                     SettingsDivider()
                     GlassSwitch(
                         label = stringResource(R.string.glass_dispersion),
-                        note = stringResource(R.string.glass_dispersion_note),
                         checked = config.chromaticAberration,
                     backdrop = backdrop,
                     onChange = store::setChromaticAberration,
@@ -225,7 +217,6 @@ fun GlassSection(backdrop: Backdrop) {
                     SettingsDivider()
                     GlassSwitch(
                         label = stringResource(R.string.glass_depth),
-                        note = stringResource(R.string.glass_depth_note),
                         checked = config.depthEffect,
                     backdrop = backdrop,
                     onChange = store::setDepthEffect,
@@ -239,7 +230,6 @@ fun GlassSection(backdrop: Backdrop) {
                 SettingsDivider()
                 GlassSwitch(
                     label = stringResource(R.string.glass_where_bar),
-                    note = null,
                     checked = config.navBarEnabled,
                     backdrop = backdrop,
                     onChange = store::setNavBarEnabled,
@@ -247,7 +237,6 @@ fun GlassSection(backdrop: Backdrop) {
                 SettingsDivider()
                 GlassSwitch(
                     label = stringResource(R.string.glass_where_mini_player),
-                    note = null,
                     checked = config.miniPlayerEnabled,
                     backdrop = backdrop,
                     onChange = store::setMiniPlayerEnabled,
@@ -255,7 +244,6 @@ fun GlassSection(backdrop: Backdrop) {
                 SettingsDivider()
                 GlassSwitch(
                     label = stringResource(R.string.glass_where_player),
-                    note = null,
                     checked = config.playerEnabled,
                     backdrop = backdrop,
                     onChange = store::setPlayerEnabled,
@@ -265,7 +253,6 @@ fun GlassSection(backdrop: Backdrop) {
                 SettingsDivider()
                 GlassSwitch(
                     label = stringResource(R.string.bar_folds),
-                    note = stringResource(R.string.bar_folds_note),
                     checked = folds,
                     backdrop = backdrop,
                     onChange = store::setBarFolds,
@@ -525,7 +512,6 @@ private fun GlassSlider(
 @Composable
 private fun GlassSwitch(
     label: String,
-    note: String?,
     checked: Boolean,
     backdrop: Backdrop,
     onChange: (Boolean) -> Unit,
@@ -540,9 +526,6 @@ private fun GlassSwitch(
     ) {
         Column(Modifier.weight(1f)) {
             Text(label, style = MaterialTheme.typography.bodyLarge)
-            if (note != null) {
-                Text(note, style = MaterialTheme.typography.bodySmall, color = InkDim)
-            }
         }
         LiquidToggle(
             selected = { checked },

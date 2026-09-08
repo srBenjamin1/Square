@@ -82,8 +82,17 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
      * serially this is the slowest thing on the screen, and they do not depend
      * on each other.
      */
-    override suspend fun search(query: String, labels: SearchLabels): SearchResults =
+    override suspend fun search(
+        query: String,
+        labels: SearchLabels,
+        offset: Int,
+    ): SearchResults =
         withContext(Dispatchers.IO) {
+            // One page only. YouTube's search is a continuation token rather
+            // than an offset, and asking for a second page means keeping that
+            // token — worth doing when this backend's search is the one being
+            // used, and not worth pretending to do from here.
+            if (offset > 0) return@withContext SearchResults()
             val trimmed = query.trim()
 
             coroutineScope {

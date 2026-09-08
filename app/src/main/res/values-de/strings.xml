@@ -400,4 +400,5 @@
     <string name="canvas_note">Das kurze Video, das manche Titel mitbringen. Aus wird es auch nicht geladen.</string>
     <string name="show_all">Alle anzeigen</string>
     <string name="show_less">Weniger anzeigen</string>
+    <string name="search_library">Bibliothek durchsuchen</string>
 </resources>

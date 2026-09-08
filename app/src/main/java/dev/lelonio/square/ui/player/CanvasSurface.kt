@@ -4,6 +4,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -53,6 +57,17 @@ fun CanvasSurface(
      * cover used to be. The caller keeps the cover up until this fires.
      */
     onFirstFrame: () -> Unit = {},
+    /**
+     * The colour the clip's own foot is, read back off the picture.
+     *
+     * The field the clip dissolves into used to be built from the cover, and a
+     * Canvas is very often nothing like its sleeve — a bright clip ending on a
+     * dark red field is two pictures meeting, which is the seam this whole
+     * treatment exists to avoid. Read slowly and off a thumbnail: a colour that
+     * tracked every cut would strobe, and this is meant to read as the light the
+     * clip is throwing.
+     */
+    onTone: (List<Color>) -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -86,6 +101,25 @@ fun CanvasSurface(
         onDispose { exoPlayer.release() }
     }
 
+    // The view the picture is actually drawn into, kept so it can be read back.
+    var texture by remember(url) { mutableStateOf<android.view.TextureView?>(null) }
+    val tone = rememberUpdatedState(onTone)
+    LaunchedEffect(texture) {
+        val view = texture ?: return@LaunchedEffect
+        while (true) {
+            if (!view.isAvailable) {
+                kotlinx.coroutines.delay(TONE_INTERVAL_MS)
+                continue
+            }
+            val frame = runCatching { view.getBitmap(TONE_SAMPLE, TONE_SAMPLE) }.getOrNull()
+            if (frame != null) {
+                tone.value(frame.footColumns())
+                frame.recycle()
+            }
+            kotlinx.coroutines.delay(TONE_INTERVAL_MS)
+        }
+    }
+
     AndroidView(
         factory = { ctx ->
             // Cropping to fill and the transparent shutter come from the layout;
@@ -94,6 +128,9 @@ fun CanvasSurface(
             val view = android.view.LayoutInflater.from(ctx)
                 .inflate(R.layout.canvas_surface, null) as PlayerView
             view.player = exoPlayer
+            // PlayerView builds the surface itself from `surface_type`, so the
+            // TextureView is found rather than made.
+            texture = view.videoSurfaceView as? android.view.TextureView
             view
         },
         // Nothing here changes with recomposition; the player is swapped by
@@ -102,3 +139,64 @@ fun CanvasSurface(
         modifier = modifier,
     )
 }
+
+/**
+ * The foot of a frame, as a handful of colours across its width.
+ *
+ * Not one average. What a still cover does below its own edge is carry its last
+ * row downwards, so a red shape at the bottom of the picture goes on being red
+ * under it while a dark corner stays dark. One colour for the whole width
+ * throws exactly that away — a frame with a red flood across the middle and
+ * black at the sides would come out an even maroon. These are column averages
+ * of the bottom band, which the field below paints as a gradient across.
+ *
+ * The band, not the whole frame: what the fade meets is the foot of the
+ * picture, and a clip whose top half is a bright sky and whose bottom is a dark
+ * street averages to neither.
+ */
+private fun android.graphics.Bitmap.footColumns(): List<Color> {
+    val from = (height * 0.72f).toInt().coerceIn(0, height - 1)
+    val band = (height - from).coerceAtLeast(1)
+    val step = (width / TONE_COLUMNS).coerceAtLeast(1)
+    return (0 until TONE_COLUMNS).map { column ->
+        val x0 = (column * step).coerceAtMost(width - 1)
+        val x1 = (x0 + step).coerceAtMost(width)
+        var r = 0L
+        var g = 0L
+        var b = 0L
+        var count = 0
+        for (y in from until height) {
+            for (x in x0 until x1) {
+                val pixel = getPixel(x, y)
+                r += android.graphics.Color.red(pixel)
+                g += android.graphics.Color.green(pixel)
+                b += android.graphics.Color.blue(pixel)
+                count++
+            }
+        }
+        if (count == 0) Color.Black
+        else Color(r / count / 255f, g / count / 255f, b / count / 255f)
+    }.also { require(band > 0) }
+}
+
+/**
+ * How many columns the foot is read as.
+ *
+ * Eight kept the shape and showed the machinery: a gradient interpolates
+ * straight between its stops, so eight of them across a phone is a stop every
+ * 45 points and the eye finds each one — the field came out as vertical bands.
+ * Twenty-four is one every fifteen points, which reads as a wash.
+ */
+private const val TONE_COLUMNS = 24
+
+/** How often the clip is read back, in milliseconds. */
+private const val TONE_INTERVAL_MS = 900L
+
+/**
+ * Side of the thumbnail the colours are taken from.
+ *
+ * Wide enough that each of the columns above still averages several pixels
+ * rather than reading one, which is the difference between a colour and a
+ * speck.
+ */
+private const val TONE_SAMPLE = 96

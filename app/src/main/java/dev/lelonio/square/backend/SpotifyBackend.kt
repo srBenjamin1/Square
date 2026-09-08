@@ -82,9 +82,13 @@ class SpotifyBackend(private val container: SquareApplication) : MusicBackend {
      * client. So the registered application stays as the fallback, and a search
      * only fails when both have nothing; see [dev.lelonio.square.data.Gateway].
      */
-    override suspend fun search(query: String, labels: SearchLabels): SearchResults {
+    override suspend fun search(
+        query: String,
+        labels: SearchLabels,
+        offset: Int,
+    ): SearchResults {
         val term = query.trim()
-        container.gateway.search(term)
+        container.gateway.search(term, offset)
             ?.let { dev.lelonio.square.data.GatewaySearch.parse(it, labels) }
             ?.let {
                 searchNeedsSetup = false
@@ -96,7 +100,7 @@ class SpotifyBackend(private val container: SquareApplication) : MusicBackend {
             return SearchResults()
         }
         searchNeedsSetup = false
-        return container.api.search(term).toResults(
+        return container.api.search(term, offset = offset).toResults(
             artistLabel = labels.artist,
             albumLabel = labels.album,
             playlistLabel = labels.playlist,

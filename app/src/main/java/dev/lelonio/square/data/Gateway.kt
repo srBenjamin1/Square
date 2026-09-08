@@ -85,7 +85,7 @@ class Gateway(private val keys: PathfinderKeys) {
      * Null when the gateway will not answer, and the Web API is where the
      * caller goes then; see SpotifyBackend.
      */
-    suspend fun search(term: String): String? {
+    suspend fun search(term: String, offset: Int = 0): String? {
         if (term.isBlank()) return null
         keys.refresh()
         val quoted = org.json.JSONObject.quote(term)
@@ -102,7 +102,7 @@ class Gateway(private val keys: PathfinderKeys) {
                 // here. Ten and five is the web player's own page size, so an
                 // hour of searching from this app reads like an hour of
                 // searching from a browser tab.
-                variables = """{"searchTerm":$quoted,"offset":0,"limit":$SEARCH_LIMIT,""" +
+                variables = """{"searchTerm":$quoted,"offset":$offset,"limit":$SEARCH_LIMIT,""" +
                     """"numberOfTopResults":$TOP_RESULTS,"includeAudiobooks":true,""" +
                     """"includeArtistHasConcertsField":false,"includePreReleases":true,""" +
                     """"includeLocalConcertsField":false,"includeAlbumPreReleases":false,""" +

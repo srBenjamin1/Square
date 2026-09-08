@@ -2,7 +2,10 @@ package dev.lelonio.square.ui.library
 
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.RowScope
 import dev.lelonio.square.ui.glass.liquidGlass
@@ -39,8 +42,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
@@ -83,6 +91,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.BoxScope
 import dev.lelonio.square.R
 import dev.lelonio.square.data.CatalogTrack
@@ -107,6 +116,7 @@ import dev.lelonio.square.ui.theme.rememberArtworkFootColor
 import dev.lelonio.square.ui.theme.pageColorFor
 import dev.lelonio.square.ui.theme.pageColorForHex
 import dev.lelonio.square.ui.theme.softShadow
+import kotlin.math.roundToInt
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import com.adamglin.PhosphorIcons
@@ -122,7 +132,8 @@ import com.adamglin.phosphoricons.bold.Shuffle
 import com.adamglin.phosphoricons.bold.Info
 import com.adamglin.phosphoricons.bold.ArrowDown
 import com.adamglin.phosphoricons.bold.CaretLeft
-import com.adamglin.phosphoricons.bold.Export
+import com.adamglin.phosphoricons.bold.MagnifyingGlass
+import com.adamglin.phosphoricons.bold.X
 import com.adamglin.phosphoricons.bold.DotsThree
 import com.adamglin.phosphoricons.bold.Plus
 import com.adamglin.phosphoricons.bold.Check
@@ -216,7 +227,6 @@ fun PlaylistScreen(
         dev.lelonio.square.data.DownloadState.None
     },
     /** Hands the page's own link to whoever wants it. */
-    onShare: () -> Unit = {},
     /**
      * Asks for the permission to read the music on the phone.
      *
@@ -237,6 +247,36 @@ fun PlaylistScreen(
 ) {
     var query by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
+    // Opening and closing the field, as one number.
+    //
+    // The field used to appear and disappear on the frame the button was
+    // pressed, which is the one thing on this page that happened without
+    // travelling: the capsule vanished and a grey box stood where it had been.
+    // Now the capsule fades and the field grows out from under the way out,
+    // and every part of that reads this — inside a `layout` or a
+    // `graphicsLayer`, never in composition, so a frame of the opening costs a
+    // measure and a draw and nothing recomposes at all. Same discipline as the
+    // header's own collapse and the bottom bar's fold.
+    val searchOpen = remember { Animatable(0f) }
+    val readSearch = remember { { searchOpen.value } }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(searching) {
+        // Let the keyboard go before the field does, or it stays up over a page
+        // with nothing left to type into.
+        if (!searching && searchOpen.value > 0f) focusManager.clearFocus()
+        searchOpen.animateTo(
+            if (searching) 1f else 0f,
+            // Soft rather than snappy: this is a pane of glass stretching, not
+            // a switch. The same spring the bar settles on.
+            spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
+        )
+    }
+    // Composed for the whole of the travel, not only while the field is wanted:
+    // closing has to be watched too. Derived so this flips twice a search
+    // rather than once a frame.
+    val searchPresent by remember {
+        derivedStateOf { searching || searchOpen.value > 0.001f }
+    }
     // An artist is not a list with a cover on top of it. It is a photograph of
     // a person with their name written across it, and the songs come after —
     // which is a different page, not a differently-worded one, so the header,
@@ -378,6 +418,17 @@ fun PlaylistScreen(
         }
     }
     val baseInk = dev.lelonio.square.ui.theme.inkOn(pageColor)
+    // What the glass carries, which is not what the page carries.
+    //
+    // The letters on this page belong to the record: a dark brown page keeps
+    // white text in both settings, because the catalogue chose that pairing.
+    // The floating controls do not belong to the record — they are the app's
+    // own chrome, made of the same film as the bars, and that film follows the
+    // phone: white in the light setting, dark in the dark one. Tinting their
+    // icons by the record put white glyphs on a white pane whenever a dark
+    // record was opened in the light setting.
+    val chromeInk = androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+
     val pageInk = catalogueInk
         ?: inkSource?.let { inkTintedBy(it, baseInk) }
         ?: baseInk
@@ -414,13 +465,26 @@ fun PlaylistScreen(
     var collapsed by remember { mutableFloatStateOf(0f) }
     val collapseFraction = { (collapsed / collapseRange).coerceIn(0f, 1f) }
 
+    // How much of a drag the header itself uses up, closing on the way up and
+    // opening on the way down. Written once and used twice: by the list's
+    // nested scroll, and by a drag that starts on the picture.
+    val takeForHeader: (Float) -> Float = { delta ->
+        if (delta < 0f) {
+            val take = (-delta).coerceAtMost(collapseRange - collapsed)
+            collapsed += take
+            -take
+        } else {
+            val give = delta.coerceAtMost(collapsed)
+            collapsed -= give
+            give
+        }
+    }
+
     val headerScroll = remember(collapseRange) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (available.y >= 0f) return Offset.Zero
-                val take = (-available.y).coerceAtMost(collapseRange - collapsed)
-                collapsed += take
-                return Offset(0f, -take)
+                return Offset(0f, takeForHeader(available.y))
             }
 
             override fun onPostScroll(
@@ -429,11 +493,23 @@ fun PlaylistScreen(
                 source: NestedScrollSource,
             ): Offset {
                 if (available.y <= 0f) return Offset.Zero
-                val give = available.y.coerceAtMost(collapsed)
-                collapsed -= give
-                return Offset(0f, give)
+                return Offset(0f, takeForHeader(available.y))
             }
         }
+    }
+
+    // The picture scrolls the page too.
+    //
+    // The header is not in the list — it is pinned above it — so a drag that
+    // began on the cover reached nothing at all, and the page only moved if you
+    // happened to start on a song. This hands those drags the same treatment
+    // the list's own get: the header closes first, and whatever is left of the
+    // gesture goes into the rows.
+    val scope = rememberCoroutineScope()
+    val headerDrag = rememberScrollableState { delta ->
+        val used = takeForHeader(delta)
+        val rest = delta - used
+        if (rest != 0f) used + listState.dispatchRawDelta(-rest).let { -it } else used
     }
 
     val heroPx = with(density) { heroHeight.roundToPx() }
@@ -531,6 +607,16 @@ fun PlaylistScreen(
         }
 
         Column(Modifier.fillMaxSize()) {
+        Box(
+            // A drag that starts on the cover scrolls the page; see headerDrag.
+            // Not reversed: the lambda already speaks the gesture's own
+            // language — a finger going down is a positive delta, and it opens
+            // the header and scrolls the rows back up.
+            Modifier.scrollable(
+                state = headerDrag,
+                orientation = Orientation.Vertical,
+            ),
+        ) {
         if (isArtist) {
             ArtistHeader(
                 ink = pageInk,
@@ -598,6 +684,7 @@ fun PlaylistScreen(
             searching = searching,
             heroHeight = heroHeight,
         )
+        }
         }
 
         LazyColumn(
@@ -688,28 +775,6 @@ fun PlaylistScreen(
                     )
                 }
 
-                item(contentType = "search") {
-                    AnimatedVisibility(visible = searching) {
-                        OutlinedTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            placeholder = { Text(stringResource(R.string.search_in_tracks)) },
-                            singleLine = true,
-                            leadingIcon = { Icon(PhosphorIcons.Fill.MagnifyingGlass, contentDescription = null) },
-                            trailingIcon = {
-                                if (query.isNotEmpty()) {
-                                    IconButton(onClick = { query = "" }) {
-                                        Icon(PhosphorIcons.Regular.X, contentDescription = stringResource(R.string.clear))
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 6.dp),
-                        )
-                    }
-                }
             }
 
             when {
@@ -938,6 +1003,20 @@ fun PlaylistScreen(
                 ),
         )
 
+        // The chrome over the picture, outside the page's own ink.
+        //
+        // This page tells everything inside it to write in the record's ink,
+        // because the record owns the page — see LocalInkOverride. These
+        // buttons are not the page: they are the app's own controls, made of
+        // the film the bars are made of, and the glass reads that same override
+        // to pick its film. On a near-black record in the light setting that
+        // came out as a dark pane with dark glyphs on it, while the bar at the
+        // foot of the same screen was white. Cleared here, they follow the
+        // phone like the rest of the chrome: a white pane with dark icons.
+        androidx.compose.runtime.CompositionLocalProvider(
+            dev.lelonio.square.ui.theme.LocalInkOverride provides null,
+        ) {
+
         // Share and everything else, in one capsule opposite the back button.
         // Two round buttons side by side would have read as two destinations;
         // one pane with a divide down it reads as what it is, a place where the
@@ -945,20 +1024,90 @@ fun PlaylistScreen(
         // One pane of glass with a line down it, not two buttons side by side.
         // Two would have read as two destinations; one capsule reads as what it
         // is, the place the page's own actions live.
+        // The field takes the capsule's place while it is open, running from the
+        // back button to the edge — the same move the bottom bar makes when its
+        // search opens. It used to be a row near the top of the list, which is
+        // why opening it from halfway down the page appeared to do nothing.
+        if (searchPresent) {
+            dev.lelonio.square.ui.components.ListSearchField(
+                query = query,
+                onQuery = { query = it },
+                // The same glass as the capsule it replaces, refracting the
+                // same cover, so what happens on the press is one control
+                // turning into another rather than a box arriving.
+                backdrop = pageBackdrop,
+                height = 42.dp,
+                ink = chromeInk,
+                hint = chromeInk.copy(alpha = 0.55f),
+                autoFocus = true,
+                // The writing arrives after the pane has somewhere to put it.
+                contentAlpha = { ((readSearch() - 0.35f) / 0.65f).coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(
+                        top = contentPadding.calculateTopPadding() + 8.dp,
+                        start = 68.dp,
+                        // Room for the way out, which the capsule was carrying
+                        // until the field took its place.
+                        end = 62.dp,
+                    )
+                    // A pane cannot appear at full width out of nothing, and it
+                    // cannot fade in either — glass that fades reads as a
+                    // photograph of glass. It arrives the width of the button
+                    // beside it and stretches to the back arrow.
+                    .growingFromEnd(readSearch, from = 42.dp),
+            )
+
+            LiquidButton(
+                onClick = {
+                    searching = false
+                    query = ""
+                },
+                backdrop = pageBackdrop,
+                modifier = Modifier
+                    .padding(top = contentPadding.calculateTopPadding() + 8.dp, end = 14.dp)
+                    .align(Alignment.TopEnd)
+                    // Takes the capsule's place as the capsule gives it up.
+                    .graphicsLayer { alpha = (readSearch() / 0.45f).coerceIn(0f, 1f) }
+                    .size(42.dp),
+                contentHeight = 42.dp,
+                contentPadding = 0.dp,
+            ) {
+                Icon(
+                    PhosphorIcons.Bold.X,
+                    contentDescription = stringResource(R.string.clear),
+                    tint = chromeInk,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+
         GlassCapsule(
             backdrop = pageBackdrop,
             modifier = Modifier
                 .padding(top = contentPadding.calculateTopPadding() + 8.dp, end = 14.dp)
                 .align(Alignment.TopEnd)
-                .graphicsLayer { alpha = 1f - collapseFraction() },
+                // Gone by the time the field is a third open, and faded before
+                // that. Out of the layout rather than merely invisible: an
+                // invisible capsule still takes every touch aimed at the field.
+                .graphicsLayer { alpha = (1f - readSearch() / 0.3f).coerceIn(0f, 1f) }
+                .layout { measurable, constraints ->
+                    if (readSearch() >= 0.3f) {
+                        layout(0, 0) {}
+                    } else {
+                        val placeable = measurable.measure(constraints)
+                        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                    }
+                },
         ) {
             // Keeping the page, first in the row — where the reference puts the
             // one action that changes what your library holds, apart from the
             // controls that only start the music. Absent while the answer is
             // unknown and on the pages the question does not apply to.
             if (state.saved != null) {
+                CollapsingSlot(collapseFraction) {
                 CapsuleAction(
-                    tint = pageInk,
+                    tint = chromeInk,
                     icon = if (state.saved) {
                         PhosphorIcons.Bold.Check
                     } else {
@@ -969,21 +1118,38 @@ fun PlaylistScreen(
                     ),
                     onClick = onToggleSaved,
                 )
-                CapsuleDivider()
+                }
+                CollapsingSlot(collapseFraction) { CapsuleDivider() }
             }
+            // Filtering the list, where the link used to be.
+            //
+            // A link is something you do once and from a menu; narrowing a
+            // hundred songs down to the one you meant is something you do while
+            // the page is open, and the reference gives that the place next to
+            // the page's other actions. Sharing moved under the dots, which is
+            // where the rest of a page's occasional business already lives.
             CapsuleAction(
-                icon = PhosphorIcons.Bold.Export,
-                description = stringResource(R.string.copy_link),
-                onClick = onShare,
-                tint = pageInk,
+                icon = if (searching) {
+                    PhosphorIcons.Bold.X
+                } else {
+                    PhosphorIcons.Bold.MagnifyingGlass
+                },
+                description = stringResource(R.string.search_in_tracks),
+                onClick = {
+                    searching = !searching
+                    if (!searching) query = ""
+                },
+                tint = chromeInk,
             )
-            CapsuleDivider()
-            CapsuleAction(
-                icon = PhosphorIcons.Bold.DotsThree,
-                description = stringResource(R.string.more),
-                onClick = onMenu,
-                tint = pageInk,
-            )
+            CollapsingSlot(collapseFraction) { CapsuleDivider() }
+            CollapsingSlot(collapseFraction) {
+                CapsuleAction(
+                    icon = PhosphorIcons.Bold.DotsThree,
+                    description = stringResource(R.string.more),
+                    onClick = onMenu,
+                    tint = chromeInk,
+                )
+            }
         }
 
         // Floating rather than a top bar: the list scrolls under it, so the
@@ -995,17 +1161,18 @@ fun PlaylistScreen(
             modifier = Modifier
                 .padding(top = contentPadding.calculateTopPadding() + 8.dp, start = 14.dp)
                 .align(Alignment.TopStart)
-                .size(42.dp)
-                .graphicsLayer { alpha = 1f - collapseFraction() },
+                .size(42.dp),
             contentHeight = 42.dp,
             contentPadding = 0.dp,
         ) {
             Icon(
                 PhosphorIcons.Bold.CaretLeft,
                 contentDescription = stringResource(R.string.back),
-                tint = pageInk,
+                tint = chromeInk,
                 modifier = Modifier.size(20.dp),
             )
+        }
+
         }
 
         // In the page rather than in a popup of its own: the sort button is up
@@ -1269,6 +1436,81 @@ private fun DetailHeader(
 }
 
 /**
+ * Grows a control out of its own right-hand edge.
+ *
+ * How the search field opens: it keeps the place the way out already occupies
+ * and takes the rest of the row from it, so the motion starts where the finger
+ * was rather than in the middle of the header. The width is a real measurement
+ * and not a scale — a scaled pane stretches its corners into ovals and drags
+ * the writing with them.
+ *
+ * [progress] is read in `layout`, so opening costs a measure and nothing
+ * recomposes.
+ */
+private fun Modifier.growingFromEnd(progress: () -> Float, from: Dp): Modifier =
+    layout { measurable, constraints ->
+        val full = constraints.maxWidth
+        val start = from.roundToPx().coerceAtMost(full)
+        val fraction = progress().coerceIn(0f, 1f)
+        val width = (start + (full - start) * fraction).roundToInt().coerceAtLeast(1)
+        val placeable = measurable.measure(
+            constraints.copy(minWidth = width, maxWidth = width),
+        )
+        layout(full, placeable.height) { placeable.place(full - width, 0) }
+    }
+
+/**
+ * A part of the header's capsule that leaves once the page is scrolled.
+ *
+ * Back and search stay for the whole of the page — one is how you leave and the
+ * other is how you find a song in a list too long to read. Keeping the record
+ * and the rest of its business are things you do while looking at the top of
+ * the page, so they go with the top of the page.
+ *
+ * Faded *and* taken out of the layout. Alpha alone leaves an invisible control
+ * still taking every touch that lands on it, and leaves the capsule the width
+ * of three buttons with one button in it.
+ *
+ * The width goes continuously, which is the whole of the motion. It used to be
+ * a switch — full width while the icons faded, then nothing on the frame the
+ * travel finished — so the capsule spent the scroll as wide as three buttons
+ * with one visible in it and then jumped to a circle. The pane is a piece of
+ * glass, and a piece of glass that changes size in one frame reads as two
+ * different controls.
+ *
+ * Both ends over the first [SLOT_TRAVEL] of the header's own travel, the way
+ * the bottom bar folds: the part that stops being readable first is the part
+ * that goes first, and the capsule has finished closing well before the header
+ * has. What is left of the box is cropped from both sides, so the icon is
+ * squeezed out of the middle rather than sliding into its neighbour.
+ */
+@Composable
+private fun CollapsingSlot(collapse: () -> Float, content: @Composable () -> Unit) {
+    val keep = { (1f - collapse() / SLOT_TRAVEL).coerceIn(0f, 1f) }
+    Box(
+        Modifier
+            .graphicsLayer { alpha = keep() }
+            .clipToBounds()
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val width = (placeable.width * keep()).roundToInt()
+                if (width <= 0) {
+                    layout(0, 0) {}
+                } else {
+                    layout(width, placeable.height) {
+                        placeable.place((width - placeable.width) / 2, 0)
+                    }
+                }
+            },
+    ) {
+        content()
+    }
+}
+
+/** How much of the header's travel a departing capsule slot uses up. */
+private const val SLOT_TRAVEL = 0.45f
+
+/**
  * What every header becomes once it is scrolled shut.
  *
  * The same title and the same controls at the size a bar can carry them,
@@ -1296,52 +1538,29 @@ private fun CollapsedBar(
             .fillMaxWidth()
             .height(collapsedHeight)
             .padding(top = topPadding)
-            .padding(horizontal = 6.dp)
+            // Wide enough on both sides to clear the glass controls, which stay
+            // where they are for the whole of the page rather than handing over
+            // to a bar of their own; see below.
+            .padding(horizontal = 68.dp)
             .graphicsLayer { alpha = (collapse() * 2f - 1f).coerceIn(0f, 1f) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                PhosphorIcons.Regular.ArrowLeft,
-                contentDescription = stringResource(R.string.back),
-                tint = ink,
-                modifier = Modifier.size(20.dp),
-            )
-        }
+        // The name, and nothing else.
+        //
+        // This bar used to grow its own back button, search, shuffle and play
+        // as the header shut, and the floating glass ones faded out under them.
+        // Two sets of the same controls trading places is a lot of machinery
+        // for no gain — and it was the source of a real bug, since a faded
+        // control still takes touches. The glass stays; this says where you are.
         Text(
             name,
             style = MaterialTheme.typography.titleMedium,
             color = ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 6.dp),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f),
         )
-        IconButton(onClick = onToggleSearch) {
-            Icon(
-                if (searching) PhosphorIcons.Regular.X else PhosphorIcons.Fill.MagnifyingGlass,
-                contentDescription = stringResource(R.string.search_in_tracks),
-                tint = ink,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        IconButton(onClick = onShuffle) {
-            Icon(
-                PhosphorIcons.Bold.Shuffle,
-                contentDescription = stringResource(R.string.shuffle),
-                tint = ink,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        IconButton(onClick = onPlay) {
-            Icon(
-                PhosphorIcons.Fill.Play,
-                contentDescription = stringResource(R.string.play),
-                tint = ink,
-                modifier = Modifier.size(22.dp),
-            )
-        }
     }
 }
 

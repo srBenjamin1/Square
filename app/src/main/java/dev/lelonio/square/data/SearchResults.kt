@@ -23,6 +23,31 @@ data class SearchResults(
      */
     val lyricMatches: Set<String> = emptySet(),
 ) {
+    /** How many rows this holds in total, for telling a page from an echo. */
+    val count: Int
+        get() = tracks.size + artists.size + albums.size + playlists.size
+
+    /**
+     * This, with another page's rows after it.
+     *
+     * De-duplicated by address in every kind: an offset is the server's idea of
+     * where a page starts, and a catalogue that has changed under it hands back
+     * rows that are already on the screen.
+     */
+    operator fun plus(page: SearchResults): SearchResults {
+        val heldTracks = tracks.mapTo(mutableSetOf()) { it.uri }
+        val heldArtists = artists.mapTo(mutableSetOf()) { it.uri }
+        val heldAlbums = albums.mapTo(mutableSetOf()) { it.uri }
+        val heldLists = playlists.mapTo(mutableSetOf()) { it.uri }
+        return SearchResults(
+            tracks = tracks + page.tracks.filter { it.uri !in heldTracks },
+            artists = artists + page.artists.filter { it.uri !in heldArtists },
+            albums = albums + page.albums.filter { it.uri !in heldAlbums },
+            playlists = playlists + page.playlists.filter { it.uri !in heldLists },
+            lyricMatches = lyricMatches + page.lyricMatches,
+        )
+    }
+
     val isEmpty: Boolean
         get() = tracks.isEmpty() && artists.isEmpty() && albums.isEmpty() && playlists.isEmpty()
 }

@@ -305,7 +305,7 @@ internal val MiniPlayerInkDim: Color
  * and inventing a colour for it would be asking people to learn a private
  * signal for something they already recognise.
  */
-private val MiniPlayerAccent = Color(0xFF1ED760)
+internal val MiniPlayerAccent = Color(0xFF1ED760)
 
 /** Guarded against the duration being unknown while a track loads. */
 fun progressOf(positionMs: Long, durationMs: Long): Float =

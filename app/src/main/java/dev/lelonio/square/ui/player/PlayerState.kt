@@ -101,6 +101,16 @@ fun dev.lelonio.square.data.RemotePlayback.asPlaybackState(on: String) = Playbac
     artist = artist,
     artworkUrl = coverUrl.ifEmpty { null },
     isPlaying = playing,
+    // The intent as well as the fact.
+    //
+    // Every glyph on this screen follows `wantsPlay`, because locally that is
+    // what a tap changes and what the listener should see change. A remote
+    // playback left it at its default, so music playing in another room drew a
+    // play button on a moving progress bar: the bar followed the fact and the
+    // button followed an intent nobody had set. On another device the two are
+    // the same thing — there is no buffering to ride out here, only what that
+    // device is doing.
+    wantsPlay = playing,
     durationMs = durationMs,
     hasNext = true,
     hasPrevious = true,

@@ -501,13 +501,6 @@ private fun BackendSection() {
                 selected = backend == chosen,
             ) { store.setBackend(backend) }
         }
-        RowDivider()
-        Text(
-            stringResource(R.string.backend_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = InkDim,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-        )
     }
 }
 
@@ -550,13 +543,6 @@ private fun YouTubeAccountSection(onSignIn: () -> Unit, onChannelChange: () -> U
                 label = stringResource(R.string.youtube_sign_in),
                 selected = false,
                 onClick = onSignIn,
-            )
-            RowDivider()
-            Text(
-                stringResource(R.string.youtube_sign_in_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = InkDim,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
             )
         } else {
             Row(
@@ -647,7 +633,6 @@ private fun CanvasSection(backdrop: Backdrop) {
     Section(stringResource(R.string.canvas)) {
         DownloadSwitch(
             label = stringResource(R.string.canvas_show),
-            note = stringResource(R.string.canvas_note),
             checked = enabled,
             backdrop = backdrop,
             onChange = store::setCanvasEnabled,
@@ -671,13 +656,6 @@ private fun EffectQualitySection() {
                 selected = quality == chosen,
             ) { store.set(quality) }
         }
-        RowDivider()
-        Text(
-            stringResource(chosen.note),
-            style = MaterialTheme.typography.bodySmall,
-            color = InkDim,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-        )
     }
 }
 
@@ -703,8 +681,7 @@ private fun CrossfadeSection() {
         }
         RowDivider()
         Text(
-            stringResource(R.string.crossfade_note) + " " +
-                stringResource(R.string.quality_restarts),
+            stringResource(R.string.quality_restarts),
             style = MaterialTheme.typography.bodySmall,
             color = InkDim,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
@@ -744,8 +721,7 @@ private fun QualitySection() {
         }
         RowDivider()
         Text(
-            stringResource(R.string.quality_auto_note) + " " +
-                stringResource(R.string.quality_restarts),
+            stringResource(R.string.quality_restarts),
             style = MaterialTheme.typography.bodySmall,
             color = InkDim,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
@@ -931,17 +907,10 @@ private fun DownloadsSection(backdrop: Backdrop) {
                 selected = entry == quality,
             ) { settings.setQuality(entry) }
         }
-        Text(
-            stringResource(R.string.download_quality_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = InkDim,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-        )
 
         RowDivider()
         DownloadSwitch(
             label = stringResource(R.string.download_wifi_only),
-            note = stringResource(R.string.download_wifi_only_note),
             checked = wifiOnly,
             backdrop = backdrop,
             onChange = settings::setWifiOnly,
@@ -950,7 +919,6 @@ private fun DownloadsSection(backdrop: Backdrop) {
         RowDivider()
         DownloadSwitch(
             label = stringResource(R.string.offline_mode),
-            note = stringResource(R.string.offline_mode_note),
             checked = offline,
             backdrop = backdrop,
             onChange = settings::setOfflineMode,
@@ -999,7 +967,6 @@ private fun DownloadsSection(backdrop: Backdrop) {
 @Composable
 private fun DownloadSwitch(
     label: String,
-    note: String?,
     checked: Boolean,
     backdrop: Backdrop,
     onChange: (Boolean) -> Unit,
@@ -1012,12 +979,7 @@ private fun DownloadSwitch(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
-            if (note != null) {
-                Text(note, style = MaterialTheme.typography.bodySmall, color = InkDim)
-            }
-        }
+        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         dev.lelonio.square.ui.glass.LiquidToggle(
             selected = { checked },
             onSelect = onChange,

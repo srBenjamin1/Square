@@ -211,15 +211,24 @@ fun LibraryScreen(
                 }
             }
 
-            val playlists = remember(shown, playlistOrder, pinned, order, descending) {
+            // What the field at the top of the list is asking for, on top of the
+            // chips: the same act as the field inside a record, narrowing what
+            // is already here rather than fetching anything.
+            var query by remember { mutableStateOf("") }
+            val matching = remember(shown, query) {
+                if (query.isBlank()) shown
+                else shown.filter { it.name.contains(query.trim(), ignoreCase = true) }
+            }
+
+            val playlists = remember(matching, playlistOrder, pinned, order, descending) {
                 when (order) {
-                    Order.RECENT -> shown.sortedByRecentlyOpened(playlistOrder)
-                    Order.NAME -> shown.sortedWith(
+                    Order.RECENT -> matching.sortedByRecentlyOpened(playlistOrder)
+                    Order.NAME -> matching.sortedWith(
                         compareBy(String.CASE_INSENSITIVE_ORDER) { it.name },
                     )
                     // The order the account added them, which is what the
                     // rootlist arrives in.
-                    Order.ADDED -> shown
+                    Order.ADDED -> matching
                 }
                     // The direction belongs to the sort rather than beside it:
                     // reversing "recently opened" is "least recently", and a
@@ -273,6 +282,15 @@ fun LibraryScreen(
                             .fillMaxSize()
                             .layerBackdrop(listBackdrop),
                     ) {
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
+                            dev.lelonio.square.ui.components.ListSearchField(
+                                query = query,
+                                onQuery = { query = it },
+                                placeholder = stringResource(R.string.search_library),
+                                modifier = Modifier.padding(bottom = 4.dp),
+                            )
+                        }
+
                         // Why the library is shorter than usual, at the top
                         // of the library. Nothing at all when there is a
                         // connection; see OfflineNotice.
@@ -307,6 +325,19 @@ fun LibraryScreen(
                             .fillMaxSize()
                             .layerBackdrop(listBackdrop),
                     ) {
+                        item(key = "search") {
+                            dev.lelonio.square.ui.components.ListSearchField(
+                                query = query,
+                                onQuery = { query = it },
+                                placeholder = stringResource(R.string.search_library),
+                                modifier = Modifier.padding(
+                                    start = 20.dp,
+                                    end = 20.dp,
+                                    bottom = 6.dp,
+                                ),
+                            )
+                        }
+
                         item(key = "offline") {
                             dev.lelonio.square.ui.components.OfflineNotice(onRetry = onRetryOnline)
                         }
@@ -488,23 +519,11 @@ private fun Header(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Filter.entries.forEach { entry ->
-                val selected = entry == filter
-                LiquidButton(
+                dev.lelonio.square.ui.components.FilterChip(
+                    label = stringResource(entry.label),
+                    selected = entry == filter,
                     onClick = { onFilter(entry) },
-                    backdrop = backdrop,
-                    flat = true,
-                    contentHeight = 36.dp,
-                    contentPadding = 14.dp,
-                    surfaceColor = if (selected) SelectedFilm else Color.Unspecified,
-                    wash = dev.lelonio.square.ui.glass.chipWash(selected),
-                ) {
-                    Text(
-                        stringResource(entry.label),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (selected) Ink else InkDim,
-                        maxLines = 1,
-                    )
-                }
+                )
             }
 
             Spacer(Modifier.weight(1f))

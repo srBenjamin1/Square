@@ -452,6 +452,15 @@ fun Modifier.liquidGlass(
     val backdropLuminance = LocalBackdropLuminance.current
     val surfaceTintColor = if (config.surfaceTintColor.isSpecified) {
         config.surfaceTintColor
+    } else if (dev.lelonio.square.ui.theme.LocalInkOverride.current != null) {
+        // A surface whose ink was chosen for it takes the opposite film.
+        //
+        // On the player and on a record's page the ink is decided by what is
+        // behind the glass rather than by the phone's setting, and a film that
+        // followed the setting anyway put light glyphs on a light pane over a
+        // dark Canvas.
+        val ink = dev.lelonio.square.ui.theme.LocalInkOverride.current
+        if ((ink?.luminance() ?: 1f) > 0.5f) Color(0xFF23232A) else Color(0xFFFAFAFA)
     } else if (dev.lelonio.square.ui.theme.LocalLightTheme.current) {
         Color(0xFFFAFAFA)
     } else {

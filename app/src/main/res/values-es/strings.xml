@@ -400,4 +400,5 @@
     <string name="canvas_note">El vídeo corto que traen algunas canciones. Desactivado, tampoco se descarga.</string>
     <string name="show_all">Mostrar todo</string>
     <string name="show_less">Mostrar menos</string>
+    <string name="search_library">Buscar en tu biblioteca</string>
 </resources>

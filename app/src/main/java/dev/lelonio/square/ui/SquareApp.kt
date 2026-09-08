@@ -139,6 +139,7 @@ import com.adamglin.phosphoricons.regular.Plus
 import com.adamglin.phosphoricons.regular.Queue
 import com.adamglin.phosphoricons.regular.SpotifyLogo
 import com.adamglin.phosphoricons.regular.YoutubeLogo
+import com.adamglin.phosphoricons.regular.Export
 import com.adamglin.phosphoricons.regular.Trash
 import dev.lelonio.square.data.RemoteConnect
 import dev.lelonio.square.ui.player.asPlaybackState
@@ -162,6 +163,7 @@ import dev.lelonio.square.ui.theme.footToneFor
 import dev.lelonio.square.ui.theme.Ink
 import dev.lelonio.square.ui.theme.pageColorFor
 import dev.lelonio.square.ui.theme.pageColorForHex
+import dev.lelonio.square.ui.theme.pageGround
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInHorizontally
@@ -515,6 +517,7 @@ fun SquareApp(
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
     val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
+    val searchTrail by viewModel.searchTrail.collectAsStateWithLifecycle()
     val webApi by viewModel.webApi.collectAsStateWithLifecycle()
     val reverb by AudioEffects.reverb.collectAsStateWithLifecycle()
     val presets by viewModel.effectPresets.collectAsStateWithLifecycle()
@@ -692,6 +695,57 @@ fun SquareApp(
     // reason: they cannot sample a layer they are part of.
     val artBackdrop = rememberLayerBackdrop()
     val pageBackdrop = rememberLayerBackdrop()
+
+    // The foot of the Canvas as it plays, which the player's field is made of
+    // while there is one; see AmbientArtworkBackground.
+    var clipColumns by remember { mutableStateOf<List<Color>>(emptyList()) }
+
+    // What the player's field is made of, worked out once.
+    //
+    // Both the background and the player itself need it: one paints it, and the
+    // other has to know whether what it is writing on is light or dark. It was
+    // computed inside the background's own lambda, where the player could not
+    // see it — and the player was choosing its ink from the phone's setting
+    // instead, which is how a dark Canvas ended up with a near-black progress
+    // bar drawn on it in the light setting.
+    val ambientArt = nowPlayingArt?.heroUrl
+        ?: nowPlayingArt?.coverUrl
+        ?: playback.artworkUrl
+    val ambientFoot by rememberArtworkFootColor(ambientArt)
+    val ambientAccent by rememberArtworkColor(
+        ambientArt.takeIf { nowPlayingArt?.bgColor == null },
+    )
+    val playerTone = when {
+        nowPlayingArt?.bgColor != null ->
+            pageColorForHex(nowPlayingArt?.bgColor, lift = false)
+        ambientFoot != null -> footToneFor(ambientFoot, lift = false)
+        else -> pageColorFor(ambientAccent)
+    }
+
+    // And the ink that field asks for.
+    //
+    // Damped a little first: the lower half of the player carries a black wash
+    // for legibility, so the colour the transport actually sits on is darker
+    // than the field's own — deciding on the undamped colour left dark ink on
+    // a field that had since been taken down towards black.
+    val playerInk = dev.lelonio.square.ui.theme.inkOn(
+        androidx.compose.ui.graphics.lerp(
+            if (clipColumns.isNotEmpty()) clipColumns.mean() else playerTone,
+            Color.Black,
+            0.22f,
+        ),
+    )
+
+    // Emptied by the track change itself, not by the answer about the new
+    // track's Canvas.
+    //
+    // A song with no clip left the last one's colours on the screen: the reset
+    // waited for the player to report that this track has no Canvas, and the
+    // clip that was leaving went on sampling itself for the length of its own
+    // crossfade — so whichever arrived last won, and it was usually the clip.
+    // The track changing is the one moment that is certainly true.
+    LaunchedEffect(playback.mediaId) { clipColumns = emptyList() }
+
 
     // What the player's own glass refracts: the ambient field made from the
     // record, and nothing of the page underneath.
@@ -1299,12 +1353,7 @@ fun SquareApp(
                         // them — instead of a duller colour off Spotify's
                         // thumbnail, which is what made them look like a
                         // different app's screens.
-                        AppBackdrop(
-                            artworkUrl = nowPlayingArt?.heroUrl
-                                ?: nowPlayingArt?.coverUrl
-                                ?: playback.artworkUrl,
-                            tintHex = nowPlayingArt?.bgColor,
-                        )
+                        AppBackdrop()
                     }
 
                     Box(
@@ -1410,6 +1459,9 @@ fun SquareApp(
                                 onPlaySong = { tracks, index ->
                                     onPlay(tracks, index, null, false, newLabel, 0L)
                                 },
+                                onSongMenu = { track ->
+                                    trackMenu = TrackMenuRequest(track = track, removable = false)
+                                },
                                 onOpen = { item ->
                                     viewModel.openContext(
                                         item.uri,
@@ -1471,7 +1523,7 @@ fun SquareApp(
                                     tracks.getOrNull(index)?.let(viewModel::recordSearchPlay)
                                     onPlay(tracks, index, null, false, searchLabel, 0L)
                                 },
-                                history = searchHistory,
+                                history = searchTrail,
                                 onClearHistory = viewModel::clearSearchHistory,
                                 offline = offlineNow,
                                 onEnqueue = onEnqueue,
@@ -1484,9 +1536,14 @@ fun SquareApp(
                                     )
                                 },
                                 onOpenContext = { item ->
+                                    // Kept, like a song played from a result:
+                                    // an artist looked up on Tuesday is worth
+                                    // having back as much as a song is.
+                                    viewModel.recordSearchOpen(item)
                                     viewModel.openContext(item.uri, item.title, item.artworkUrl)
                                     navController.navigate(Routes.PLAYLIST)
                                 },
+                                onLoadMore = viewModel::loadMoreSearch,
                                 backdrop = artBackdrop,
                             )
                         }
@@ -1699,20 +1756,6 @@ fun SquareApp(
                                     onToggleFollow = viewModel::toggleFollowArtist,
                                     onToggleLatestSaved = viewModel::toggleLatestSaved,
                                     onToggleSaved = viewModel::toggleSaved,
-                                    onShare = {
-                                        val uri = playlist.uri ?: return@PlaylistScreen
-                                        context.startActivity(
-                                            android.content.Intent.createChooser(
-                                                android.content.Intent(android.content.Intent.ACTION_SEND)
-                                                    .setType("text/plain")
-                                                    .putExtra(
-                                                        android.content.Intent.EXTRA_TEXT,
-                                                        dev.lelonio.square.ui.library.openLinkOf(uri),
-                                                    ),
-                                                null,
-                                            ),
-                                        )
-                                    },
                                     onMenu = {
                                         val uri = playlist.uri ?: return@PlaylistScreen
                                         // What the menu is allowed to offer, from
@@ -1843,6 +1886,7 @@ fun SquareApp(
                             FloatingMiniPlayer(
                                 state = playback,
                                 positionMs = positionMs,
+                                remoteLabel = remote?.let { remoteLabel },
                                 modifier = accessoryModifier
                                     .fillMaxWidth()
                                     .then(pillGlass)
@@ -2478,18 +2522,6 @@ fun SquareApp(
                             // is the catalogue's where it gave one and the
                             // picture's own where it did not, which is the same
                             // rule every page in the app follows.
-                            val ambientArt = nowPlayingArt?.heroUrl
-                                ?: nowPlayingArt?.coverUrl
-                                ?: playback.artworkUrl
-                            // The band the fade actually meets, so the screen
-                            // below the cover carries on from where the cover
-                            // stopped rather than jumping to the colour that
-                            // happens to identify the record. See
-                            // rememberArtworkFootColor.
-                            val ambientFoot by rememberArtworkFootColor(ambientArt)
-                            val ambientAccent by rememberArtworkColor(
-                                ambientArt.takeIf { nowPlayingArt?.bgColor == null },
-                            )
                             dev.lelonio.square.ui.components.AmbientArtworkBackground(
                                 artworkModel = ambientArt,
                                 // The shape the cover above is drawn at, so
@@ -2502,13 +2534,7 @@ fun SquareApp(
                                 // behind the same cover. The colour read off
                                 // the picture is the fallback for the records
                                 // it has never heard of.
-                                tone = when {
-                                    nowPlayingArt?.bgColor != null ->
-                                        pageColorForHex(nowPlayingArt?.bgColor, lift = false)
-                                    ambientFoot != null ->
-                                        footToneFor(ambientFoot, lift = false)
-                                    else -> pageColorFor(ambientAccent)
-                                },
+                                tone = playerTone,
                                 // Barely any colour over the picture.
                                 //
                                 // The reference does not put a tone behind its
@@ -2529,6 +2555,7 @@ fun SquareApp(
                                 // the app where an always-invalidating
                                 // background would be competing for the frame.
                                 motion = playerSettled,
+                                columns = clipColumns,
                             )
                           }
                         },
@@ -2541,6 +2568,12 @@ fun SquareApp(
                               dev.lelonio.square.ui.player.LocalGlassEnabled provides
                                   (glassConfig.playerEnabled &&
                                       dev.lelonio.square.ui.player.LocalGlassEnabled.current),
+                              // Everything on this screen writes on the field,
+                              // and the field is the record — not the phone's
+                              // setting. The glass reads this too and takes the
+                              // opposite film; see GlassEffect.
+                              dev.lelonio.square.ui.theme.LocalInkOverride provides playerInk,
+                              androidx.compose.material3.LocalContentColor provides playerInk,
                           ) {
                             PlayerScreen(
                                 state = playerState,
@@ -2700,6 +2733,7 @@ fun SquareApp(
                                 // The colours filed with this artwork, for the
                                 // light that moves behind it; see CoverAura.
                                 catalogPalette = nowPlayingArt?.inkPalette.orEmpty(),
+                                onClipColumns = { clipColumns = it },
                                 coverHeroUrl = nowPlayingArt?.heroUrl,
                                 coverMotionUrl = nowPlayingArt?.motionUrl,
                                 coverSquareUrl = nowPlayingArt?.coverUrl,
@@ -2923,6 +2957,30 @@ fun SquareApp(
                                 if (isKept) unkeeping = playlist
                                 else viewModel.toggleDownload(playlist)
                             }
+                        }
+                        // The link to the page, which used to be a button of
+                        // its own beside the cover. Sharing is occasional and
+                        // it is done once; the place next to the page's title
+                        // now filters its songs, which is what gets used while
+                        // the page is open.
+                        TrackSheetAction(
+                            stringResource(R.string.copy_link),
+                            PhosphorIcons.Regular.Export,
+                        ) {
+                            playlistMenu = null
+                            context.startActivity(
+                                android.content.Intent.createChooser(
+                                    android.content.Intent(android.content.Intent.ACTION_SEND)
+                                        .setType("text/plain")
+                                        .putExtra(
+                                            android.content.Intent.EXTRA_TEXT,
+                                            dev.lelonio.square.ui.library.openLinkOf(
+                                                shownPlaylist.uri,
+                                            ),
+                                        ),
+                                    null,
+                                ),
+                            )
                         }
                         if (editable) TrackSheetAction(
                             stringResource(R.string.delete),
@@ -3274,24 +3332,21 @@ fun SquareApp(
  * which is where the blurred copy of the artwork went.
  */
 @Composable
-private fun AppBackdrop(
-    artworkUrl: String?,
-    /** The catalogue's own page colour for what is playing; see pageColorForHex. */
-    tintHex: String? = null,
-) {
-    val accent by rememberArtworkColor(artworkUrl.takeIf { tintHex == null })
-    // Eased rather than cut: a track change would otherwise repaint the
-    // whole window in one frame, which reads as a flash.
-    val tone by animateColorAsState(
-        targetValue = if (tintHex != null) pageColorForHex(tintHex) else pageColorFor(accent),
-        animationSpec = tween(durationMillis = 700),
-        label = "pageTone",
-    )
-    // One colour, held. It used to slide to the floor over the lower half,
-    // which read as the page running out of light rather than as a page with a
-    // colour — and under a screen of shelves there is nothing for a gradient to
-    // describe anyway.
-    Box(Modifier.fillMaxSize().background(tone))
+private fun AppBackdrop() {
+    // Neutral, and the same on every page the app assembles.
+    //
+    // These screens used to take the colour of whatever was playing. On a page
+    // that is *about* one record — its own page, or the player — that is right,
+    // and it stays. On a screen made of other people's covers it is a wash
+    // under a hundred artworks that have nothing to do with it: on the New tab
+    // a salmon ground had every sleeve fighting it, and the reference keeps
+    // exactly these pages black or white for that reason.
+    //
+    // The record's colour did not go anywhere. It is on the page of the record
+    // itself, on the player, and on the controls that mean "this one, now" —
+    // the play button, the lit tab, the row that is playing — which is where a
+    // colour says something.
+    Box(Modifier.fillMaxSize().background(pageGround()))
 }
 
 @Composable
@@ -3720,3 +3775,13 @@ private suspend fun awaitAudible(
 
 /** How long the extras wait for the song; see [awaitAudible]. */
 private const val AUDIBLE_TIMEOUT_MS = 5_000L
+
+/** The one colour a row of sampled columns amounts to. */
+private fun List<Color>.mean(): Color {
+    if (isEmpty()) return Color.Black
+    return Color(
+        red = sumOf { it.red.toDouble() }.toFloat() / size,
+        green = sumOf { it.green.toDouble() }.toFloat() / size,
+        blue = sumOf { it.blue.toDouble() }.toFloat() / size,
+    )
+}

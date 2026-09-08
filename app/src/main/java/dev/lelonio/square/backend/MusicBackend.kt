@@ -98,7 +98,7 @@ interface MusicBackend {
     suspend fun refreshAuth()
     suspend fun logOut()
 
-    suspend fun search(query: String, labels: SearchLabels): SearchResults
+    suspend fun search(query: String, labels: SearchLabels, offset: Int = 0): SearchResults
 
     /**
      * Whether the last search had nowhere to go.

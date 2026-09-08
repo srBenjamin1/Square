@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Fill
+import com.adamglin.phosphoricons.fill.Devices
 import com.adamglin.phosphoricons.fill.Pause
 import com.adamglin.phosphoricons.fill.Play
 import com.adamglin.phosphoricons.fill.SkipForward
@@ -83,6 +84,14 @@ fun FloatingMiniPlayer(
     positionMs: State<Long>,
     modifier: Modifier = Modifier,
     contentColor: androidx.compose.ui.graphics.Color = MiniPlayerInk,
+    /**
+     * Where the music is coming out, when it is not this phone.
+     *
+     * Takes the artist's place on the second line, the way the old bar did it:
+     * with playback on a speaker in another room, whose record it is matters
+     * less than which room, and the screen was saying nothing about it at all.
+     */
+    remoteLabel: String? = null,
     /** Folded: the strip has room for the song and one button, nothing else. */
     inline: Boolean = false,
     onClick: () -> Unit,
@@ -198,17 +207,34 @@ fun FloatingMiniPlayer(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = state.artist,
-                    style = if (inline) {
-                        MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp)
-                    } else {
-                        MaterialTheme.typography.bodySmall
-                    },
-                    color = contentColor.copy(alpha = 0.7f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (remoteLabel != null) {
+                        Icon(
+                            PhosphorIcons.Fill.Devices,
+                            contentDescription = null,
+                            tint = MiniPlayerAccent,
+                            modifier = Modifier
+                                .size(if (inline) 10.dp else 12.dp)
+                                .padding(end = 0.dp),
+                        )
+                    }
+                    Text(
+                        text = remoteLabel ?: state.artist,
+                        style = if (inline) {
+                            MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp)
+                        } else {
+                            MaterialTheme.typography.bodySmall
+                        },
+                        color = if (remoteLabel != null) {
+                            MiniPlayerAccent
+                        } else {
+                            contentColor.copy(alpha = 0.7f)
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = if (remoteLabel != null) 4.dp else 0.dp),
+                    )
+                }
             }
 
             // Skip first and play second, which is the order asked for: the

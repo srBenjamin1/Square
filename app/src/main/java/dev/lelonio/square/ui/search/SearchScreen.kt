@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -23,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -93,7 +95,7 @@ fun SearchScreen(
      * Shown in place of the prompt on an empty box, which is where a list of
      * things somebody already wanted belongs.
      */
-    history: List<CatalogTrack>,
+    history: List<dev.lelonio.square.data.SearchHistoryEntry>,
     onClearHistory: () -> Unit,
     /** No connection: the catalogue cannot be searched at all. */
     offline: Boolean = false,
@@ -110,6 +112,8 @@ fun SearchScreen(
      * is also where every other client puts it.
      */
     onQuery: (String) -> Unit,
+    /** Asked for as the list nears its end; see MainViewModel.loadMoreSearch. */
+    onLoadMore: () -> Unit = {},
     backdrop: Backdrop,
 ) {
     var kind by remember { mutableStateOf(Kind.ALL) }
@@ -118,7 +122,30 @@ fun SearchScreen(
     val query = state.query
     remember(query) { kind = Kind.ALL }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = contentPadding) {
+    val listState = rememberLazyListState()
+
+    // Another page as the end comes into view, not on a button.
+    //
+    // Twenty of each kind is the page every client asks for and a fine first
+    // answer, but a search for a name a hundred records share stopped dead at
+    // twenty. Watching the last few rows rather than the very last means the
+    // next page is usually there before the reader arrives at it.
+    val nearEnd by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
+            info.totalItemsCount > 0 && last >= info.totalItemsCount - LOAD_AHEAD
+        }
+    }
+    LaunchedEffect(nearEnd, state.query, state.results.count) {
+        if (nearEnd && !state.loading && !state.loadingMore && !state.exhausted) onLoadMore()
+    }
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        state = listState,
+        contentPadding = contentPadding,
+    ) {
         // No field here: it is in the bar, where the search button grows into
         // it. A page that answers a query by drawing a second box asks which of
         // the two is listening.
@@ -162,22 +189,71 @@ fun SearchScreen(
                     key = { "history-${history[it].uri}" },
                     contentType = { "track" },
                 ) { index ->
-                    val track = history[index]
-                    SwipeToQueue(onQueue = { onEnqueue(track) }) {
+                    val entry = history[index]
+                    val track = entry.track
+                    if (track != null) {
+                        // The songs among them are the queue, as a playlist
+                        // would be: playing the third leaves the two after it to
+                        // follow. The rows that are not songs are skipped in
+                        // that count rather than played.
+                        val songs = remember(history) { history.mapNotNull { it.track } }
+                        val at = remember(history, entry.uri) {
+                            songs.indexOfFirst { it.uri == entry.uri }.coerceAtLeast(0)
+                        }
+                        SwipeToQueue(onQueue = { onEnqueue(track) }) {
+                            ResultRow(
+                                title = track.name,
+                                subtitle = track.artist,
+                                artworkUrl = track.artworkUrl,
+                                highlighted = track.uri == nowPlayingUri,
+                                round = false,
+                                onClick = { onPlayTrack(songs, at) },
+                                onMenu = { onTrackMenu(track) },
+                            )
+                        }
+                    } else {
+                        // An artist, a record or a list: the row opens its page,
+                        // which is what it did when it was found.
                         ResultRow(
-                            title = track.name,
-                            subtitle = track.artist,
-                            artworkUrl = track.artworkUrl,
-                            highlighted = track.uri == nowPlayingUri,
-                            round = false,
-                            // The list itself is the queue, as a playlist would
-                            // be: playing the third song leaves the two after it
-                            // to follow.
-                            onClick = { onPlayTrack(history, index) },
-                            onMenu = { onTrackMenu(track) },
+                            title = entry.title,
+                            subtitle = entry.subtitle,
+                            artworkUrl = entry.artworkUrl,
+                            highlighted = false,
+                            // Only an artist is drawn round, and an artist is the
+                            // one kind whose address says so.
+                            round = entry.uri.contains(":artist:"),
+                            onClick = {
+                                onOpenContext(
+                                    SearchItem(
+                                        uri = entry.uri,
+                                        title = entry.title,
+                                        subtitle = entry.subtitle,
+                                        artworkUrl = entry.artworkUrl,
+                                    ),
+                                )
+                            },
+                            onMenu = null,
                         )
                     }
                 }
+                // The page on its way, said in the one place the reader is
+                // looking: at the bottom, where they ran out of rows.
+                if (state.loadingMore) {
+                    item(contentType = "more") {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 18.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                    }
+                }
+
                 item(contentType = "tail") { Box(Modifier.height(24.dp)) }
             }
 
@@ -228,6 +304,24 @@ fun SearchScreen(
                     section(R.string.playlists, state.results.playlists, all, round = false, onOpenContext)
                 }
 
+                // The page on its way, said in the one place the reader is
+                // looking: at the bottom, where they ran out of rows.
+                if (state.loadingMore) {
+                    item(contentType = "more") {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 18.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                    }
+                }
+
                 item(contentType = "tail") { Box(Modifier.height(24.dp)) }
             }
         }
@@ -243,22 +337,11 @@ private fun KindRow(selected: Kind, backdrop: Backdrop, onSelect: (Kind) -> Unit
         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
     ) {
         items(Kind.entries.toList(), key = { it.name }) { entry ->
-            val isSelected = entry == selected
-            LiquidButton(
+            dev.lelonio.square.ui.components.FilterChip(
+                label = stringResource(entry.label),
+                selected = entry == selected,
                 onClick = { onSelect(entry) },
-                backdrop = backdrop,
-                flat = true,
-                contentHeight = 38.dp,
-                contentPadding = 18.dp,
-                surfaceColor = if (isSelected) SelectedFilm else Color.Unspecified,
-                wash = dev.lelonio.square.ui.glass.chipWash(isSelected),
-            ) {
-                Text(
-                    stringResource(entry.label),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isSelected) Ink else InkDim,
-                )
-            }
+            )
         }
     }
 }
@@ -453,3 +536,6 @@ private val BadgeFilm = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.
  * belongs, but the page they sit on should be worth scrolling first.
  */
 private const val TOP_RESULTS = 8
+
+/** How many rows from the end the next page is asked for. */
+private const val LOAD_AHEAD = 6
