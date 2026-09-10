@@ -1,6 +1,11 @@
 package dev.lelonio.square
 
 import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import com.metrolist.innertube.YouTube
 import dev.lelonio.square.auth.TokenStore
 import dev.lelonio.square.auth.WebApiAccount
 import dev.lelonio.square.data.ContextCacheStore
@@ -12,6 +17,9 @@ import dev.lelonio.square.data.RecentStore
 import dev.lelonio.square.playback.EffectPresetStore
 import dev.lelonio.square.data.ApiFactory
 import dev.lelonio.square.data.SpotifyApi
+import okhttp3.ConnectionPool
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 /**
  * Manual dependency container.
@@ -20,7 +28,7 @@ import dev.lelonio.square.data.SpotifyApi
  * one thing that matters obvious: a single [TokenStore] instance, so token
  * refreshes really are serialised across the whole process.
  */
-class SquareApplication : Application() {
+class SquareApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
@@ -32,6 +40,10 @@ class SquareApplication : Application() {
         if (BuildConfig.DEBUG || BuildConfig.VERBOSE_LOG) {
             timber.log.Timber.plant(timber.log.Timber.DebugTree())
         }
+
+        // Persistent HTTP cache for InnerTube requests in Android cache directory
+        YouTube.cacheDir = cacheDir
+
         // Before anything can read or write them. The service used to do this on
         // creation, which is late: the player screen and the media session both
         // exist by then and either can announce a default that would be saved
@@ -41,7 +53,7 @@ class SquareApplication : Application() {
         // Where the extras live, and which tracks are worth keeping them for.
         // Attached here rather than in the service: Catalog reaches for it on
         // any thread and long before anything has started playing.
-        dev.lelonio.square.download.DownloadExtras.attach(downloads.root) {
+        dev.lelonio.square.download.DownloadExtras.attach(downloads.root, sharedHttpClient) {
             downloads.isDownloaded(it)
         }
 
@@ -181,7 +193,49 @@ class SquareApplication : Application() {
      */
     val webApi: WebApiAccount by lazy { WebApiAccount(this) }
 
-    val api: SpotifyApi by lazy { ApiFactory.create(webApi.tokens, debug = BuildConfig.DEBUG) }
+    /**
+     * Shared [OkHttpClient] providing a common connection pool, DNS cache, and dispatcher
+     * across Spotify API, DownloadExtras, and Coil image loading.
+     */
+    val sharedHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    override fun newImageLoader(): ImageLoader {
+        val am = getSystemService(android.app.ActivityManager::class.java)
+        val isLowRam = am?.isLowRamDevice ?: false
+        val memoryCachePercent = if (isLowRam) 0.12 else 0.20
+
+        return ImageLoader.Builder(this)
+            .okHttpClient { sharedHttpClient }
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(memoryCachePercent)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizePercent(0.02)
+                    .build()
+            }
+            .allowRgb565(isLowRam)
+            .allowHardware(true)
+            .respectCacheHeaders(false)
+            .build()
+    }
+
+    val api: SpotifyApi by lazy {
+        ApiFactory.create(
+            tokens = webApi.tokens,
+            baseClient = sharedHttpClient,
+            debug = BuildConfig.DEBUG,
+        )
+    }
 
     /** Checks the project's own releases; there is no store to do it. */
     val updater: dev.lelonio.square.update.Updater by lazy {

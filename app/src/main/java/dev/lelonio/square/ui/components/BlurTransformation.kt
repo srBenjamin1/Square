@@ -55,26 +55,41 @@ class BlurTransformation(private val radius: Int = 12, private val passes: Int =
         height: Int,
         radius: Int,
     ) {
+        val windowSize = 2 * radius + 1
         for (y in 0 until height) {
             val row = y * width
+            val first = source[row]
+            val firstA = (first ushr 24) and 0xFF
+            val firstR = (first ushr 16) and 0xFF
+            val firstG = (first ushr 8) and 0xFF
+            val firstB = first and 0xFF
+
+            var a = firstA * (radius + 1)
+            var r = firstR * (radius + 1)
+            var g = firstG * (radius + 1)
+            var b = firstB * (radius + 1)
+
+            for (i in 1..radius) {
+                val sample = source[row + i.coerceAtMost(width - 1)]
+                a += (sample ushr 24) and 0xFF
+                r += (sample ushr 16) and 0xFF
+                g += (sample ushr 8) and 0xFF
+                b += sample and 0xFF
+            }
+
             for (x in 0 until width) {
-                var a = 0
-                var r = 0
-                var g = 0
-                var b = 0
-                var count = 0
-                // Clamped at the edges, which repeats the border pixel. On an
-                // image this blurred, the alternative — wrapping — would drag
-                // one side's colour onto the other.
-                for (offset in -radius..radius) {
-                    val sample = source[row + (x + offset).coerceIn(0, width - 1)]
-                    a += (sample ushr 24) and 0xFF
-                    r += (sample ushr 16) and 0xFF
-                    g += (sample ushr 8) and 0xFF
-                    b += sample and 0xFF
-                    count++
-                }
-                target[row + x] = pack(a / count, r / count, g / count, b / count)
+                target[row + x] = pack(a / windowSize, r / windowSize, g / windowSize, b / windowSize)
+
+                val outIdx = (x - radius).coerceAtLeast(0)
+                val inIdx = (x + radius + 1).coerceAtMost(width - 1)
+
+                val outSample = source[row + outIdx]
+                val inSample = source[row + inIdx]
+
+                a += ((inSample ushr 24) and 0xFF) - ((outSample ushr 24) and 0xFF)
+                r += ((inSample ushr 16) and 0xFF) - ((outSample ushr 16) and 0xFF)
+                g += ((inSample ushr 8) and 0xFF) - ((outSample ushr 8) and 0xFF)
+                b += (inSample and 0xFF) - (outSample and 0xFF)
             }
         }
     }
@@ -86,22 +101,40 @@ class BlurTransformation(private val radius: Int = 12, private val passes: Int =
         height: Int,
         radius: Int,
     ) {
+        val windowSize = 2 * radius + 1
         for (x in 0 until width) {
+            val first = source[x]
+            val firstA = (first ushr 24) and 0xFF
+            val firstR = (first ushr 16) and 0xFF
+            val firstG = (first ushr 8) and 0xFF
+            val firstB = first and 0xFF
+
+            var a = firstA * (radius + 1)
+            var r = firstR * (radius + 1)
+            var g = firstG * (radius + 1)
+            var b = firstB * (radius + 1)
+
+            for (i in 1..radius) {
+                val sample = source[i.coerceAtMost(height - 1) * width + x]
+                a += (sample ushr 24) and 0xFF
+                r += (sample ushr 16) and 0xFF
+                g += (sample ushr 8) and 0xFF
+                b += sample and 0xFF
+            }
+
             for (y in 0 until height) {
-                var a = 0
-                var r = 0
-                var g = 0
-                var b = 0
-                var count = 0
-                for (offset in -radius..radius) {
-                    val sample = source[(y + offset).coerceIn(0, height - 1) * width + x]
-                    a += (sample ushr 24) and 0xFF
-                    r += (sample ushr 16) and 0xFF
-                    g += (sample ushr 8) and 0xFF
-                    b += sample and 0xFF
-                    count++
-                }
-                target[y * width + x] = pack(a / count, r / count, g / count, b / count)
+                target[y * width + x] = pack(a / windowSize, r / windowSize, g / windowSize, b / windowSize)
+
+                val outIdx = (y - radius).coerceAtLeast(0)
+                val inIdx = (y + radius + 1).coerceAtMost(height - 1)
+
+                val outSample = source[outIdx * width + x]
+                val inSample = source[inIdx * width + x]
+
+                a += ((inSample ushr 24) and 0xFF) - ((outSample ushr 24) and 0xFF)
+                r += ((inSample ushr 16) and 0xFF) - ((outSample ushr 16) and 0xFF)
+                g += ((inSample ushr 8) and 0xFF) - ((outSample ushr 8) and 0xFF)
+                b += (inSample and 0xFF) - (outSample and 0xFF)
             }
         }
     }

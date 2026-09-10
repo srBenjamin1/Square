@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -105,7 +106,7 @@ fun RadioScreen(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "tab_radio_title", span = { GridItemSpan(maxLineSpan) }) {
             Text(
                 stringResource(R.string.tab_radio),
                 style = MaterialTheme.typography.headlineMedium,
@@ -129,8 +130,12 @@ fun RadioScreen(
         // Spotify's own first, under its own headings: they are titled for
         // this listener, and they are the half of the page that is new every
         // day rather than as old as the listening behind it.
-        shelves.forEach { shelf ->
-            item(span = { GridItemSpan(maxLineSpan) }, key = "shelf ${shelf.title}") {
+        val uniqueShelves = shelves
+            .filter { it.title.isNotBlank() }
+            .distinctBy { it.title.lowercase() }
+
+        uniqueShelves.forEachIndexed { shelfIndex, shelf ->
+            item(key = "shelf_${shelfIndex}_${shelf.title}", span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     shelf.title,
                     style = MaterialTheme.typography.titleLarge,
@@ -138,17 +143,24 @@ fun RadioScreen(
                     modifier = Modifier.padding(bottom = 2.dp),
                 )
             }
-            item(span = { GridItemSpan(maxLineSpan) }, key = "row ${shelf.title}") {
+            item(key = "row_${shelfIndex}_${shelf.title}", span = { GridItemSpan(maxLineSpan) }) {
+                val uniqueMixes = shelf.items
+                    .filter { it.uri.isNotBlank() }
+                    .distinctBy { it.uri }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    rowItems(shelf.items, key = { it.uri }) { mix ->
+                    rowItems(uniqueMixes, key = { it.uri }) { mix ->
                         MixTile(mix) { onOpenMix(mix) }
                     }
                 }
             }
         }
 
-        if (seeds.isNotEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+        val uniqueSeeds = seeds
+            .filter { it.uri.isNotBlank() }
+            .distinctBy { it.uri }
+
+        if (uniqueSeeds.isNotEmpty()) {
+            item(key = "stations_title", span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     stringResource(R.string.stations_for_you),
                     style = MaterialTheme.typography.titleLarge,
@@ -157,7 +169,7 @@ fun RadioScreen(
                 )
             }
 
-            items(seeds, key = { it.uri }) { seed ->
+            items(uniqueSeeds, key = { it.uri }) { seed ->
                 StationTile(seed) { onOpen(seed) }
             }
         }

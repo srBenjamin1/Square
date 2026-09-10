@@ -75,6 +75,20 @@ class InnerTube {
 
     var useLoginForBrowse: Boolean = false
 
+    /**
+     * Persistent HTTP cache directory.
+     *
+     * Set this to [android.content.Context.getCacheDir] (or a subdirectory of
+     * it) before the first request is made. The default — [java.io.tmpdir] —
+     * maps to the system's temporary directory, which Android is free to clear
+     * under memory pressure. Pointing it at the app's own cache directory keeps
+     * the cached responses between runs without risking a memory leak.
+     *
+     * Changing this after the client has been built has no effect until the
+     * client is next recreated (e.g. on a proxy change).
+     */
+    var cacheDir: java.io.File? = null
+
     @OptIn(ExperimentalSerializationApi::class)
     private fun createClient() = HttpClient(OkHttp) {
         expectSuccess = true
@@ -118,7 +132,13 @@ class InnerTube {
                 // Cache configuration for better performance
                 cache(
                     okhttp3.Cache(
-                        directory = java.io.File(System.getProperty("java.io.tmpdir"), "http_cache"),
+                        // Use the injected Android cache directory when available;
+                        // fall back to java.io.tmpdir only as a last resort so the
+                        // module still compiles and runs in unit-test environments
+                        // that have no Android context.
+                        directory = this@InnerTube.cacheDir
+                            ?.let { java.io.File(it, "innertube_http_cache") }
+                            ?: java.io.File(System.getProperty("java.io.tmpdir"), "http_cache"),
                         maxSize = 50L * 1024L * 1024L // 50 MB
                     )
                 )
@@ -148,10 +168,12 @@ class InnerTube {
 
         defaultRequest {
             url(YouTubeClient.API_URL_YOUTUBE_MUSIC)
-            // Add common headers for better compatibility
             header("Accept", "application/json")
             header("Accept-Language", "en-US,en;q=0.9")
-            header("Cache-Control", "no-cache")
+            // Cache-Control is intentionally omitted: OkHttp and the server
+            // negotiate caching through ETag / Cache-Control response headers.
+            // Sending "no-cache" here would bypass the 50 MB disk cache on
+            // every single request, which is exactly what was happening before.
         }
     }
 

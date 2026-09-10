@@ -577,7 +577,11 @@ fun SquareApp(
     val radioSeeds = remember(recent, searchHistory, newPage.songs, feed.topTracks, feed.allTimeTracks) {
         (recent + feed.topTracks + searchHistory + newPage.songs + feed.allTimeTracks)
             .filter { it.uri.startsWith("spotify:track:") && it.artist.isNotBlank() }
-            .distinctBy { it.artist.lowercase() }
+            // By address as well as by artist: the same track can arrive from
+            // two of these lists at once, and a lazy list crashes on a repeated
+            // key rather than drawing it twice. (From HectorZL's #19.)
+            .distinctBy { it.artist.lowercase().trim() }
+            .distinctBy { it.uri }
             // Turned over daily rather than shuffled: a page that rearranges
             // itself every time it is opened is not richer, it is unreadable.
             // The same list, started at a different name each day.
@@ -866,8 +870,17 @@ fun SquareApp(
     // Recorded here rather than at the tap: this fires for auto-advance and for
     // controls outside the app too, so the history matches what was actually
     // heard instead of only what was tapped.
-    LaunchedEffect(playback.mediaId) {
+    // Keyed on the metadata as well as the address, and refusing a nameless
+    // track.
+    //
+    // A session arrives in pieces: the uri first, the title and the cover a
+    // moment later. Recorded on the uri alone, what landed in the history was a
+    // row with no name and no picture, which is the ghost you could not tap
+    // away. Waiting for a title costs nothing, because the same effect runs
+    // again when it arrives. (From HectorZL's #19.)
+    LaunchedEffect(playback.mediaId, playback.title, playback.artworkUrl) {
         val uri = playback.mediaId ?: return@LaunchedEffect
+        if (playback.title.isBlank()) return@LaunchedEffect
         viewModel.recordPlayed(
             CatalogTrack(
                 uri = uri,
@@ -1487,6 +1500,13 @@ fun SquareApp(
                                 },
                                 onOpen = { seed ->
                                     scope.launch {
+                                        // Held, because everything in here can
+                                        // fail: the station is fetched from a
+                                        // private gateway and the page is
+                                        // opened from a coroutine, and a throw
+                                        // in either took the app down with it.
+                                        // (From HectorZL's #19.)
+                                        runCatching {
                                         val tracks = viewModel.radioFor(seed.uri)
                                         if (tracks.isEmpty()) return@launch
                                         val station = "spotify:station:track:" +
@@ -1505,6 +1525,13 @@ fun SquareApp(
                                         )
                                         navController.navigate(Routes.PLAYLIST)
                                         onPlay(tracks, 0, station, true, name, 0L)
+                                        }.onFailure {
+                                            android.util.Log.w(
+                                                "SquareRadio",
+                                                "station for ${seed.uri} failed: ${it.message}",
+                                                it,
+                                            )
+                                        }
                                     }
                                 },
                             )

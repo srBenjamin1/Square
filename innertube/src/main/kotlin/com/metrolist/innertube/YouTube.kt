@@ -135,6 +135,21 @@ object YouTube {
             innerTube.useLoginForBrowse = value
         }
 
+    /**
+     * Persistent HTTP cache directory for the underlying OkHttp client.
+     *
+     * Assign [android.content.Context.getCacheDir] (or a subdirectory of it)
+     * before the first request is made. The default is java.io.tmpdir, which
+     * Android may clear at any time. This must be set from the Application
+     * class before the YouTube backend is first used.
+     */
+    var cacheDir: java.io.File?
+        get() = innerTube.cacheDir
+        set(value) {
+            innerTube.cacheDir = value
+        }
+
+
     suspend fun searchSuggestions(query: String): Result<SearchSuggestions> =
         runCatching {
             val response = innerTube.getSearchSuggestions(WEB_REMIX, query).body<GetSearchSuggestionsResponse>()

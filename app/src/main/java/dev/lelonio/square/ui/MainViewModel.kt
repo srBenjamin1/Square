@@ -1549,7 +1549,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val recent: StateFlow<List<CatalogTrack>> =
         combine(container.recentStore.tracks, container.preferences.backend) { tracks, _ ->
-            tracks.filter { container.activeBackend.owns(it.uri) }
+            // A nameless row is one that was recorded before the session had
+            // finished describing the track; see the history effect in
+            // SquareApp. (From HectorZL's #19.)
+            tracks.filter { it.name.isNotBlank() && container.activeBackend.owns(it.uri) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Called when a track starts, to keep the home page's history current. */

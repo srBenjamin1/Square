@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.json.JSONObject
 import java.io.File
 
 /**
@@ -122,6 +123,7 @@ class DownloadStore(context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val writeLock = Mutex()
+    private val loadLock = Mutex()
 
     private val _index = MutableStateFlow(Index())
     private val _progress = MutableStateFlow<Map<String, Float>>(emptyMap())
@@ -158,6 +160,20 @@ class DownloadStore(context: Context) {
             owners.keys.associateWith(::ownerState)
         }.stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
+    init {
+        scope.launch {
+            ensureLoaded()
+            reconcile()
+        }
+    }
+
+    suspend fun ensureLoaded() = withContext(Dispatchers.IO) {
+        if (loaded) return@withContext
+        loadLock.withLock {
+            if (!loaded) loadLocked()
+        }
+    }
+
     // ------------------------------------------------------------- lifecycle
 
     /**
@@ -167,17 +183,22 @@ class DownloadStore(context: Context) {
      * files on disk are still there and [reconcile] will find them, which is a
      * better answer than refusing to start because a JSON file got truncated.
      */
-    suspend fun load() = withContext(Dispatchers.IO) {
-        if (loaded) return@withContext
-        loaded = true
+    suspend fun load() = ensureLoaded()
+
+    private fun loadLocked() {
         root.mkdirs()
         val stored = runCatching {
             if (indexFile.exists()) json.decodeFromString(Index.serializer(), indexFile.readText())
             else Index()
         }.getOrElse { Index() }
+        // Published before the flag goes up: [ensureLoaded] reads the flag
+        // without the lock, and a caller that sees it set must find the index
+        // already there rather than the empty one it started with.
         publish(stored)
+        loaded = true
     }
 
+    @Volatile
     private var loaded = false
 
     /**
@@ -190,14 +211,17 @@ class DownloadStore(context: Context) {
      * index write leaves a file nothing claims. Cheap enough to run at startup.
      */
     suspend fun reconcile() = withContext(Dispatchers.IO) {
-        val current = _index.value
-        val surviving = current.files.filterKeys { uri ->
-            val record = current.files[uri] ?: return@filterKeys false
-            audioFile(record.trackId).exists()
-        }
-        if (surviving.size != current.files.size) {
-            publish(current.copy(files = surviving))
-            save()
+        writeLock.withLock {
+            ensureLoaded()
+            val current = _index.value
+            val surviving = current.files.filterKeys { uri ->
+                val record = current.files[uri] ?: return@filterKeys false
+                audioFile(record.trackId).exists()
+            }
+            if (surviving.size != current.files.size) {
+                publish(current.copy(files = surviving))
+                save()
+            }
         }
     }
 
@@ -345,9 +369,34 @@ class DownloadStore(context: Context) {
         tracks: List<CatalogTrack>,
         label: OwnerLabel?,
     ) = writeLock.withLock {
+        ensureLoaded()
         val current = _index.value
+        val existingFiles = current.files.toMutableMap()
+        for (track in tracks) {
+            if (!existingFiles.containsKey(track.uri)) {
+                val sidecar = runCatching {
+                    dev.lelonio.square.nativecore.NativeBridge.downloadState(track.uri)
+                }.getOrNull()
+                if (!sidecar.isNullOrBlank()) {
+                    val rootObj = runCatching { JSONObject(sidecar) }.getOrNull()
+                    if (rootObj != null) {
+                        val trackId = rootObj.optString("id").takeIf { it.isNotBlank() } ?: track.uri.substringAfterLast(':')
+                        if (audioFile(trackId).exists()) {
+                            existingFiles[track.uri] = FileRecord(
+                                trackId = trackId,
+                                format = rootObj.optString("format").ifEmpty { "OGG_VORBIS_320" },
+                                bytes = rootObj.optLong("bytes"),
+                                kbps = rootObj.optInt("kbps").takeIf { it > 0 } ?: 320,
+                                downloadedAt = rootObj.optLong("downloadedAt").takeIf { it > 0 } ?: System.currentTimeMillis(),
+                            )
+                        }
+                    }
+                }
+            }
+        }
         publish(
             current.copy(
+                files = existingFiles,
                 owners = current.owners + (ownerUri to tracks.map { it.uri }),
                 tracks = current.tracks + tracks.associateBy { it.uri },
                 labels = label?.let { current.labels + (ownerUri to it) } ?: current.labels,
@@ -364,6 +413,7 @@ class DownloadStore(context: Context) {
         val existing = _owners.value[SINGLES].orEmpty()
         if (existing.contains(track.uri)) return
         writeLock.withLock {
+            ensureLoaded()
             val current = _index.value
             publish(
                 current.copy(
@@ -380,6 +430,7 @@ class DownloadStore(context: Context) {
         val existing = _owners.value[SINGLES].orEmpty()
         if (!existing.contains(trackUri)) return
         writeLock.withLock {
+            ensureLoaded()
             val current = _index.value
             publish(current.copy(owners = current.owners + (SINGLES to existing - trackUri)))
             save()
@@ -395,6 +446,7 @@ class DownloadStore(context: Context) {
      * could ever see again, let alone remove.
      */
     suspend fun removeOwner(ownerUri: String) = writeLock.withLock {
+        ensureLoaded()
         val current = _index.value
         publish(
             current.copy(
@@ -423,6 +475,7 @@ class DownloadStore(context: Context) {
 
     suspend fun onCompleted(trackUri: String, record: FileRecord) {
         writeLock.withLock {
+            ensureLoaded()
             val current = _index.value
             publish(
                 current.copy(
@@ -437,6 +490,7 @@ class DownloadStore(context: Context) {
 
     suspend fun onFailed(trackUri: String, reason: String) {
         writeLock.withLock {
+            ensureLoaded()
             val current = _index.value
             val before = current.failures[trackUri]
             publish(
@@ -457,11 +511,10 @@ class DownloadStore(context: Context) {
 
     /** Forgets past failures so [pending] offers those tracks again. */
     suspend fun retryFailed() = writeLock.withLock {
+        ensureLoaded()
         publish(_index.value.copy(failures = emptyMap()))
         save()
     }
-
-    // ------------------------------------------------------------ tidying up
 
     /**
      * Deletes files, metadata and labels nothing claims any more.
@@ -475,6 +528,7 @@ class DownloadStore(context: Context) {
      * engine to drop them.
      */
     suspend fun pruneOrphans(): List<String> = writeLock.withLock {
+        ensureLoaded()
         val current = _index.value
         val claimed = current.owners.values.flatten().toSet()
 
@@ -496,6 +550,7 @@ class DownloadStore(context: Context) {
     /** Everything goes: the index, and the whole store the engine writes into. */
     suspend fun clearAll() = withContext(Dispatchers.IO) {
         writeLock.withLock {
+            ensureLoaded()
             publish(Index())
             _progress.value = emptyMap()
             runCatching { root.deleteRecursively() }
@@ -530,13 +585,15 @@ class DownloadStore(context: Context) {
     private fun save() {
         val snapshot = _index.value
         scope.launch {
-            runCatching {
-                root.mkdirs()
-                val tmp = File(root, "$INDEX_NAME.tmp")
-                tmp.writeText(json.encodeToString(Index.serializer(), snapshot))
-                if (!tmp.renameTo(indexFile)) {
-                    indexFile.delete()
-                    tmp.renameTo(indexFile)
+            loadLock.withLock {
+                runCatching {
+                    root.mkdirs()
+                    val tmp = File(root, "$INDEX_NAME.tmp")
+                    tmp.writeText(json.encodeToString(Index.serializer(), snapshot))
+                    if (!tmp.renameTo(indexFile)) {
+                        indexFile.delete()
+                        tmp.renameTo(indexFile)
+                    }
                 }
             }
         }

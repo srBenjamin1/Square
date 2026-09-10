@@ -463,16 +463,26 @@ class LibrespotPlayer(
                 .distinctUntilChanged()
                 .collect { offline ->
                     if (offline) return@collect
+                    // On returning online, guarantee native session reconnection
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching { NativeBridge.reconnect() }
+                            .onFailure { android.util.Log.w("SquarePlayer", "auto-reconnect failed: ${it.message}") }
+                    }
                     handler.post {
                         if (released || queue.items.isEmpty()) return@post
+                        val shouldPlay = playWhenReady || wantPlay
                         android.util.Log.i(
                             "SquarePlayer",
-                            "back online: handing the queue over at ${positionMs}ms",
+                            "back online: reconnected, restoring playback at ${positionMs}ms (shouldPlay=$shouldPlay)",
                         )
+                        if (shouldPlay) {
+                            playbackState = Player.STATE_BUFFERING
+                            invalidateState()
+                        }
                         // From where it is, playing if it was: this is a
                         // handover, not a restart, and the listener should hear
                         // the same second of the same song either side of it.
-                        pushQueue(startPlaying = playWhenReady, positionMs = positionMs.toInt())
+                        pushQueue(startPlaying = shouldPlay, positionMs = positionMs.toInt())
                     }
                 }
         }

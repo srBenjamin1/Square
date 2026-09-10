@@ -1,6 +1,8 @@
 package dev.lelonio.square.data
 
+import android.app.ActivityManager
 import android.content.Context
+import android.os.Build
 import androidx.annotation.StringRes
 import dev.lelonio.square.R
 import dev.lelonio.square.ui.glass.GlassEffectConfig
@@ -82,7 +84,7 @@ class GlassStore(context: Context) {
 
     private val _profile = MutableStateFlow(
         GlassProfile.entries.firstOrNull { it.key == prefs.getString(KEY_PROFILE, null) }
-            ?: GlassProfile.Balanced,
+            ?: defaultProfile(context),
     )
     val profile: StateFlow<GlassProfile> = _profile.asStateFlow()
 
@@ -198,6 +200,17 @@ class GlassStore(context: Context) {
             puckColor = androidx.compose.ui.graphics.Color.White,
             puckOpacity = prefs.getFloat(KEY_PUCK, DEFAULT_PUCK_OPACITY),
         )
+    }
+
+    private fun defaultProfile(context: Context): GlassProfile {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        val isLowRam = am?.isLowRamDevice == true
+        val isOldAndroid = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+        return if (isLowRam || isOldAndroid) {
+            GlassProfile.Performance
+        } else {
+            GlassProfile.Balanced
+        }
     }
 
     private companion object {

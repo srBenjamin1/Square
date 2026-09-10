@@ -30,8 +30,19 @@ object ApiFactory {
         coerceInputValues = true
     }
 
-    fun create(tokens: TokenStore, debug: Boolean = false): SpotifyApi {
-        val client = OkHttpClient.Builder()
+    /**
+     * @param baseClient the process-wide client whose connection pool, DNS cache
+     *   and dispatcher this one should share. Null builds a stack of its own,
+     *   which is what a test wants and what nothing else does: two independent
+     *   pools to the same handful of hosts is two sets of sockets and two DNS
+     *   caches for no gain. See SquareApplication's `sharedHttpClient`.
+     */
+    fun create(
+        tokens: TokenStore,
+        baseClient: OkHttpClient? = null,
+        debug: Boolean = false,
+    ): SpotifyApi {
+        val client = (baseClient?.newBuilder() ?: OkHttpClient.Builder())
             .addInterceptor(AuthInterceptor(tokens))
             .addInterceptor(RateLimitInterceptor())
             .connectTimeout(15, TimeUnit.SECONDS)

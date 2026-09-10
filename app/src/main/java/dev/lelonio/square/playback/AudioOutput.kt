@@ -334,7 +334,17 @@ class AudioOutput {
      */
     fun setPlaybackActive(active: Boolean) {
         synchronized(this) {
-            if (active) applyReverb() else suspendReverb()
+            if (active) {
+                applyReverb()
+                track?.takeIf { it.state == AudioTrack.STATE_INITIALIZED }?.runCatching {
+                    if (playState != AudioTrack.PLAYSTATE_PLAYING) play()
+                }
+            } else {
+                suspendReverb()
+                track?.takeIf { it.state == AudioTrack.STATE_INITIALIZED }?.runCatching {
+                    if (playState == AudioTrack.PLAYSTATE_PLAYING) pause()
+                }
+            }
         }
     }
 
@@ -654,11 +664,14 @@ class AudioOutput {
             return null
         }
 
-        // Four times the reported minimum. The minimum is the point at which the
-        // track underruns if anything at all is late, and decoding competes with
-        // the UI and the network on a phone; the extra latency is irrelevant for
-        // music playback and buys enough slack to stop the dropouts.
-        val bufferSize = minBuffer * BUFFER_MULTIPLIER
+        // Four times the reported minimum, with a floor of at least 500 ms of audio.
+        // The minimum is the point at which the track underruns if anything at all is late,
+        // and decoding competes with the UI and the network on a phone. Sizing for at least
+        // 500 ms ensures that UI garbage collection (GC) or Compose frame animation bursts
+        // will never cause audible dropouts or buffer starvation.
+        val bytesPerMs = sampleRate * channels * 2 / 1000
+        val minBuffer500ms = bytesPerMs * 500
+        val bufferSize = maxOf(minBuffer * BUFFER_MULTIPLIER, minBuffer500ms)
 
         val created = AudioTrack.Builder()
             .setAudioAttributes(
