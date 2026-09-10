@@ -333,17 +333,25 @@ class AudioOutput {
      * makes. This is the pause the *player* knows about.
      */
     fun setPlaybackActive(active: Boolean) {
-        synchronized(this) {
+        val output = synchronized(this) {
+            if (active) applyReverb() else suspendReverb()
+            track?.takeIf { it.state == AudioTrack.STATE_INITIALIZED }
+        } ?: return
+
+        // Outside the lock. Both are calls into the audio server, and the
+        // writer takes this lock for every packet: held across a slow one, it
+        // held up the very audio that was being resumed.
+        //
+        // The pause is what makes the button feel instant, since the engine's
+        // own stop fades for a fifth of a second first. The play is for a
+        // pause the engine never turned into a stop, a track still loading
+        // when it was pressed, say: the sink is then never started again, and
+        // a track left paused here would keep the writer waiting for good.
+        output.runCatching {
             if (active) {
-                applyReverb()
-                track?.takeIf { it.state == AudioTrack.STATE_INITIALIZED }?.runCatching {
-                    if (playState != AudioTrack.PLAYSTATE_PLAYING) play()
-                }
+                if (playState != AudioTrack.PLAYSTATE_PLAYING) play()
             } else {
-                suspendReverb()
-                track?.takeIf { it.state == AudioTrack.STATE_INITIALIZED }?.runCatching {
-                    if (playState == AudioTrack.PLAYSTATE_PLAYING) pause()
-                }
+                if (playState == AudioTrack.PLAYSTATE_PLAYING) pause()
             }
         }
     }

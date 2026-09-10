@@ -1877,6 +1877,19 @@ pub fn play() -> EngineResult<()> {
         log::info!("play: another device has playback, ignoring");
         return Ok(());
     }
+
+    // The music starts here, for the same reason it stops here in [`pause`].
+    //
+    // After a pause the Connect task is still telling Spotify about it, and
+    // while that request is out it does not read its channel: a play pressed a
+    // second after a pause waited behind it, about a third of a second on a
+    // good line and ten on one that was answering 429. Pause already skipped
+    // that queue, so the button stopped the music at once and then took its
+    // time to bring it back. The account hears about it whenever it can, and
+    // the player answers that late play with where the track really is; see
+    // `handle_play` in player.rs.
+    let _ = with_bundle(|engine| engine.player.play());
+
     transport("play", |e| e.spirc()?.play(), |e| e.player.play())
 }
 

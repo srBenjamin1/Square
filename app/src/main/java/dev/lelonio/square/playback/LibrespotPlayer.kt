@@ -752,7 +752,6 @@ class LibrespotPlayer(
                 invalidateState()
                 return Futures.immediateVoidFuture()
             }
-            onPlaybackActive(true)
             // Play is where a reconnection is worth waiting for. The engine has
             // no queue of its own, so a rebuilt device knows nothing until the
             // queue is handed over again, and resuming is exactly the moment
@@ -762,6 +761,11 @@ class LibrespotPlayer(
             } else {
                 engine("play") { NativeBridge.play() }
             }
+            // After the engine, not before: waking the output is a call into
+            // the audio server that took most of a tenth of a second here, and
+            // it stood between the button and the command that brings the
+            // music back.
+            onPlaybackActive(true)
         } else {
             wantPlay = false
             engine("pause") { NativeBridge.pause() }

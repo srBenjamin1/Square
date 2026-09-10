@@ -2426,6 +2426,25 @@ impl PlayerInternal {
                 });
                 self.ensure_sink_running();
             }
+            // LOCAL PATCH: already playing, because the engine told this player
+            // directly before it told the Connect task; see `play` in the
+            // engine. The Connect task's own play comes later, sometimes
+            // seconds later, and restarts its clock from the position it
+            // paused at. Saying where the track really is lets it correct that
+            // rather than report a position that lags by the whole delay.
+            PlayerState::Playing {
+                ref track_id,
+                play_request_id,
+                stream_position_ms,
+                ..
+            } => {
+                let track_id = track_id.clone();
+                self.send_event(PlayerEvent::PositionCorrection {
+                    play_request_id,
+                    track_id,
+                    position_ms: stream_position_ms,
+                });
+            }
             PlayerState::Loading {
                 ref mut start_playback,
                 ..
