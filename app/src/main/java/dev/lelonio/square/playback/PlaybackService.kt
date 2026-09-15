@@ -54,7 +54,7 @@ class PlaybackService : MediaLibraryService() {
                 controller,
                 browseTree.layoutFor(
                     player,
-                    radioInsteadOfRepeat = live.isMediaNotificationController(controller),
+                    shadeAndCar = live.isMediaNotificationController(controller),
                 ),
             )
         }

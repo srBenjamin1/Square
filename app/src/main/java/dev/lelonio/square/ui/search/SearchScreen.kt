@@ -93,6 +93,8 @@ fun SearchScreen(
      */
     history: List<dev.lelonio.square.data.SearchHistoryEntry>,
     onClearHistory: () -> Unit,
+    /** One of them out of the history, dragged off to the right. */
+    onRemoveHistory: (String) -> Unit,
     /** No connection: the catalogue cannot be searched at all. */
     offline: Boolean = false,
     onEnqueue: (CatalogTrack) -> Unit,
@@ -196,7 +198,10 @@ fun SearchScreen(
                         val at = remember(history, entry.uri) {
                             songs.indexOfFirst { it.uri == entry.uri }.coerceAtLeast(0)
                         }
-                        SwipeToQueue(onQueue = { onEnqueue(track) }) {
+                        SwipeToQueue(
+                            onQueue = { onEnqueue(track) },
+                            onRemove = { onRemoveHistory(entry.uri) },
+                        ) {
                             ResultRow(
                                 title = track.name,
                                 subtitle = track.artist,
@@ -209,27 +214,33 @@ fun SearchScreen(
                         }
                     } else {
                         // An artist, a record or a list: the row opens its page,
-                        // which is what it did when it was found.
-                        ResultRow(
-                            title = entry.title,
-                            subtitle = entry.subtitle,
-                            artworkUrl = entry.artworkUrl,
-                            highlighted = false,
-                            // Only an artist is drawn round, and an artist is the
-                            // one kind whose address says so.
-                            round = entry.uri.contains(":artist:"),
-                            onClick = {
-                                onOpenContext(
-                                    SearchItem(
-                                        uri = entry.uri,
-                                        title = entry.title,
-                                        subtitle = entry.subtitle,
-                                        artworkUrl = entry.artworkUrl,
-                                    ),
-                                )
-                            },
-                            onMenu = null,
-                        )
+                        // which is what it did when it was found. Nothing to
+                        // queue, so it only goes one way.
+                        SwipeToQueue(
+                            onQueue = null,
+                            onRemove = { onRemoveHistory(entry.uri) },
+                        ) {
+                            ResultRow(
+                                title = entry.title,
+                                subtitle = entry.subtitle,
+                                artworkUrl = entry.artworkUrl,
+                                highlighted = false,
+                                // Only an artist is drawn round, and an artist is
+                                // the one kind whose address says so.
+                                round = entry.uri.contains(":artist:"),
+                                onClick = {
+                                    onOpenContext(
+                                        SearchItem(
+                                            uri = entry.uri,
+                                            title = entry.title,
+                                            subtitle = entry.subtitle,
+                                            artworkUrl = entry.artworkUrl,
+                                        ),
+                                    )
+                                },
+                                onMenu = null,
+                            )
+                        }
                     }
                 }
                 // The page on its way, said in the one place the reader is
@@ -387,7 +398,7 @@ private fun HistoryTitle(onClear: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         Text(
-            stringResource(R.string.clear),
+            stringResource(R.string.clear_history),
             style = MaterialTheme.typography.labelLarge,
             color = InkDim,
             modifier = Modifier

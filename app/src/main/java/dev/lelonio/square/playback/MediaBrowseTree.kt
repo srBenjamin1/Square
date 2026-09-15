@@ -104,37 +104,33 @@ class MediaBrowseTree(
     fun layoutFor(
         player: androidx.media3.common.Player,
         /**
-         * The shade has room for two buttons beside the transport and is looked
-         * at rather than operated: the shade shows a heart to add to Liked Songs
-         * (Tus me gusta) instead of repeat, which is a setting people change once.
-         * The car keeps repeat, because there it is the mode a driver actually reaches for.
+         * The buttons of the system's own session, which two places read.
+         *
+         * The car does not get a layout of its own: Android Auto connects the
+         * old way and draws whatever the platform session carries, and that is
+         * the shade's. So this one list serves both. The shade has room for
+         * two beside the transport and takes the first two, shuffle and the
+         * heart; the car has room for more and gets radio after them, which is
+         * where it was before the heart arrived and pushed it out. Repeat is a
+         * setting people change once, and stays in the app.
          */
-        radioInsteadOfRepeat: Boolean = false,
+        shadeAndCar: Boolean = false,
         isLiked: Boolean? = null,
     ): ImmutableList<CommandButton> {
-        val currentUri = player.currentMediaItem?.mediaId
-        val liked = isLiked ?: app.likedStore.isLiked(currentUri)
-
-        return ImmutableList.of(
-            CommandButton.Builder(
-                if (player.shuffleModeEnabled) {
-                    CommandButton.ICON_SHUFFLE_ON
-                } else {
-                    CommandButton.ICON_SHUFFLE_OFF
-                },
-            )
-                .setSessionCommand(SessionCommand(CMD_SHUFFLE, Bundle.EMPTY))
-                .setDisplayName(strings.getString(R.string.shuffle))
-                .build(),
-            if (radioInsteadOfRepeat) {
-                CommandButton.Builder()
-                    .setIconResId(if (liked) R.drawable.ic_heart_filled else R.drawable.ic_heart_outline)
-                    .setSessionCommand(SessionCommand(CMD_LIKE, Bundle.EMPTY))
-                    .setDisplayName(
-                        strings.getString(if (liked) R.string.remove_from_liked else R.string.liked_songs),
-                    )
-                    .build()
+        val shuffle = CommandButton.Builder(
+            if (player.shuffleModeEnabled) {
+                CommandButton.ICON_SHUFFLE_ON
             } else {
+                CommandButton.ICON_SHUFFLE_OFF
+            },
+        )
+            .setSessionCommand(SessionCommand(CMD_SHUFFLE, Bundle.EMPTY))
+            .setDisplayName(strings.getString(R.string.shuffle))
+            .build()
+
+        if (!shadeAndCar) {
+            return ImmutableList.of(
+                shuffle,
                 CommandButton.Builder(
                     when (player.repeatMode) {
                         androidx.media3.common.Player.REPEAT_MODE_ONE ->
@@ -146,8 +142,25 @@ class MediaBrowseTree(
                 )
                     .setSessionCommand(SessionCommand(CMD_REPEAT, Bundle.EMPTY))
                     .setDisplayName(strings.getString(R.string.repeat))
-                    .build()
-            },
+                    .build(),
+            )
+        }
+
+        val currentUri = player.currentMediaItem?.mediaId
+        val liked = isLiked ?: app.likedStore.isLiked(currentUri)
+        return ImmutableList.of(
+            shuffle,
+            CommandButton.Builder()
+                .setIconResId(if (liked) R.drawable.ic_heart_filled else R.drawable.ic_heart_outline)
+                .setSessionCommand(SessionCommand(CMD_LIKE, Bundle.EMPTY))
+                .setDisplayName(
+                    strings.getString(if (liked) R.string.remove_from_liked else R.string.liked_songs),
+                )
+                .build(),
+            CommandButton.Builder(CommandButton.ICON_RADIO)
+                .setSessionCommand(SessionCommand(CMD_RADIO, Bundle.EMPTY))
+                .setDisplayName(strings.getString(R.string.radio))
+                .build(),
         )
     }
 
@@ -168,7 +181,7 @@ class MediaBrowseTree(
             .setCustomLayout(
                 layoutFor(
                     session.player,
-                    radioInsteadOfRepeat = session.isMediaNotificationController(controller),
+                    shadeAndCar = session.isMediaNotificationController(controller),
                 ),
             )
             .build()
@@ -209,7 +222,7 @@ class MediaBrowseTree(
                 ctrl,
                 layoutFor(
                     player,
-                    radioInsteadOfRepeat = session.isMediaNotificationController(ctrl),
+                    shadeAndCar = session.isMediaNotificationController(ctrl),
                 ),
             )
         }
@@ -230,7 +243,7 @@ class MediaBrowseTree(
                 ctrl,
                 layoutFor(
                     player,
-                    radioInsteadOfRepeat = session.isMediaNotificationController(ctrl),
+                    shadeAndCar = session.isMediaNotificationController(ctrl),
                     isLiked = nowLiked,
                 ),
             )
@@ -255,7 +268,7 @@ class MediaBrowseTree(
                         ctrl,
                         layoutFor(
                             player,
-                            radioInsteadOfRepeat = session.isMediaNotificationController(ctrl),
+                            shadeAndCar = session.isMediaNotificationController(ctrl),
                             isLiked = revertedLiked,
                         ),
                     )

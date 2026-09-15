@@ -31,6 +31,53 @@ class Gateway(private val keys: PathfinderKeys) {
         ),
     )
 
+    /**
+     * The playlists an artist is in, "This Is" first; see [ArtistPlaylists].
+     *
+     * Null when the gateway will not answer, which leaves the caller its own
+     * way in.
+     */
+    suspend fun artistPlaylists(artistUri: String): List<SearchItem>? {
+        keys.refresh()
+        // The web player's own variables. Its locale is a path segment, which
+        // English does without.
+        val language = java.util.Locale.getDefault().language
+        val locale = if (language == "en") "" else "intl-$language"
+        return runCatching {
+            ArtistPlaylists.parse(
+                query(
+                    operation = "queryArtistOverview",
+                    hash = keys.artistOverview,
+                    variables = """{"uri":"$artistUri","locale":"$locale","preReleaseV2":true}""",
+                ),
+            )
+        }
+            .onFailure { android.util.Log.i(TAG, "artist playlists unavailable: ${it.message}") }
+            .getOrNull()
+    }
+
+    /**
+     * The playlists like this one, for the row under it; see [RelatedPlaylists].
+     *
+     * Null when the gateway will not answer, and the row is then simply not
+     * there.
+     */
+    suspend fun relatedPlaylists(playlistUri: String): List<SearchItem>? {
+        keys.refresh()
+        return runCatching {
+            RelatedPlaylists.parse(
+                query(
+                    operation = "playlistSection",
+                    hash = keys.playlistSection,
+                    variables = """{"sectionUri":"${RelatedPlaylists.SECTION}",""" +
+                        """"playlistUri":"$playlistUri"}""",
+                ),
+            )
+        }
+            .onFailure { android.util.Log.i(TAG, "related playlists unavailable: ${it.message}") }
+            .getOrNull()
+    }
+
     /** One page of a playlist; see [PlaylistContents]. */
     suspend fun playlistTracks(uri: String, offset: Int): GatewayPage? = PlaylistContents.parse(
         query(

@@ -17,8 +17,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -34,6 +36,7 @@ import kotlin.math.roundToInt
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.regular.Queue
+import com.adamglin.phosphoricons.regular.Trash
 
 /**
  * Wraps a row so dragging it to the left queues the track.
@@ -47,17 +50,27 @@ import com.adamglin.phosphoricons.regular.Queue
  * The row springs back either way; the action fires once, on release, past a
  * threshold. Committing partway through the drag would fire on every
  * accidental brush of the list.
+ *
+ * Dragging it to the right removes it, where the list allows that: the recent
+ * searches are the one list whose rows are the listener's to throw away. That
+ * direction is the deletion the note above is not, so the row goes with it,
+ * sliding off the side it was pushed towards. Either action can be left out,
+ * and the row then does not move that way at all.
  */
 @Composable
 fun SwipeToQueue(
-    onQueue: () -> Unit,
+    onQueue: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    onRemove: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val offset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
+    // Read at release rather than captured when the gesture was set up.
+    val queue by rememberUpdatedState(onQueue)
+    val remove by rememberUpdatedState(onRemove)
 
     val threshold = with(density) { THRESHOLD.toPx() }
     val maximum = with(density) { MAX_DRAG.toPx() }
@@ -68,24 +81,26 @@ fun SwipeToQueue(
         // noise.
         val progress = (abs(offset.value) / threshold).coerceIn(0f, 1f)
         if (progress > 0f) {
+            val removing = offset.value > 0f
+            val tint = if (removing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
             Row(
                 Modifier
                     .matchParentSize()
                     .padding(horizontal = 30.dp)
                     .graphicsLayer { alpha = progress },
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = if (removing) Arrangement.Start else Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    PhosphorIcons.Regular.Queue,
+                    if (removing) PhosphorIcons.Regular.Trash else PhosphorIcons.Regular.Queue,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = tint,
                     modifier = Modifier.size(20.dp),
                 )
                 Text(
-                    stringResource(R.string.queued),
+                    stringResource(if (removing) R.string.delete else R.string.queued),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = tint,
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
@@ -96,23 +111,41 @@ fun SwipeToQueue(
                 .fillMaxWidth()
                 .graphicsLayer { translationX = offset.value }
                 .background(MaterialTheme.colorScheme.background)
-                .pointerInput(Unit) {
+                .pointerInput(onQueue != null, onRemove != null) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            val commit = -offset.value >= threshold
-                            if (commit) {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onQueue()
+                            val queueNow = queue
+                            val removeNow = remove
+                            when {
+                                queueNow != null && -offset.value >= threshold -> {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    queueNow()
+                                    scope.launch { offset.animateTo(0f, tween(220)) }
+                                }
+                                removeNow != null && offset.value >= threshold -> {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    // Off the edge first, then out of the list:
+                                    // gone at once, it read as a row that had
+                                    // jumped rather than one that was thrown.
+                                    scope.launch {
+                                        offset.animateTo(size.width.toFloat(), tween(180))
+                                        removeNow()
+                                    }
+                                }
+                                else -> scope.launch { offset.animateTo(0f, tween(220)) }
                             }
-                            scope.launch { offset.animateTo(0f, tween(220)) }
                         },
                         onDragCancel = { scope.launch { offset.animateTo(0f, tween(220)) } },
                     ) { change, dragAmount ->
                         change.consume()
-                        // Left only, and increasingly resistant: the row can be
-                        // pulled clearly past the threshold but never far enough
-                        // to look like it is being torn out of the list.
-                        val next = (offset.value + dragAmount).coerceIn(-maximum, 0f)
+                        // Only the ways this row allows, and increasingly
+                        // resistant: the row can be pulled clearly past the
+                        // threshold but never far enough to look like it is
+                        // being torn out of the list.
+                        val next = (offset.value + dragAmount).coerceIn(
+                            if (onQueue != null) -maximum else 0f,
+                            if (onRemove != null) maximum else 0f,
+                        )
                         scope.launch { offset.snapTo(next) }
                     }
                 },

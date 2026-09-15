@@ -74,6 +74,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextLayoutResult
@@ -82,6 +83,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -114,7 +116,6 @@ import com.adamglin.phosphoricons.fill.SkipBack
 import com.adamglin.phosphoricons.fill.SkipForward
 import com.adamglin.phosphoricons.regular.CaretDown
 import com.adamglin.phosphoricons.regular.Devices
-import com.adamglin.phosphoricons.regular.DotsThree
 import com.adamglin.phosphoricons.regular.Heart
 import com.adamglin.phosphoricons.regular.Plus
 import com.adamglin.phosphoricons.regular.Queue
@@ -351,8 +352,6 @@ fun PlayerScreen(
     connectAvailable: Boolean = true,
     /** Whether the sound is coming out of another of the account's devices. */
     onAnotherDevice: Boolean = false,
-    /** Opens the contextual menu sheet for the current track ("…"). */
-    onMore: (() -> Unit)? = null,
 ) {
     var panel by remember { mutableStateOf(PlayerPanel.NONE) }
 
@@ -770,7 +769,6 @@ fun PlayerScreen(
                         onAnotherDevice = onAnotherDevice,
                         onWatchVideo = onWatchVideo,
                         videoOn = videoOn,
-                        onMore = onMore,
                     )
 
                     // Everything sits at the bottom, as in the reference: the
@@ -1071,7 +1069,7 @@ fun PlayerScreen(
                         ) {
                             GlassSurface(
                                 backdrop = glassBackdrop,
-                                surfaceColor = PlayerFilm,
+                                surfaceColor = LocalPlayerFilm.current,
                                 shape = RoundedCornerShape(50),
                                 // The gap to the title lives here rather than
                                 // in a spacer beside it: what a visibility
@@ -1112,7 +1110,7 @@ fun PlayerScreen(
                         // per-track actions on the right.
                         GlassSurface(
                             backdrop = glassBackdrop,
-                            surfaceColor = PlayerFilm,
+                            surfaceColor = LocalPlayerFilm.current,
                             shape = RoundedCornerShape(50),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1301,13 +1299,17 @@ private fun VideoStage(
     protectedContent: Boolean,
     onAmbient: (AmbientEdges) -> Unit,
 ) {
+    // The video's own shape, fitted inside the stage. A fixed 16:9 box drew
+    // every other shape stretched to it: a wide film pulled tall, a square
+    // clip pulled wide.
+    val ratio = rememberVideoRatio(player, attachKey)
+
     if (protectedContent) {
         VideoSurface(
             player,
             attachKey,
             Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
+                .aspectRatio(ratio)
                 .clip(RoundedCornerShape(18.dp)),
         )
         PanelAmbient(player, onAmbient)
@@ -1348,8 +1350,7 @@ private fun VideoStage(
     androidx.compose.ui.viewinterop.AndroidView(
         factory = { texture },
         modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f)
+            .aspectRatio(ratio)
             .clip(RoundedCornerShape(18.dp)),
     )
 }
@@ -1512,6 +1513,43 @@ private fun PanelAmbient(player: Player, onAmbient: (AmbientEdges) -> Unit) {
     }
 }
 
+/**
+ * The video's own shape, width over height, as the player reports it.
+ *
+ * Read off the player on the way in as well as listened for. The size is
+ * announced once, when the picture starts, so a screen opened on a video that
+ * was already playing (turning the phone on its side, which is the usual way
+ * in) never heard it and kept its guess. 16:9 until anything is known, which
+ * is what most of them are.
+ *
+ * Give it to `aspectRatio` with no fill in front: inside a box that leaves the
+ * size open, that fits the picture to whichever side runs out first. Asked to
+ * fill the width as well, a picture narrower than the screen could not be both,
+ * and the surface stretched it over the whole display instead.
+ */
+@Composable
+internal fun rememberVideoRatio(player: Player, attachKey: Any? = null): Float {
+    var ratio by remember(player, attachKey) {
+        mutableFloatStateOf(player.videoSize.ratio() ?: DEFAULT_VIDEO_RATIO)
+    }
+    DisposableEffect(player, attachKey) {
+        player.videoSize.ratio()?.let { ratio = it }
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                videoSize.ratio()?.let { ratio = it }
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+    return ratio
+}
+
+private fun VideoSize.ratio(): Float? =
+    if (width > 0 && height > 0) width * pixelWidthHeightRatio / height else null
+
+private const val DEFAULT_VIDEO_RATIO = 16f / 9f
+
 /** The surface itself, shared with the floating window; see [VideoStage]. */
 @Composable
 fun VideoSurface(player: Player, attachKey: Any? = null, modifier: Modifier = Modifier) {
@@ -1528,7 +1566,7 @@ fun VideoSurface(player: Player, attachKey: Any? = null, modifier: Modifier = Mo
 private fun TopBar(
     backdrop: Backdrop,
     panel: PlayerPanel,
-    /** Where the queue came from: "Playlist · Estate 2025", "Ricerca". */
+    /** Where the queue came from: "Estate 2025", "Ricerca". */
     source: String,
     /** Opens that place, when it is one; null leaves the line as a caption. */
     onOpenSource: (() -> Unit)?,
@@ -1539,7 +1577,6 @@ private fun TopBar(
     /** Null when the track has no video to watch. */
     onWatchVideo: (() -> Unit)?,
     videoOn: Boolean,
-    onMore: (() -> Unit)? = null,
 ) {
     Row(
         Modifier
@@ -1634,16 +1671,6 @@ private fun TopBar(
                         onAnotherDevice -> ConnectedInk
                         else -> panelTint(panel == PlayerPanel.DEVICES)
                     },
-                )
-            }
-        }
-        if (onMore != null) {
-            Spacer(Modifier.size(8.dp))
-            GlassButton(backdrop, onClick = onMore) {
-                Icon(
-                    PhosphorIcons.Regular.DotsThree,
-                    contentDescription = stringResource(R.string.more),
-                    tint = GlassInk,
                 )
             }
         }
@@ -2108,7 +2135,7 @@ internal val GlassFilm: Color
     }
 
 /**
- * The film on the player's own glass, which is always the dark one.
+ * The dark film, for a record with no colour of its own yet.
  *
  * The same tint the glass recipe puts under light ink, at the same strength,
  * so the panes that draw their film themselves match the ones that get it from
@@ -2116,6 +2143,34 @@ internal val GlassFilm: Color
  * player does not, see playerInk in SquareApp.
  */
 internal val PlayerFilm = Color(0xFF23232A).copy(alpha = 0.5f)
+
+/**
+ * The film the player's glass is made of while a record plays.
+ *
+ * Provided once, over the whole player, so the panes that draw their own film
+ * stay the material of the ones that get it from [GlassEffect]; SquareApp
+ * hands the same colour to both.
+ */
+internal val LocalPlayerFilm = androidx.compose.runtime.compositionLocalOf { PlayerFilm }
+
+/**
+ * The record's colour at the depth of the dark film.
+ *
+ * Its hue, with the saturation held back so a loud sleeve gives tinted glass
+ * rather than a coloured slab, and the darkness the light ink was chosen
+ * against, so the writing reads on it as it did on the grey. A grey record
+ * gives very nearly the film it always had.
+ */
+internal fun playerFilmTint(accent: Color): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(accent.toArgb(), hsv)
+    hsv[1] = hsv[1].coerceAtMost(FILM_SATURATION)
+    hsv[2] = FILM_VALUE
+    return Color(android.graphics.Color.HSVToColor(hsv))
+}
+
+private const val FILM_SATURATION = 0.55f
+private const val FILM_VALUE = 0.24f
 
 /**
  * The lyrics, centre stage.

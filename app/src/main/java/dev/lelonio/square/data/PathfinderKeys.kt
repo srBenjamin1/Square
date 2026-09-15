@@ -49,9 +49,17 @@ class PathfinderKeys(context: Context) {
     /** And for `browsePage`, which is a whole page of Spotify's own browse. */
     val browsePage: String get() = prefs.getString(KEY_BROWSE_PAGE, null) ?: DEFAULT_BROWSE_PAGE
 
+    /** And `queryArtistOverview`, which is an artist's page; see ArtistPlaylists. */
+    val artistOverview: String
+        get() = prefs.getString(KEY_ARTIST_OVERVIEW, null) ?: DEFAULT_ARTIST_OVERVIEW
+
     /** And `browseSection`, for reading one of that page's rows past its first few. */
     val browseSection: String
         get() = prefs.getString(KEY_BROWSE_SECTION, null) ?: DEFAULT_BROWSE_SECTION
+
+    /** And `playlistSection`, the row under a playlist; see RelatedPlaylists. */
+    val playlistSection: String
+        get() = prefs.getString(KEY_PLAYLIST_SECTION, null) ?: DEFAULT_PLAYLIST_SECTION
 
     /** The web client version the gateway is told about. */
     val appVersion: String get() = prefs.getString(KEY_VERSION, null) ?: DEFAULT_VERSION
@@ -87,6 +95,10 @@ class PathfinderKeys(context: Context) {
                     ?.let { edit.putString(KEY_BROWSE_PAGE, it) }
                 body.optString("browseSection").takeIf { it.length == HASH_LENGTH }
                     ?.let { edit.putString(KEY_BROWSE_SECTION, it) }
+                body.optString("artistOverview").takeIf { it.length == HASH_LENGTH }
+                    ?.let { edit.putString(KEY_ARTIST_OVERVIEW, it) }
+                body.optString("playlistSection").takeIf { it.length == HASH_LENGTH }
+                    ?.let { edit.putString(KEY_PLAYLIST_SECTION, it) }
                 body.optString("appVersion").takeIf { it.isNotEmpty() }
                     ?.let { edit.putString(KEY_VERSION, it) }
                 edit.apply()
@@ -104,6 +116,8 @@ class PathfinderKeys(context: Context) {
         const val KEY_SEARCH = "search"
         const val KEY_BROWSE_PAGE = "browse_page"
         const val KEY_BROWSE_SECTION = "browse_section"
+        const val KEY_ARTIST_OVERVIEW = "artist_overview"
+        const val KEY_PLAYLIST_SECTION = "playlist_section"
         const val KEY_VERSION = "app_version"
         const val KEY_CHECKED = "checked_at"
 
@@ -132,6 +146,10 @@ class PathfinderKeys(context: Context) {
             "f5c4e6d668f5716464a231c1cc8b22c1cbf6ad68b09929fd7de813a30581298b"
         const val DEFAULT_BROWSE_SECTION =
             "b13c1cccbfcb6947753c2613411b3566485c21fd5f36d80a80bb64be61ba2d51"
+        const val DEFAULT_ARTIST_OVERVIEW =
+            "9f8134ef565e78621f1e1793555bd6633c5ac144ae0f89604ed3ae3f80b3c8e6"
+        const val DEFAULT_PLAYLIST_SECTION =
+            "2615df403a9043c1d7d3094fbeb4c9653b07b11a33d8081fbd31f0f7959ff4a1"
         const val DEFAULT_VERSION = "1.2.97.155.g5dd0dcaf-development"
     }
 }

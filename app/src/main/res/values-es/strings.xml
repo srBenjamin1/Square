@@ -8,6 +8,7 @@
     <string name="cancel">Cancelar</string>
     <string name="save">Guardar</string>
     <string name="clear">Borrar</string>
+    <string name="clear_history">Vaciar</string>
     <string name="credits">Créditos</string>
     <string name="karaoke">Karaoke</string>
     <string name="translation">Traducción</string>
@@ -70,6 +71,7 @@
     <string name="good_evening">Buenas noches</string>
     <string name="feed_all">Todo</string>
     <string name="feed_for_you">Para ti</string>
+    <string name="feed_discover">Descubrir</string>
     <string name="feed_releases">Novedades</string>
     <string name="your_playlists">Tus playlists</string>
     <string name="listening_artists">Artistas que escuchas</string>
@@ -166,6 +168,7 @@
     <string name="add_to_library">Añadir a la biblioteca</string>
     <string name="remove_from_library">Quitar de la biblioteca</string>
     <string name="artist_playlists">Listas con este artista</string>
+    <string name="related_playlists">Listas similares</string>
     <string name="singles_and_eps">Sencillos y EP</string>
     <string name="appears_on">Aparece en</string>
     <string name="followers_count">%1$s seguidores</string>

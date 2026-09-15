@@ -913,6 +913,20 @@ fun PlaylistScreen(
                 }
             }
 
+            // Lists like this one, once every song is in: under a list still
+            // filling in, the row would land between its songs.
+            if (!isArtist && state.relatedPlaylists.isNotEmpty() && query.isBlank() &&
+                !state.loadingMore
+            ) {
+                item(contentType = "relatedPlaylists") {
+                    AlbumStrip(
+                        albums = state.relatedPlaylists,
+                        title = stringResource(R.string.related_playlists),
+                        onOpen = onOpenItem,
+                    )
+                }
+            }
+
             // Everything the artist is in, under the songs they are known for.
             //
             // The tracks come first because that is what an artist page is

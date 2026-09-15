@@ -13,6 +13,7 @@
     <string name="cancel">Vazgeç</string>
     <string name="save">Kaydet</string>
     <string name="clear">Temizle</string>
+    <string name="clear_history">Tümünü temizle</string>
     <string name="credits">Katkıda bulunanlar</string>
     <string name="karaoke">Karaoke</string>
     <string name="translation">Çeviri</string>
@@ -76,6 +77,7 @@
     <string name="good_evening">İyi akşamlar</string>
     <string name="feed_all">Hepsi</string>
     <string name="feed_for_you">Sana özel</string>
+    <string name="feed_discover">Keşfet</string>
     <string name="feed_releases">Yeni</string>
     <string name="your_playlists">Çalma listelerin</string>
     <string name="listening_artists">Dinlediğin sanatçılar</string>
@@ -178,6 +180,7 @@
     <string name="add_to_library">Kitaplığa ekle</string>
     <string name="remove_from_library">Kitaplıktan kaldır</string>
     <string name="artist_playlists">Bu sanatçının çalma listeleri</string>
+    <string name="related_playlists">Benzer çalma listeleri</string>
     <string name="singles_and_eps">Single ve EP</string>
     <string name="appears_on">Yer aldığı albümler</string>
     <string name="followers_count">%1$s takipçi</string>

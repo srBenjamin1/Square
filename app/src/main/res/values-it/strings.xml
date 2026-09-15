@@ -9,6 +9,7 @@
     <string name="cancel">Annulla</string>
     <string name="save">Salva</string>
     <string name="clear">Cancella</string>
+    <string name="clear_history">Svuota</string>
     <string name="credits">Crediti</string>
     <string name="karaoke">Karaoke</string>
     <string name="translation">Traduzione</string>
@@ -71,6 +72,7 @@
     <string name="good_evening">Buonasera</string>
     <string name="feed_all">Tutto</string>
     <string name="feed_for_you">Per te</string>
+    <string name="feed_discover">Scopri</string>
     <string name="feed_releases">Novità</string>
     <string name="your_playlists">Le tue playlist</string>
     <string name="listening_artists">Artisti che ascolti</string>
@@ -167,6 +169,7 @@
     <string name="add_to_library">Aggiungi alla libreria</string>
     <string name="remove_from_library">Togli dalla libreria</string>
     <string name="artist_playlists">Playlist con questo artista</string>
+    <string name="related_playlists">Playlist simili</string>
     <string name="singles_and_eps">Singoli ed EP</string>
     <string name="appears_on">Compare in</string>
     <string name="followers_count">%1$s follower</string>

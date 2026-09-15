@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -766,6 +767,16 @@ fun SquareApp(
     // and the glass, which still reads it, always takes its dark film.
     val playerInk = Color(0xFFF7F8FA)
 
+    // And the film on its glass: still dark, and now the record's own dark.
+    // The song's colour at the depth the grey film sat at, see playerFilmTint,
+    // eased from one song to the next rather than cut, like the field under it.
+    val playerFilm by animateColorAsState(
+        targetValue = accent?.let { dev.lelonio.square.ui.player.playerFilmTint(it) }
+            ?: Color(0xFF23232A),
+        animationSpec = tween(PLAYER_FILM_FADE_MS),
+        label = "playerFilm",
+    )
+
     // Emptied by the track change itself, not by the answer about the new
     // track's Canvas.
     //
@@ -1075,9 +1086,16 @@ fun SquareApp(
                 // fresh when the mode is entered, and a surface attached to the
                 // one before it shows nothing at all.
                 player?.let {
+                    val key = if (spotifyVideoOn) spotifyVideoGeneration else null
+                    // Fitted, not filled: the system clamps the window's
+                    // shape, and a picture wider than it allows was stretched
+                    // to the window.
                     dev.lelonio.square.ui.player.VideoSurface(
                         it,
-                        attachKey = if (spotifyVideoOn) spotifyVideoGeneration else null,
+                        attachKey = key,
+                        modifier = Modifier.aspectRatio(
+                            dev.lelonio.square.ui.player.rememberVideoRatio(it, key),
+                        ),
                     )
                 }
             }
@@ -1489,7 +1507,6 @@ fun SquareApp(
                                 onRetryOnline = viewModel::retryOnline,
                                 youtubeHome = youtubeHome,
                                 shelves = homeShelves,
-                                mixShelves = radioShelves,
                                 onPlayTrending = { tracks, index ->
                                     onPlay(tracks, index, null, false, trendingLabel, 0L)
                                 },
@@ -1606,6 +1623,7 @@ fun SquareApp(
                                 },
                                 history = searchTrail,
                                 onClearHistory = viewModel::clearSearchHistory,
+                                onRemoveHistory = { uri -> viewModel.forgetSearchPlay(uri) },
                                 offline = offlineNow,
                                 onEnqueue = onEnqueue,
                                 onTrackMenu = { track ->
@@ -2658,6 +2676,17 @@ fun SquareApp(
                               // playerInk above and GlassEffect.
                               dev.lelonio.square.ui.theme.LocalInkOverride provides playerInk,
                               androidx.compose.material3.LocalContentColor provides playerInk,
+                              // The record's film, to the panes that draw their
+                              // own and, through the config, to the ones the
+                              // glass recipe fills. A colour set by hand in the
+                              // settings still wins, as it does everywhere.
+                              dev.lelonio.square.ui.player.LocalPlayerFilm provides
+                                  playerFilm.copy(alpha = 0.5f),
+                              dev.lelonio.square.ui.glass.LocalGlassEffectConfig provides
+                                  dev.lelonio.square.ui.glass.LocalGlassEffectConfig.current.let {
+                                      if (it.surfaceTintColor.isSpecified) it
+                                      else it.copy(surfaceTintColor = playerFilm)
+                                  },
                           ) {
                             PlayerScreen(
                                 state = playerState,
@@ -2931,19 +2960,6 @@ fun SquareApp(
                                 videoOn = videoOn || spotifyVideoOn,
                                 videoPlayer = player,
                                 videoAttachKey = spotifyVideoGeneration,
-                                onMore = playback.mediaId?.let { uri ->
-                                    {
-                                        trackMenu = TrackMenuRequest(
-                                            track = CatalogTrack(
-                                                uri = uri,
-                                                name = playback.title,
-                                                artist = playback.artist,
-                                                artworkUrl = playback.artworkUrl,
-                                            ),
-                                            removable = false,
-                                        )
-                                    }
-                                },
                             )
                           }
                         },
@@ -3658,15 +3674,16 @@ private fun NavHostController.openPlaylist(viewModel: MainViewModel, playlist: C
  * stack forever and the system back button would walk the entire history.
  */
 /**
- * What the player says the track is coming from: "Playlist · Estate 2025".
+ * What the player says the track is coming from: "Estate 2025".
  *
- * The kind first, because the name alone reads as a title and the two are worth
- * telling apart at a glance while a cover is filling the screen.
+ * The name alone. The kind in front of it took the room a long name needs at
+ * the top of the player, and the name is what tells one list from another;
+ * the kind is what shows when there is no name to give.
  */
 @Composable
 private fun MainViewModel.PlaylistState.sourceLabel(): String {
     val kindName = stringResource(kind.label)
-    return if (name.isBlank()) kindName else "$kindName · $name"
+    return name.ifBlank { kindName }
 }
 
 private fun NavHostController.switchTab(route: String) {
@@ -3918,3 +3935,6 @@ private suspend fun awaitAudible(
 
 /** How long the extras wait for the song; see [awaitAudible]. */
 private const val AUDIBLE_TIMEOUT_MS = 5_000L
+
+/** How long the player's glass takes to become the next song's colour. */
+private const val PLAYER_FILM_FADE_MS = 700

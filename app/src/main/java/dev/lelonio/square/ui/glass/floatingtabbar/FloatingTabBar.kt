@@ -455,7 +455,7 @@ private fun SharedTransitionScope.SearchExpandedBar(
                     inlineTab = inlineTab,
                     // Already open: a tap here navigates, and does not have to
                     // unfold anything.
-                    onInlineTabClick = {},
+                    onClick = inlineTab.onClick,
                     shapes = shapes,
                     sizes = sizes,
                     colors = colors,
@@ -667,7 +667,7 @@ private fun SharedTransitionScope.InlineBar(
         if (hasInlineTab) {
             InlineTab(
                 inlineTab = inlineTab,
-                onInlineTabClick = onInlineTabClick,
+                onClick = onInlineTabClick,
                 shapes = shapes,
                 sizes = sizes,
                 colors = colors,
@@ -724,7 +724,12 @@ private fun SharedTransitionScope.InlineBar(
 @Composable
 private fun SharedTransitionScope.InlineTab(
     inlineTab: FloatingTabBarTab,
-    onInlineTabClick: () -> Unit,
+    // LOCAL CHANGE: what a tap does, chosen by the caller. Upstream unfolds the
+    // bar and then runs the tab's own click as well, and the tab's click is a
+    // navigation: on a page opened from a tab, a tap that was meant to bring
+    // the bar back took you off the page. Folded, it unfolds and nothing else;
+    // beside the search field, where there is nothing to unfold, it navigates.
+    onClick: () -> Unit,
     shapes: FloatingTabBarShapes,
     sizes: FloatingTabBarSizes,
     colors: FloatingTabBarColors,
@@ -756,10 +761,7 @@ private fun SharedTransitionScope.InlineTab(
             .clip(shapes.tabBarShape)
             .then(tabBarContentModifier)
             .clickable(
-                onClick = {
-                    onInlineTabClick()
-                    inlineTab.onClick()
-                },
+                onClick = onClick,
                 indication = inlineTab.indication?.invoke(),
                 interactionSource = remember { MutableInteractionSource() }
             )

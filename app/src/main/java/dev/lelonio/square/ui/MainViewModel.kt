@@ -167,6 +167,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val appearsOn: List<SearchItem> = emptyList(),
         /** The playlists Spotify built around them, "This Is" first. */
         val artistPlaylists: List<SearchItem> = emptyList(),
+        /** Lists like this one, for the row under a playlist's songs. */
+        val relatedPlaylists: List<SearchItem> = emptyList(),
         /** Fans also like / related artists. */
         val relatedArtists: List<SearchItem> = emptyList(),
         /** Whether the artist is verified. */
@@ -2244,6 +2246,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 inkHex = state.inkHex ?: current.inkHex,
                 heroAspect = state.heroAspect ?: current.heroAspect,
                 motionUrl = state.motionUrl ?: current.motionUrl,
+                // The row under the songs, for the same reason: the list is
+                // read from a copy of the page taken before the row arrived.
+                relatedPlaylists = state.relatedPlaylists.ifEmpty { current.relatedPlaylists },
                 // Owned by the lookup alone: every other publish carries the
                 // flag's default and would clear the wait a batch of tracks
                 // early, which is the swap this exists to prevent.
@@ -2510,18 +2515,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * one the app can do without. Everything below it is read the old way and
      * does not depend on this at all.
      */
-    val homeShelves: StateFlow<List<HomeShelf>> = _homeShelves.asStateFlow()
+    private val _releasesPage = MutableStateFlow<List<HomeShelf>>(emptyList())
+    private val _chartsPage = MutableStateFlow<List<HomeShelf>>(emptyList())
+    private val _madeForYouPage = MutableStateFlow<List<HomeShelf>>(emptyList())
 
-    private val _newBrowse = MutableStateFlow<List<dev.lelonio.square.data.HomeShelf>>(emptyList())
+    /**
+     * The three tabs, out of the four things Spotify answers.
+     *
+     * Worked out together because they share one rule, that no playlist is on
+     * two of them; see TabContents. Each source updates it as it arrives.
+     */
+    private val tabs: StateFlow<dev.lelonio.square.data.TabContents.Tabs> = combine(
+        _homeShelves,
+        _releasesPage,
+        _chartsPage,
+        _madeForYouPage,
+    ) { home, releases, charts, madeForYou ->
+        dev.lelonio.square.data.TabContents.split(home, releases, charts, madeForYou)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, dev.lelonio.square.data.TabContents.Tabs())
 
-    /** Spotify's own new-releases page, as rows; see SpotifyBrowse. */
-    val newBrowse: StateFlow<List<dev.lelonio.square.data.HomeShelf>> = _newBrowse.asStateFlow()
+    val homeShelves: StateFlow<List<HomeShelf>> = tabs.map { it.home }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val _radioBrowse =
-        MutableStateFlow<List<dev.lelonio.square.data.HomeShelf>>(emptyList())
+    /** What is out and what is being played: new releases and the charts. */
+    val newBrowse: StateFlow<List<HomeShelf>> = tabs.map { it.new }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** And its "made for you" and charts pages, which is what a radio tab is. */
-    val radioBrowse: StateFlow<List<dev.lelonio.square.data.HomeShelf>> = _radioBrowse.asStateFlow()
+    /** Listening that does not stop: every station and every mix. */
+    val radioBrowse: StateFlow<List<HomeShelf>> = tabs.map { it.radio }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private var browseJob: Job? = null
 
@@ -2546,37 +2568,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * what the catalogue is offering: the releases picked for this listener,
      * the editors' lists, the charts, the mixes.
      *
-     * Whatever the home page is already showing is dropped here, by title: the
-     * two do overlap, and a row that appears twice in one app is worse than a
-     * row that appears once.
+     * What goes on which tab is decided in one place for all three, by what
+     * each playlist is rather than by the title of the row it came in; see
+     * TabContents. Home reads these pages too: the blends and the day's own
+     * list are on "made for you", and the charts are how it knows to leave
+     * them to New.
      */
     fun loadBrowse() {
         if (browseJob?.isActive == true) return
-        if (_newBrowse.value.isNotEmpty() && _radioBrowse.value.isNotEmpty()) return
+        if (_releasesPage.value.isNotEmpty() && _madeForYouPage.value.isNotEmpty()) return
 
         _browseLoading.value = true
         browseJob = viewModelScope.launch {
-            val onHome = _homeShelves.value.map { it.title.lowercase() }.toSet()
             suspend fun page(uri: String) = withContext(Dispatchers.IO) {
                 container.gateway.browsePage(uri)
                     ?.let { dev.lelonio.square.data.SpotifyBrowse.parse(it) }
                     .orEmpty()
-                    .filter { it.title.lowercase() !in onHome }
             }
 
-            val releases = page(dev.lelonio.square.data.SpotifyBrowse.Pages.NEW_RELEASES)
-            if (releases.isNotEmpty()) _newBrowse.value = releases
-
-            // Two pages behind one tab: the mixes made for this listener, and
-            // the charts, which are the other half of what a radio is for.
-            val mixes = page(dev.lelonio.square.data.SpotifyBrowse.Pages.MADE_FOR_YOU)
-            val charts = page(dev.lelonio.square.data.SpotifyBrowse.Pages.CHARTS)
-            val forRadio = (mixes + charts).distinctBy { it.title.lowercase() }
-            if (forRadio.isNotEmpty()) _radioBrowse.value = forRadio
+            page(dev.lelonio.square.data.SpotifyBrowse.Pages.NEW_RELEASES)
+                .takeIf { it.isNotEmpty() }?.let { _releasesPage.value = it }
+            page(dev.lelonio.square.data.SpotifyBrowse.Pages.MADE_FOR_YOU)
+                .takeIf { it.isNotEmpty() }?.let { _madeForYouPage.value = it }
+            page(dev.lelonio.square.data.SpotifyBrowse.Pages.CHARTS)
+                .takeIf { it.isNotEmpty() }?.let { _chartsPage.value = it }
 
             android.util.Log.i(
                 TAG,
-                "browse: ${releases.size} rows for new, ${forRadio.size} for radio",
+                "browse: ${newBrowse.value.size} rows for new, ${radioBrowse.value.size} for radio",
             )
             _browseLoading.value = false
         }
@@ -2613,6 +2632,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (shelves.isNotEmpty()) {
             android.util.Log.i(TAG, "home: ${shelves.size} shelves from the gateway")
             _homeShelves.value = shelves
+            // The browse pages as well: part of Home is on them; see loadBrowse.
+            loadBrowse()
         }
     }
 
@@ -2929,6 +2950,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val artistPageCache =
         object : LinkedHashMap<String, ArtistPage>(0, 0.75f, true) {
             override fun removeEldestEntry(eldest: Map.Entry<String, ArtistPage>) =
+                size > 30
+        }
+
+    /** The row under each playlist opened this run, so reopening one asks nothing. */
+    private val relatedCache =
+        object : LinkedHashMap<String, List<SearchItem>>(0, 0.75f, true) {
+            override fun removeEldestEntry(eldest: Map.Entry<String, List<SearchItem>>) =
                 size > 30
         }
 
@@ -3311,6 +3339,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 base = base.copy(saved = kept)
             }
 
+            // Lists like this one, for the row under the songs. Written through
+            // `base` like the rest, and quiet like the rest: the page is whole
+            // without it, and a list Spotify has nothing to pair with simply
+            // ends where its songs do.
+            if (kind == DetailKind.PLAYLIST && playlist.uri.startsWith("spotify:playlist:") &&
+                !dev.lelonio.square.playback.OfflineMode.active.value
+            ) launch {
+                val related = relatedCache[playlist.uri]
+                    ?: container.gateway.relatedPlaylists(playlist.uri)
+                        ?.filter { it.uri != playlist.uri }
+                        ?.also { relatedCache[playlist.uri] = it }
+                    ?: return@launch
+                android.util.Log.i(TAG, "related playlists for ${playlist.uri}: ${related.size}")
+                if (related.isEmpty()) return@launch
+                base = base.copy(relatedPlaylists = related)
+                if (isActive && _playlist.value.uri == playlist.uri) {
+                    _playlist.value = _playlist.value.copy(relatedPlaylists = related)
+                }
+            }
+
             // Apple's own pictures for the page. Deliberately last and
             // deliberately quiet: it is a different catalogue reached over a
             // different network, everything on screen is already correct
@@ -3387,6 +3435,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             val kept = savedState(release.uri) ?: return@launch
                             if (isActive && _playlist.value.uri == playlist.uri) {
                                 _playlist.value = _playlist.value.copy(latestSaved = kept)
+                            }
+                        }
+                    }
+
+                    // The playlists after the page too, and for the same
+                    // reason: "This Is" and the rest are a row near the foot of
+                    // it, and a second request is not worth holding the top for.
+                    // The call that used to fill them went when this page's
+                    // loading was rewritten, and the row went with it.
+                    if (page.playlists.isEmpty()) {
+                        launch {
+                            val lists = artistPlaylistsFor(
+                                playlist.uri,
+                                page.name?.takeIf { it.isNotEmpty() } ?: base.name,
+                            )
+                            if (lists.isEmpty()) return@launch
+                            artistPageCache[playlist.uri] = page.copy(playlists = lists)
+                            if (isActive && _playlist.value.uri == playlist.uri) {
+                                _playlist.value = _playlist.value.copy(artistPlaylists = lists)
                             }
                         }
                     }
@@ -4621,13 +4688,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * The playlists Spotify built around one artist.
+     * The playlists an artist is in, "This Is" first.
      *
-     * There is no endpoint for this. The desktop client reads it from the
-     * gateway that answers the personalised pages, addressed by a hash of a
-     * query this app does not have, so the way in is the search: "This Is" and
-     * the rest are ordinary public playlists, and what makes them Spotify's own
-     * rather than a stranger's copy is the owner.
+     * Read from the gateway, which answers with the row the desktop client
+     * heads "Featuring"; see [dev.lelonio.square.data.ArtistPlaylists]. The
+     * search below is what is left when the gateway will not answer.
+     */
+    private suspend fun artistPlaylistsFor(uri: String, name: String): List<SearchItem> =
+        container.gateway.artistPlaylists(uri)?.takeIf { it.isNotEmpty() }
+            ?: if (container.webApi.isReady) artistPlaylists(name) else emptyList()
+
+    /**
+     * The playlists Spotify built around one artist, by searching for them.
+     *
+     * The fallback for [artistPlaylistsFor]: "This Is" and the rest are
+     * ordinary public playlists, and what makes them Spotify's own rather than
+     * a stranger's copy is the owner.
      *
      * Named after the artist too, because searching a name returns everything
      * anybody ever titled after them.

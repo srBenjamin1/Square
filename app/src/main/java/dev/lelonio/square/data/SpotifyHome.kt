@@ -13,6 +13,21 @@ import org.json.JSONObject
 data class HomeShelf(
     val title: String,
     val items: List<CatalogPlaylist>,
+    /**
+     * The section's address, "spotify:section:…", where it came with one.
+     *
+     * The same for every account and in every language, which is what tells
+     * the row of what was being played from the rest without reading a title;
+     * see TabContents.
+     */
+    val sectionUri: String = "",
+    /**
+     * Gathered out of the single-tile sections at the foot of Spotify's home
+     * rather than given as a row; see [SpotifyHome.parse].
+     */
+    val gathered: Boolean = false,
+    /** The artist the row is about, "For fans of", "More like", where it said. */
+    val artist: String? = null,
 )
 
 /**
@@ -36,19 +51,37 @@ object SpotifyHome {
             .getJSONObject("sections")
             .getJSONArray("items")
 
-        (0 until sections.length()).mapNotNull { index ->
-            shelf(sections.getJSONObject(index))
+        val rows = mutableListOf<HomeShelf>()
+        val gathered = LinkedHashMap<String, HomeShelf>()
+        for (index in 0 until sections.length()) {
+            val section = sections.getJSONObject(index)
+            val baseline = section.optJSONObject("data")?.optString("__typename") == BASELINE
+            if (!baseline) {
+                shelf(section)?.let(rows::add)
+                continue
+            }
+            // The endless feed at the bottom of Spotify's own home: dozens of
+            // sections holding a single tile each, several of them titled the
+            // same. One tile is not a row, so they are put back together: by
+            // the artist a section is about when it names one ("For fans of
+            // Geolier" twice is one row), and by title when it does not ("Just
+            // for you" five times is one row).
+            val one = shelf(section) ?: continue
+            val artist = section.optJSONObject("data")
+                ?.optJSONObject("headerEntity")
+                ?.optJSONObject("data")
+                ?.optString("uri")
+                ?.takeIf { it.startsWith("spotify:artist:") }
+            val key = artist ?: "title:${one.title}"
+            val so = gathered[key]
+            gathered[key] = so?.copy(items = (so.items + one.items).distinctBy { it.uri })
+                ?: one.copy(sectionUri = "", gathered = true, artist = artist)
         }
+        rows + gathered.values
     }.getOrDefault(emptyList())
 
     private fun shelf(section: JSONObject): HomeShelf? {
         val data = section.optJSONObject("data") ?: return null
-
-        // The endless feed at the bottom of Spotify's own home: dozens of
-        // sections holding a single item each, several of them titled the same.
-        // A carousel of one tile is not a row, and repeating "Made for you"
-        // eight times down a page is not a home.
-        if (data.optString("__typename") == BASELINE) return null
 
         val title = data.optJSONObject("title")?.optString("transformedLabel").orEmpty()
         if (title.isEmpty()) return null
@@ -58,7 +91,7 @@ object SpotifyHome {
         val entries = (0 until items.length()).mapNotNull { index ->
             entry(items.getJSONObject(index))
         }
-        return if (entries.isEmpty()) null else HomeShelf(title, entries)
+        return if (entries.isEmpty()) null else HomeShelf(title, entries, section.optString("uri"))
     }
 
     private fun entry(item: JSONObject): CatalogPlaylist? {

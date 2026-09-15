@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,7 +33,6 @@ import androidx.compose.foundation.layout.height
 import dev.lelonio.square.ui.glass.backdrop.backdrops.layerBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberLayerBackdrop
 import androidx.media3.common.Player
-import androidx.media3.common.VideoSize
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.fill.Pause
@@ -68,21 +66,9 @@ fun FullScreenVideo(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
 ) {
-    // The video's own shape, so it is fitted rather than stretched. A default
-    // until the first frame reports one: the alternative is a black screen
-    // that jumps as soon as the decoder speaks.
-    var ratio by remember { mutableFloatStateOf(16f / 9f) }
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onVideoSizeChanged(size: VideoSize) {
-                if (size.width > 0 && size.height > 0) {
-                    ratio = size.width * size.pixelWidthHeightRatio / size.height
-                }
-            }
-        }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
-    }
+    // The video's own shape, so it is fitted rather than stretched; see
+    // rememberVideoRatio.
+    val ratio = rememberVideoRatio(player, attachKey)
 
     var showControls by remember { mutableStateOf(true) }
 
@@ -141,7 +127,7 @@ fun FullScreenVideo(
                 .layerBackdrop(backdrop),
         )
 
-        VideoSurface(player, attachKey, Modifier.fillMaxWidth().aspectRatio(ratio))
+        VideoSurface(player, attachKey, Modifier.aspectRatio(ratio))
 
         // A wash over the picture while the controls are up, so white text and
         // white glass have something to sit on. It goes with them.
