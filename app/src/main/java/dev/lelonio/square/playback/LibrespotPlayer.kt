@@ -743,6 +743,12 @@ class LibrespotPlayer(
             // anyway would talk over it.
             if (!focus.requestFocus()) return Futures.immediateVoidFuture()
             wantPlay = true
+            this.playWhenReady = true
+            if (playbackState == Player.STATE_IDLE) {
+                playbackState = Player.STATE_READY
+            }
+            invalidateState()
+
             // Pressed before there is an engine to press it on. Remembered
             // rather than sent: the queue goes over the moment the access point
             // answers, and it goes over playing.
@@ -752,14 +758,24 @@ class LibrespotPlayer(
                 invalidateState()
                 return Futures.immediateVoidFuture()
             }
-            // Play is where a reconnection is worth waiting for. The engine has
-            // no queue of its own, so a rebuilt device knows nothing until the
-            // queue is handed over again, and resuming is exactly the moment
-            // the user is willing to wait a handshake for.
-            if (deviceGone) {
+
+            // If no track is currently loaded but queue exists, load the queue.
+            // Otherwise, unpause the existing loaded track immediately via NativeBridge.play().
+            if (currentMediaItem == null && queue.items.isNotEmpty()) {
                 pushQueue(startPlaying = true, positionMs = positionMs.toInt())
             } else {
-                engine("play") { NativeBridge.play() }
+                var playFailed = false
+                engine("play") {
+                    try {
+                        NativeBridge.play()
+                    } catch (e: Throwable) {
+                        playFailed = true
+                        throw e
+                    }
+                }
+                if (playFailed && queue.items.isNotEmpty()) {
+                    pushQueue(startPlaying = true, positionMs = positionMs.toInt())
+                }
             }
             // After the engine, not before: waking the output is a call into
             // the audio server that took most of a tenth of a second here, and
@@ -768,13 +784,12 @@ class LibrespotPlayer(
             onPlaybackActive(true)
         } else {
             wantPlay = false
-            engine("pause") { NativeBridge.pause() }
+            this.playWhenReady = false
             onPlaybackActive(false)
             focus.abandonFocus()
+            engine("pause") { NativeBridge.pause() }
+            invalidateState()
         }
-        // Do not update local state here: the engine confirms via onEvent, and
-        // reporting "playing" before audio actually starts makes the seek bar
-        // run ahead of the sound.
         return Futures.immediateVoidFuture()
     }
 

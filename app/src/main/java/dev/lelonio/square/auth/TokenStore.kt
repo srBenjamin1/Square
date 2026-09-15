@@ -141,6 +141,18 @@ class TokenStore(
         }
     }
 
+    /**
+     * Forces an immediate token refresh against Spotify's accounts service,
+     * bypassing any unexpired cached token. Used on HTTP 401 Unauthorized.
+     */
+    suspend fun forceRefresh(): String = refreshLock.withLock {
+        val refreshToken = prefs.getString(KEY_REFRESH, null)
+            ?: error("not logged in")
+        val tokens = SpotifyOAuth.refresh(refreshToken, clientId())
+        save(tokens)
+        tokens.accessToken
+    }
+
     private fun currentIfFresh(): String? {
         val token = prefs.getString(KEY_ACCESS, null) ?: return null
         val expiresAt = prefs.getLong(KEY_EXPIRES_AT, 0)

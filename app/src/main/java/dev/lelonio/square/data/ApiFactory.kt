@@ -4,6 +4,7 @@ import dev.lelonio.square.auth.TokenStore
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.OkHttpClient
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -39,15 +40,21 @@ object ApiFactory {
      */
     fun create(
         tokens: TokenStore,
+        fallbackTokens: TokenStore? = null,
+        nativeToken: (() -> String?)? = null,
         baseClient: OkHttpClient? = null,
+        countryProvider: (() -> String)? = null,
         debug: Boolean = false,
     ): SpotifyApi {
-        val client = (baseClient?.newBuilder() ?: OkHttpClient.Builder())
-            .addInterceptor(AuthInterceptor(tokens))
+        val clientBuilder = (baseClient?.newBuilder() ?: OkHttpClient.Builder())
+            .addInterceptor(AuthInterceptor(tokens, fallbackTokens, nativeToken))
             .addInterceptor(RateLimitInterceptor())
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .apply {
+                if (countryProvider != null) {
+                    addInterceptor(MarketInterceptor(countryProvider))
+                }
                 if (debug) {
                     addInterceptor(
                         okhttp3.logging.HttpLoggingInterceptor().setLevel(
@@ -56,15 +63,54 @@ object ApiFactory {
                     )
                 }
             }
-            .build()
 
         return Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .client(client)
+            .client(clientBuilder.build())
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(SpotifyApi::class.java)
     }
+
+    /**
+     * Injects the listener's account market into Spotify catalog endpoints when
+     * no explicit market parameter is present.
+     *
+     * Without a market parameter on endpoints like playlist tracks or album tracks,
+     * Spotify returns the raw catalog item without regional track relinking, which
+     * causes tracks to appear unplayable or missing for users outside the US.
+     */
+    private class MarketInterceptor(
+        private val countryProvider: () -> String,
+    ) : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val request = chain.request()
+            val url = request.url
+            val path = url.encodedPath
+
+            if (url.queryParameter("market") == null && shouldAddMarket(path)) {
+                val raw = countryProvider()
+                val country = raw.takeIf { it.length == 2 && it.all(Char::isLetter) && it != "from_token" }
+                    ?: java.util.Locale.getDefault().country.takeIf { it.length == 2 && it.all(Char::isLetter) }
+                    ?: "US"
+                val newUrl = url.newBuilder()
+                    .addQueryParameter("market", country.uppercase())
+                    .build()
+                return chain.proceed(request.newBuilder().url(newUrl).build())
+            }
+            return chain.proceed(request)
+        }
+
+        private fun shouldAddMarket(path: String): Boolean {
+            return (path.startsWith("/v1/playlists/") && path.endsWith("/tracks")) ||
+                (path.startsWith("/v1/artists/") && path.endsWith("/top-tracks")) ||
+                (path.startsWith("/v1/artists/") && path.endsWith("/albums")) ||
+                path.startsWith("/v1/albums/") ||
+                path.startsWith("/v1/tracks/") ||
+                path == "/v1/search"
+        }
+    }
+
 
     /**
      * Waits out a single 429 when Spotify says how long to wait.
@@ -109,38 +155,110 @@ object ApiFactory {
 
         private companion object {
             /**
-             * Spotify's back-offs on this client id run to tens of seconds.
-             * Blocking a background OkHttp thread that long is cheaper than
-             * showing an error the user can only answer by tapping retry —
-             * which costs another request against the same quota.
+             * Short back-offs (<=3s) can be waited out safely.
+             * Longer back-offs should not block OkHttp dispatcher threads so that
+             * subsequent requests and fallbacks can proceed without hanging the UI.
              */
-            const val MAX_WAIT_SECONDS = 90L
+            const val MAX_WAIT_SECONDS = 3L
             const val TAG = "SquareApi"
         }
     }
 
-    private class AuthInterceptor(private val tokens: TokenStore) : Interceptor {
+    private class AuthInterceptor(
+        private val tokens: TokenStore,
+        private val fallbackTokens: TokenStore? = null,
+        private val nativeToken: (() -> String?)? = null,
+    ) : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
-            // OkHttp interceptors are blocking by contract and always run on a
-            // background thread, so bridging into the suspending token store
-            // with runBlocking is safe here.
-            //
-            // Everything must leave as an IOException: OkHttp's async dispatcher
-            // only routes IOException to onFailure and rethrows anything else on
-            // its own thread, which takes the whole process down instead of
-            // failing the one call.
-            val token = try {
-                runBlocking { tokens.validAccessToken() }
+            try {
+                return proceedWithAuth(chain)
             } catch (e: IOException) {
                 throw e
             } catch (e: Exception) {
-                throw IOException("could not obtain a Spotify access token", e)
+                throw IOException("AuthInterceptor failed: ${e.message}", e)
+            }
+        }
+
+        private fun proceedWithAuth(chain: Interceptor.Chain): Response {
+            val candidates = buildList<Candidate> {
+                if (tokens.isLoggedIn) {
+                    add(Candidate("webApi", tokens))
+                }
+                if (fallbackTokens?.isLoggedIn == true) {
+                    add(Candidate("account", fallbackTokens))
+                }
+                if (nativeToken != null) {
+                    add(Candidate("native", null, nativeToken))
+                }
             }
 
-            val request = chain.request().newBuilder()
-                .header("Authorization", "Bearer $token")
-                .build()
-            return chain.proceed(request)
+            if (candidates.isEmpty()) {
+                throw IOException("No Spotify access token available; user is not logged in")
+            }
+
+            var lastResponse: Response? = null
+
+            for ((index, candidate) in candidates.withIndex()) {
+                val token = runCatching {
+                    runBlocking { candidate.getToken() }
+                }.getOrNull()
+
+                if (token == null) continue
+
+                val request = chain.request().newBuilder()
+                    .header("Authorization", "Bearer $token")
+                    .build()
+
+                android.util.Log.i("SquareApi", "-> ${request.method} ${request.url} [candidate: ${candidate.name}]")
+                var response = chain.proceed(request)
+                android.util.Log.i("SquareApi", "<- ${response.code} ${request.url} [candidate: ${candidate.name}]")
+                if (!response.isSuccessful) {
+                    val peek = runCatching { response.peekBody(512).string() }.getOrNull()
+                    android.util.Log.w("SquareApi", "<- error body: $peek")
+                }
+
+                // If 401 Unauthorized, try forcing an immediate refresh on this token store once
+                if (response.code == 401 && candidate.store != null) {
+                    val refreshed = runCatching {
+                        runBlocking { candidate.store.forceRefresh() }
+                    }.getOrNull()
+                    if (refreshed != null) {
+                        response.close()
+                        val retryRequest = chain.request().newBuilder()
+                            .header("Authorization", "Bearer $refreshed")
+                            .build()
+                        response = chain.proceed(retryRequest)
+                    }
+                }
+
+                // If successful or an expected response (not 401 Unauthorized and not 403 Forbidden when candidates remain), return it.
+                // 429 Rate Limited is handled by RateLimitInterceptor waiting out backoff; switching credentials on 429 risks account flagging.
+                if (response.isSuccessful || (response.code != 401 && response.code != 403)) {
+                    return response
+                }
+
+                val hasMoreCandidates = index < candidates.lastIndex
+                if (hasMoreCandidates) {
+                    android.util.Log.w("SquareApi", "HTTP ${response.code} with ${candidate.name} token; closing response and trying next candidate")
+                    response.close()
+                } else {
+                    lastResponse = response
+                }
+            }
+
+            return lastResponse ?: chain.proceed(chain.request())
+        }
+
+        private class Candidate(
+            val name: String,
+            val store: TokenStore?,
+            val supplier: (() -> String?)? = null,
+        ) {
+            suspend fun getToken(): String? = when {
+                store != null -> store.validAccessToken()
+                supplier != null -> supplier.invoke()
+                else -> null
+            }
         }
     }
 }

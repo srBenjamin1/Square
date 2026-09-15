@@ -135,9 +135,15 @@ impl WebsocketMessage {
 
         let payload = self.payloads.pop().ok_or(ProtocolError::Empty)?;
         let bytes = match payload {
-            MessagePayloadValue::String(string) => BASE64_STANDARD
-                .decode(string)
-                .map_err(ProtocolError::Base64)?,
+            MessagePayloadValue::String(string) => {
+                let trimmed = string.trim_start();
+                if trimmed.starts_with('{') || trimmed.starts_with('[') {
+                    return Ok(PayloadValue::Json(string));
+                }
+                BASE64_STANDARD
+                    .decode(string)
+                    .map_err(ProtocolError::Base64)?
+            }
             MessagePayloadValue::Bytes(bytes) => bytes,
             MessagePayloadValue::Json(json) => return Ok(PayloadValue::Json(json.to_string())),
         };

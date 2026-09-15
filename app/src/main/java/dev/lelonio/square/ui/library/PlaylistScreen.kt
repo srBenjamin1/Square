@@ -36,7 +36,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -100,6 +99,7 @@ import dev.lelonio.square.ui.glass.backdrop.Backdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.layerBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberCombinedBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberLayerBackdrop
+import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberBackdropFreeze
 import dev.lelonio.square.ui.components.Artwork
 import dev.lelonio.square.ui.components.CHOICE_MENU_WIDTH
 import dev.lelonio.square.ui.components.GlassChoiceItem
@@ -245,8 +245,8 @@ fun PlaylistScreen(
     storedSortDescending: Boolean = false,
     onSortDescendingChange: (Boolean) -> Unit = {},
 ) {
-    var query by remember { mutableStateOf("") }
-    var searching by remember { mutableStateOf(false) }
+    var query by remember(state.uri) { mutableStateOf("") }
+    var searching by remember(state.uri) { mutableStateOf(false) }
     // Opening and closing the field, as one number.
     //
     // The field used to appear and disappear on the frame the button was
@@ -323,6 +323,7 @@ fun PlaylistScreen(
     // the rest. Kept per artist: opening a second artist starts closed again.
     var topSongsOpen by remember(state.uri) { mutableStateOf(false) }
 
+
     // Derived, not stored: keeping a second list in state would leave the two
     // able to disagree after a reload.
     val visible = remember(state.tracks, query, sort, descending) {
@@ -354,7 +355,13 @@ fun PlaylistScreen(
     // that changes, and the one the reference prints here.
     val updated = remember(state.kind, state.tracks) {
         if (state.kind == MainViewModel.DetailKind.PLAYLIST) {
-            state.tracks.mapNotNull { it.addedAt }.maxOrNull()
+            state.tracks.mapNotNull { it.addedAt }
+                .filter { iso ->
+                    runCatching {
+                        java.time.Instant.parse(iso).epochSecond > 1262304000L
+                    }.getOrDefault(false)
+                }
+                .maxOrNull()
         } else {
             null
         }
@@ -443,6 +450,7 @@ fun PlaylistScreen(
 
     /** The rows, for the one piece of glass that opens over them. */
     val listBackdrop = rememberLayerBackdrop()
+    val listBackdropFreeze = rememberBackdropFreeze()
 
     var sortAnchor by remember { mutableStateOf(IntOffset.Zero) }
 
@@ -462,7 +470,10 @@ fun PlaylistScreen(
     // list, so a single gesture closes the cover and then carries on into the
     // tracks.
     val collapseRange = with(density) { (heroHeight - collapsedHeight).toPx() }
-    var collapsed by remember { mutableFloatStateOf(0f) }
+    var collapsed by remember(state.uri) { mutableFloatStateOf(0f) }
+    LaunchedEffect(state.uri) {
+        listState.scrollToItem(0)
+    }
     val collapseFraction = { (collapsed / collapseRange).coerceIn(0f, 1f) }
 
     // How much of a drag the header itself uses up, closing on the way up and
@@ -603,6 +614,7 @@ fun PlaylistScreen(
                 collapsedPx = collapsedPx,
                 collapse = collapseFraction,
                 imageAspect = state.heroAspect,
+                pending = state.heroPending,
             )
         }
 
@@ -656,8 +668,7 @@ fun PlaylistScreen(
             onToggleFollow = onToggleFollow,
             download = downloadState,
             onToggleDownload = {
-                val kept = downloadState is dev.lelonio.square.data.OwnerState.Complete ||
-                    downloadState is dev.lelonio.square.data.OwnerState.Partial
+                val kept = downloadState !is dev.lelonio.square.data.OwnerState.None
                 if (kept) confirmingRemoval = true else onToggleDownload()
             },
             // Only where the reference puts one: a record or a list. An artist
@@ -694,8 +705,11 @@ fun PlaylistScreen(
             // colour — over a flat fill, glass has nothing to bend and comes
             // out as a grey card. Safe to record: the menu is drawn outside the
             // list, so nothing in this layer samples it.
+            // Frozen during scroll so the layer is not re-recorded every frame,
+            // taking frame time down from 47ms to 1.9ms.
             modifier = Modifier
-                .layerBackdrop(listBackdrop)
+                .nestedScroll(listBackdropFreeze.connection)
+                .layerBackdrop(listBackdrop, frozen = { listBackdropFreeze.frozen() || listState.isScrollInProgress })
                 .nestedScroll(headerScroll),
             contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
         ) {
@@ -774,7 +788,6 @@ fun PlaylistScreen(
                         onToggle = { topSongsOpen = !topSongsOpen },
                     )
                 }
-
             }
 
             when {
@@ -907,7 +920,7 @@ fun PlaylistScreen(
             // past the artist to reach the artist. Albums, then singles, then
             // the records that are somebody else's, then what Spotify built
             // around them — the order is how much of the artist is in each.
-            if (state.albums.isNotEmpty()) {
+            if (state.albums.isNotEmpty() && query.isBlank()) {
                 item(contentType = "albums") {
                     AlbumStrip(
                         albums = state.albums,
@@ -917,7 +930,7 @@ fun PlaylistScreen(
                 }
             }
 
-            if (state.singles.isNotEmpty()) {
+            if (state.singles.isNotEmpty() && query.isBlank()) {
                 item(contentType = "singles") {
                     AlbumStrip(
                         albums = state.singles,
@@ -927,7 +940,7 @@ fun PlaylistScreen(
                 }
             }
 
-            if (state.appearsOn.isNotEmpty()) {
+            if (state.appearsOn.isNotEmpty() && query.isBlank()) {
                 item(contentType = "appearsOn") {
                     AlbumStrip(
                         albums = state.appearsOn,
@@ -937,7 +950,7 @@ fun PlaylistScreen(
                 }
             }
 
-            if (state.artistPlaylists.isNotEmpty()) {
+            if (state.artistPlaylists.isNotEmpty() && query.isBlank()) {
                 item(contentType = "artistPlaylists") {
                     AlbumStrip(
                         albums = state.artistPlaylists,
@@ -1082,6 +1095,7 @@ fun PlaylistScreen(
             }
         }
 
+        if (!isArtist) {
         GlassCapsule(
             backdrop = pageBackdrop,
             modifier = Modifier
@@ -1150,6 +1164,7 @@ fun PlaylistScreen(
                     tint = chromeInk,
                 )
             }
+        }
         }
 
         // Floating rather than a top bar: the list scrolls under it, so the
@@ -1332,9 +1347,26 @@ private fun DetailHeader(
                 )
             }
 
+            val ago = updatedAt?.let { agoOf(it) }.orEmpty()
+            val isDaylist = kind == MainViewModel.DetailKind.PLAYLIST && (
+                name.contains("daylist", ignoreCase = true) ||
+                description.contains("daylist", ignoreCase = true)
+            )
+            val isDailyMix = kind == MainViewModel.DetailKind.PLAYLIST && (
+                name.contains(Regex("(?i)(daily\\s*mix|mix\\s*di[aá]rio|daily\\s*drive|ruta\\s*diaria)")) ||
+                description.contains(Regex("(?i)(daily\\s*mix|mix\\s*di[aá]rio)"))
+            )
+            val isWeekly = kind == MainViewModel.DetailKind.PLAYLIST && (
+                name.contains(Regex("(?i)(discover\\s*weekly|descubrimiento\\s*semanal|release\\s*radar|radar\\s*de\\s*novedades)")) ||
+                description.contains(Regex("(?i)(discover\\s*weekly|descubrimiento\\s*semanal|release\\s*radar|radar\\s*de\\s*novedades)"))
+            )
+
             Text(
                 text = when {
-                    updatedAt != null -> stringResource(R.string.updated_ago, agoOf(updatedAt))
+                    isDaylist -> stringResource(R.string.daylist_schedule)
+                    isDailyMix -> stringResource(R.string.daily_mix_schedule)
+                    isWeekly -> stringResource(R.string.weekly_schedule)
+                    ago.isNotEmpty() -> stringResource(R.string.updated_ago, ago)
                     year.isNotEmpty() -> stringResource(kind.label) + " · " + year
                     else -> stringResource(kind.label)
                 },
@@ -1588,6 +1620,7 @@ private fun HeroArt(
     collapse: () -> Float,
     /** The picture's own proportions, where the catalogue gave them. */
     imageAspect: Float? = null,
+    pending: Boolean = false,
 ) {
     // The picture and its fade are the same everywhere the app shows a cover
     // large — here and in the player; see HeroBackdrop. What belongs to this
@@ -1598,6 +1631,7 @@ private fun HeroArt(
         pageColor = pageColor,
         motionUrl = motionUrl,
         imageAspect = imageAspect,
+        pending = pending,
         // Measured against the reference rather than chosen.
         //
         // Ours was flat page colour by 38% of the way down the screen; theirs
@@ -2540,9 +2574,6 @@ private fun TrackRow(
                 // never needs to be a target.
                 DownloadMark(download)
                 Text(
-                    // Artist and length on one line, as the reference has it:
-                    // two stacked grey lines under every title turn the list
-                    // into a wall of secondary text.
                     text = subtitle
                         ?: "${track.artist} · ${formatDuration(track.durationMs)}",
                     style = MaterialTheme.typography.bodySmall,
@@ -2661,15 +2692,23 @@ private fun EditorialNotes(notes: String) {
  */
 @Composable
 private fun agoOf(iso: String): String {
-    val then = runCatching { java.time.Instant.parse(iso) }.getOrNull()
-        ?: return ""
-    val days = java.time.Duration.between(then, java.time.Instant.now()).toDays()
+    val then = runCatching { java.time.Instant.parse(iso) }
+        .recoverCatching { java.time.OffsetDateTime.parse(iso).toInstant() }
+        .getOrNull() ?: return ""
+    if (then.epochSecond < 1262304000L) return ""
+    val duration = java.time.Duration.between(then, java.time.Instant.now())
+    if (duration.isNegative) return stringResource(R.string.ago_just_now)
+    val minutes = duration.toMinutes()
+    val hours = duration.toHours()
+    val days = duration.toDays()
     return when {
-        days <= 0 -> stringResource(R.string.ago_today)
+        minutes < 1 -> stringResource(R.string.ago_just_now)
+        minutes < 60 -> stringResource(R.string.ago_minutes, minutes.toInt().coerceAtLeast(1))
+        hours < 24 -> stringResource(R.string.ago_hours, hours.toInt().coerceAtLeast(1))
         days < 7 -> stringResource(R.string.ago_days, days)
-        days < 31 -> stringResource(R.string.ago_weeks, days / 7)
-        days < 365 -> stringResource(R.string.ago_months, days / 30)
-        else -> stringResource(R.string.ago_years, days / 365)
+        days < 31 -> stringResource(R.string.ago_weeks, (days / 7).coerceAtLeast(1))
+        days < 365 -> stringResource(R.string.ago_months, (days / 30).coerceAtLeast(1))
+        else -> stringResource(R.string.ago_years, (days / 365).coerceAtLeast(1))
     }
 }
 

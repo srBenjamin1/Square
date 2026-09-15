@@ -14,8 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -44,6 +47,7 @@ import dev.lelonio.square.R
 import dev.lelonio.square.data.CatalogPlaylist
 import dev.lelonio.square.data.sortedByRecentlyOpened
 import dev.lelonio.square.data.withLocalFilesFirst
+import dev.lelonio.square.data.withLikedSecond
 import dev.lelonio.square.data.withPinnedFirst
 import dev.lelonio.square.ui.MainViewModel
 import dev.lelonio.square.ui.components.Artwork
@@ -64,6 +68,7 @@ import dev.lelonio.square.ui.components.GlassChoiceMenu
 import dev.lelonio.square.ui.glass.backdrop.backdrops.layerBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberCombinedBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberLayerBackdrop
+import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberBackdropFreeze
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.fill.PushPin
@@ -183,6 +188,9 @@ fun LibraryScreen(
             // comes out looking like a hole. Safe to record — the menu is drawn
             // outside the grid, so nothing in this layer samples it.
             val listBackdrop = rememberLayerBackdrop()
+            val listBackdropFreeze = rememberBackdropFreeze()
+            val gridState = rememberLazyGridState()
+            val listState = rememberLazyListState()
             var descending by remember { mutableStateOf(view.descending) }
             val onOrderChosen: (Order) -> Unit = {
                 order = it
@@ -279,13 +287,18 @@ fun LibraryScreen(
 
                 when (layout) {
                     Layout.GRID -> LazyVerticalGrid(
+                        state = gridState,
                         columns = GridCells.Fixed(2),
                         contentPadding = listPadding,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         verticalArrangement = Arrangement.spacedBy(18.dp),
                         modifier = Modifier
                             .fillMaxSize()
-                            .layerBackdrop(listBackdrop),
+                            .nestedScroll(listBackdropFreeze.connection)
+                            .layerBackdrop(
+                                listBackdrop,
+                                frozen = { listBackdropFreeze.frozen() || gridState.isScrollInProgress },
+                            ),
                     ) {
                         item(span = { GridItemSpan(maxLineSpan) }, key = "search") {
                             dev.lelonio.square.ui.components.ListSearchField(
@@ -324,11 +337,16 @@ fun LibraryScreen(
                     }
 
                     Layout.LIST -> LazyColumn(
+                        state = listState,
                         contentPadding = listPadding,
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier
                             .fillMaxSize()
-                            .layerBackdrop(listBackdrop),
+                            .nestedScroll(listBackdropFreeze.connection)
+                            .layerBackdrop(
+                                listBackdrop,
+                                frozen = { listBackdropFreeze.frozen() || listState.isScrollInProgress },
+                            ),
                     ) {
                         item(key = "search") {
                             dev.lelonio.square.ui.components.ListSearchField(
@@ -695,6 +713,7 @@ private fun ArtistShelf(
             color = Ink,
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp),
         )
+        val uniqueArtists = remember(artists) { artists.distinctBy { it.uri } }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             items(uniqueArtists, key = { "artist_${it.uri}" }) { artist ->
                 Column(

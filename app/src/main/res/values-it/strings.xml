@@ -31,6 +31,8 @@
     <string name="title">Titolo</string>
     <string name="artist">Artista</string>
     <string name="album">Album</string>
+    <string name="single">Singolo</string>
+    <string name="compilation">Raccolta</string>
     <string name="playlist">Playlist</string>
     <string name="duration">Durata</string>
     <string name="tracks">Brani</string>
@@ -106,6 +108,7 @@
 
     <string name="add_to_queue">Aggiungi alla coda</string>
     <string name="add_to_playlist">Aggiungi a una playlist</string>
+    <string name="go_to_artist">Vai all\'artista</string>
     <string name="copy_link">Copia link</string>
     <string name="remove_from_playlist">Rimuovi dalla playlist</string>
     <string name="queued">In coda</string>
@@ -388,14 +391,24 @@
         <item quantity="one">%1$d brano</item>
         <item quantity="other">%1$d brani</item>
     </plurals>
+    <plurals name="monthly_listeners">
+        <item quantity="one">%s ascoltatore mensile</item>
+        <item quantity="other">%s ascoltatori mensili</item>
+    </plurals>
     <string name="songs_and_length">%1$d brani, %2$s</string>
     <string name="more_notes">ALTRO</string>
     <string name="updated_ago">Aggiornata: %1$s</string>
+    <string name="ago_just_now">poco fa</string>
+    <string name="ago_minutes">%1$d min</string>
+    <string name="ago_hours">%1$d h</string>
     <string name="ago_today">oggi</string>
     <string name="ago_days">%1$d g</string>
     <string name="ago_weeks">%1$d sett</string>
     <string name="ago_months">%1$d mesi</string>
     <string name="ago_years">%1$d anni</string>
+    <string name="daylist_schedule">Si aggiorna ogni poche ore</string>
+    <string name="daily_mix_schedule">Si aggiorna ogni giorno</string>
+    <string name="weekly_schedule">Si aggiorna ogni settimana</string>
     <string name="canvas">Canvas</string>
     <string name="canvas_show">Mostra i video in loop</string>
     <string name="canvas_note">Il breve video che alcuni brani portano con sé. Disattivato, non viene nemmeno scaricato.</string>

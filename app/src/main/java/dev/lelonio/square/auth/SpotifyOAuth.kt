@@ -11,11 +11,16 @@ import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.io.IOException
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.ServerSocket
+import java.net.SocketException
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.job
 
 /**
  * Authorization Code + PKCE against Spotify's accounts service.
@@ -99,6 +104,17 @@ object SpotifyOAuth {
     private val http = OkHttpClient()
     private val random = SecureRandom()
 
+    @Volatile
+    private var activeReceiver: LoopbackReceiver? = null
+    private val authLock = Any()
+
+    fun cancelActiveAuthorization() {
+        synchronized(authLock) {
+            activeReceiver?.close()
+            activeReceiver = null
+        }
+    }
+
     data class Tokens(
         val accessToken: String,
         val refreshToken: String?,
@@ -129,7 +145,20 @@ object SpotifyOAuth {
         val challenge = challengeFor(verifier)
         val state = randomState()
 
-        LoopbackReceiver(REDIRECT_PORT, context.getString(R.string.browser_return)).use { receiver ->
+        // Cancel any pending receiver from an abandoned or previous attempt before binding
+        cancelActiveAuthorization()
+
+        val receiver = LoopbackReceiver(REDIRECT_PORT, context.getString(R.string.browser_return))
+        synchronized(authLock) {
+            activeReceiver = receiver
+        }
+
+        // When the coroutine completes or is cancelled, immediately unblock accept() by closing the socket
+        coroutineContext.job.invokeOnCompletion {
+            receiver.close()
+        }
+
+        receiver.use {
             val redirectUri = receiver.redirectUri
             // The port is ephemeral, so without this there is no way to tell a
             // listener that never accepted from a browser that refused to load
@@ -252,8 +281,35 @@ private class LoopbackReceiver(port: Int, private val doneMessage: String) : Aut
      * through it leaves nothing listening on `127.0.0.1` — which is the literal
      * Spotify's registered redirect URIs use, and the browser then fails the
      * redirect with ERR_CONNECTION_REFUSED.
+     *
+     * Enables SO_REUSEADDR and retries binding if the port was recently in TIME_WAIT.
      */
-    private val server = ServerSocket(port, 1, InetAddress.getByName("127.0.0.1"))
+    private val server: ServerSocket
+
+    init {
+        var boundServer: ServerSocket? = null
+        var lastEx: IOException? = null
+        for (attempt in 1..5) {
+            try {
+                boundServer = ServerSocket().apply {
+                    reuseAddress = true
+                    bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), port), 1)
+                    soTimeout = REDIRECT_TIMEOUT_MS
+                }
+                break
+            } catch (e: IOException) {
+                lastEx = e
+                if (attempt < 5) {
+                    try {
+                        Thread.sleep(120L * attempt)
+                    } catch (_: InterruptedException) {
+                        break
+                    }
+                }
+            }
+        }
+        server = boundServer ?: throw (lastEx ?: IOException("Unable to bind loopback on port $port"))
+    }
 
     /** The one line the browser shows once the redirect lands, in the app's language. */
     private val response: String = buildString {
@@ -269,13 +325,15 @@ private class LoopbackReceiver(port: Int, private val doneMessage: String) : Aut
     val redirectUri: String =
         "http://${server.inetAddress.hostAddress}:${server.localPort}/login"
 
-    init {
-        // If the user abandons the browser we must not leak the thread forever.
-        server.soTimeout = REDIRECT_TIMEOUT_MS
-    }
-
     fun awaitRedirect(): Callback {
-        val socket = server.accept()
+        val socket = try {
+            server.accept()
+        } catch (e: SocketException) {
+            if (server.isClosed) {
+                throw CancellationException("OAuth loopback receiver was closed", e)
+            }
+            throw e
+        }
         socket.use {
             val reader = it.getInputStream().bufferedReader()
             val requestLine = reader.readLine() ?: error("empty redirect request")
@@ -302,6 +360,6 @@ private class LoopbackReceiver(port: Int, private val doneMessage: String) : Aut
     }
 
     private companion object {
-        const val REDIRECT_TIMEOUT_MS = 5 * 60 * 1000
+        const val REDIRECT_TIMEOUT_MS = 2 * 60 * 1000
     }
 }

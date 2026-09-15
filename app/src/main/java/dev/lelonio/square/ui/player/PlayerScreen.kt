@@ -20,7 +20,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
@@ -111,7 +114,8 @@ import com.adamglin.phosphoricons.fill.SkipBack
 import com.adamglin.phosphoricons.fill.SkipForward
 import com.adamglin.phosphoricons.regular.CaretDown
 import com.adamglin.phosphoricons.regular.Devices
-import com.adamglin.phosphoricons.regular.Check
+import com.adamglin.phosphoricons.regular.DotsThree
+import com.adamglin.phosphoricons.regular.Heart
 import com.adamglin.phosphoricons.regular.Plus
 import com.adamglin.phosphoricons.regular.Queue
 import com.adamglin.phosphoricons.regular.Broadcast
@@ -119,6 +123,7 @@ import com.adamglin.phosphoricons.regular.YoutubeLogo
 import com.adamglin.phosphoricons.regular.Repeat
 import com.adamglin.phosphoricons.regular.RepeatOnce
 import com.adamglin.phosphoricons.regular.Shuffle
+import com.adamglin.phosphoricons.regular.TextAlignLeft
 import kotlin.math.abs
 
 /**
@@ -308,6 +313,8 @@ fun PlayerScreen(
      * mark: a heart, the way every Spotify client says it.
      */
     inLikedSongs: Boolean = false,
+    /** Direct toggle for Liked Songs ("Tus me gusta"). */
+    onToggleLike: (() -> Unit)? = null,
     /** Starts a station from the current track; null where there is none. */
     onRadio: (() -> Unit)? = null,
     /** The playlist picker's state, shown in the panel rather than as a sheet. */
@@ -344,6 +351,8 @@ fun PlayerScreen(
     connectAvailable: Boolean = true,
     /** Whether the sound is coming out of another of the account's devices. */
     onAnotherDevice: Boolean = false,
+    /** Opens the contextual menu sheet for the current track ("…"). */
+    onMore: (() -> Unit)? = null,
 ) {
     var panel by remember { mutableStateOf(PlayerPanel.NONE) }
 
@@ -761,6 +770,7 @@ fun PlayerScreen(
                         onAnotherDevice = onAnotherDevice,
                         onWatchVideo = onWatchVideo,
                         videoOn = videoOn,
+                        onMore = onMore,
                     )
 
                     // Everything sits at the bottom, as in the reference: the
@@ -1170,6 +1180,18 @@ fun PlayerScreen(
                                     backdrop = glassBackdrop,
                                     size = 40.dp,
                                     onClick = {
+                                        if (onToggleLike != null) {
+                                            onToggleLike()
+                                        } else {
+                                            panel = if (panel == PlayerPanel.ADD_TO_PLAYLIST) {
+                                                PlayerPanel.NONE
+                                            } else {
+                                                onAddToPlaylist()
+                                                PlayerPanel.ADD_TO_PLAYLIST
+                                            }
+                                        }
+                                    },
+                                    onLongClick = {
                                         panel = if (panel == PlayerPanel.ADD_TO_PLAYLIST) {
                                             PlayerPanel.NONE
                                         } else {
@@ -1179,22 +1201,14 @@ fun PlayerScreen(
                                     },
                                 ) {
                                     Icon(
-                                        when {
-                                            inLikedSongs -> PhosphorIcons.Fill.Heart
-                                            alreadySaved -> PhosphorIcons.Regular.Check
-                                            else -> PhosphorIcons.Regular.Plus
-                                        },
+                                        if (inLikedSongs) PhosphorIcons.Fill.Heart else PhosphorIcons.Regular.Heart,
                                         contentDescription = stringResource(
-                                            when {
-                                                inLikedSongs -> R.string.liked_songs
-                                                alreadySaved -> R.string.in_a_playlist
-                                                else -> R.string.add_to_playlist
-                                            },
+                                            if (inLikedSongs) R.string.remove_from_liked else R.string.liked_songs,
                                         ),
                                         tint = when {
                                             panel == PlayerPanel.ADD_TO_PLAYLIST ->
                                                 panelTint(true)
-                                            inLikedSongs || alreadySaved -> SavedInk
+                                            inLikedSongs -> SavedInk
                                             else -> panelTint(false)
                                         },
                                         modifier = Modifier.size(20.dp),
@@ -1228,6 +1242,7 @@ fun PlayerScreen(
                         )
 
                         Spacer(Modifier.height(14.dp))
+
 
                         PlayerPanelSection(
                             panel = panel,
@@ -1524,6 +1539,7 @@ private fun TopBar(
     /** Null when the track has no video to watch. */
     onWatchVideo: (() -> Unit)?,
     videoOn: Boolean,
+    onMore: (() -> Unit)? = null,
 ) {
     Row(
         Modifier
@@ -1618,6 +1634,16 @@ private fun TopBar(
                         onAnotherDevice -> ConnectedInk
                         else -> panelTint(panel == PlayerPanel.DEVICES)
                     },
+                )
+            }
+        }
+        if (onMore != null) {
+            Spacer(Modifier.size(8.dp))
+            GlassButton(backdrop, onClick = onMore) {
+                Icon(
+                    PhosphorIcons.Regular.DotsThree,
+                    contentDescription = stringResource(R.string.more),
+                    tint = GlassInk,
                 )
             }
         }
@@ -1991,10 +2017,12 @@ private fun RoundGlassButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     LiquidButton(
         onClick = { if (enabled) onClick() },
+        onLongClick = if (enabled) onLongClick else null,
         backdrop = backdrop,
         modifier = modifier
             .size(size)

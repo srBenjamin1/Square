@@ -35,6 +35,8 @@
     <string name="title">शीर्षक</string>
     <string name="artist">कलाकार</string>
     <string name="album">एल्बम</string>
+    <string name="single">सिंगल</string>
+    <string name="compilation">संकलन</string>
     <string name="playlist">प्लेलिस्ट</string>
     <string name="duration">अवधि</string>
     <string name="tracks">गाने</string>
@@ -114,6 +116,7 @@
     <!-- Track menu -->
     <string name="add_to_queue">कतार में जोड़ें</string>
     <string name="add_to_playlist">प्लेलिस्ट में जोड़ें</string>
+    <string name="go_to_artist">कलाकार पर जाएँ</string>
     <string name="copy_link">लिंक कॉपी करें</string>
     <string name="remove_from_playlist">प्लेलिस्ट से हटाएँ</string>
     <string name="queued">कतार में</string>
@@ -402,14 +405,24 @@
         <item quantity="one">%1$d गाना</item>
         <item quantity="other">%1$d गाने</item>
     </plurals>
+    <plurals name="monthly_listeners">
+        <item quantity="one">%s मासिक श्रोता</item>
+        <item quantity="other">%s मासिक श्रोता</item>
+    </plurals>
     <string name="songs_and_length">%1$d गाने, %2$s</string>
     <string name="more_notes">और</string>
     <string name="updated_ago">अपडेट: %1$s</string>
+    <string name="ago_just_now">अभी</string>
+    <string name="ago_minutes">%1$d मिनट</string>
+    <string name="ago_hours">%1$d घंटे</string>
     <string name="ago_today">आज</string>
     <string name="ago_days">%1$d दि</string>
     <string name="ago_weeks">%1$d सप्ता</string>
     <string name="ago_months">%1$d माह</string>
     <string name="ago_years">%1$d वर्ष</string>
+    <string name="daylist_schedule">हर कुछ घंटों में अपडेट होता है</string>
+    <string name="daily_mix_schedule">रोजाना अपडेट होता है</string>
+    <string name="weekly_schedule">हर हफ्ते अपडेट होता है</string>
     <string name="canvas">Canvas</string>
     <string name="canvas_show">लूप क्लिप दिखाएँ</string>
     <string name="canvas_note">कुछ गानों के साथ आने वाला छोटा वीडियो. बंद होने पर डाउनलोड भी नहीं होता.</string>
