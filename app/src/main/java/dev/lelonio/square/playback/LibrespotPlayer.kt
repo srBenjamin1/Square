@@ -649,6 +649,24 @@ class LibrespotPlayer(
     private val skipGaveUp = Runnable {
         skipPending = false
         skipInFlight = false
+        // And stop contradicting it.
+        //
+        // Clearing the flags was not enough: the queue kept the track that was
+        // asked for, so a skip the engine turned into something else left the
+        // screen on one song and the speaker on another, and every step after
+        // that was measured from the wrong place. A next pressed then asked for
+        // the track already playing, so nothing was sent and the old song went
+        // on. What the engine last said it was on is where the queue goes back
+        // to. A load on its way still counts, since it names the track asked
+        // for.
+        if (engineIndex >= 0 && engineIndex != queue.currentIndex && engineIndex <= queue.items.lastIndex) {
+            android.util.Log.w(
+                "SquarePlayer",
+                "skip to ${queue.currentIndex} never confirmed, back to the engine's $engineIndex",
+            )
+            queue.currentIndex = engineIndex
+            invalidateState()
+        }
     }
 
     private val settleSkip = Runnable {

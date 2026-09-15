@@ -129,6 +129,9 @@ enum SpircCommand {
     PlayPause,
     Pause,
     Prev,
+    /// LOCAL PATCH: the previous track, whatever the position; see
+    /// [`Spirc::prev_track`].
+    PrevTrack,
     Next,
     VolumeUp,
     VolumeDown,
@@ -401,6 +404,18 @@ impl Spirc {
     /// Does nothing if we are not the active device.
     pub fn prev(&self) -> Result<(), Error> {
         Ok(self.commands.send(SpircCommand::Prev)?)
+    }
+
+    /// LOCAL PATCH: goes to the previous track even past the first three
+    /// seconds.
+    ///
+    /// [`Spirc::prev`] decides between the previous track and the start of this
+    /// one by its own clock. The app has already made that decision by the
+    /// position on its screen, and when the two clocks disagree near the three
+    /// second line the app moved to the previous song while this restarted the
+    /// current one, which left the app a track behind the speaker from then on.
+    pub fn prev_track(&self) -> Result<(), Error> {
+        Ok(self.commands.send(SpircCommand::PrevTrack)?)
     }
 
     /// Skips to the next track.
@@ -851,6 +866,7 @@ impl SpircTask {
             SpircCommand::PlayPause => self.handle_play_pause(),
             SpircCommand::Pause => self.handle_pause(),
             SpircCommand::Prev => self.handle_prev()?,
+            SpircCommand::PrevTrack => self.handle_prev_track()?,
             SpircCommand::Next => {
                 // LOCAL PATCH: not if the queue has just moved on its own.
                 //
@@ -1931,17 +1947,25 @@ impl SpircTask {
         // Under 3s it goes to the previous song (starts playing)
         // Over 3s it seeks to zero (retains previous play status)
         if self.position() < 3000 {
-            let repeat_context = self.connect_state.repeat_context();
-            match self.connect_state.prev_track()? {
-                None if repeat_context => self.connect_state.reset_playback_to_position(None)?,
-                None => {
-                    self.connect_state.reset_playback_to_position(None)?;
-                    self.handle_stop()
-                }
-                Some(_) => self.load_track(self.connect_state.is_playing(), 0)?,
-            }
+            self.handle_prev_track()?;
         } else {
             self.handle_seek(0);
+        }
+
+        Ok(())
+    }
+
+    /// LOCAL PATCH: the under-three-seconds half of [`Self::handle_prev`], on
+    /// its own; see [`Spirc::prev_track`].
+    fn handle_prev_track(&mut self) -> Result<(), Error> {
+        let repeat_context = self.connect_state.repeat_context();
+        match self.connect_state.prev_track()? {
+            None if repeat_context => self.connect_state.reset_playback_to_position(None)?,
+            None => {
+                self.connect_state.reset_playback_to_position(None)?;
+                self.handle_stop()
+            }
+            Some(_) => self.load_track(self.connect_state.is_playing(), 0)?,
         }
 
         Ok(())

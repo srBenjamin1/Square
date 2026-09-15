@@ -148,7 +148,7 @@ fun PlayerPanelSection(
             backdrop = backdrop,
             tabsCount = views.size,
             accentColor = GlassInk,
-            containerColor = GlassFilm,
+            containerColor = PlayerFilm,
             // Slimmer than the tab bar, and icon-only. This one sits under the
             // transport rather than at the edge of the window, so it has to
             // read as a smaller thing than the app's own navigation.

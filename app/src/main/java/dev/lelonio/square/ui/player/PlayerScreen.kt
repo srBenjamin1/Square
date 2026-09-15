@@ -1071,7 +1071,7 @@ fun PlayerScreen(
                         ) {
                             GlassSurface(
                                 backdrop = glassBackdrop,
-                                surfaceColor = GlassFilm,
+                                surfaceColor = PlayerFilm,
                                 shape = RoundedCornerShape(50),
                                 // The gap to the title lives here rather than
                                 // in a spacer beside it: what a visibility
@@ -1112,7 +1112,7 @@ fun PlayerScreen(
                         // per-track actions on the right.
                         GlassSurface(
                             backdrop = glassBackdrop,
-                            surfaceColor = GlassFilm,
+                            surfaceColor = PlayerFilm,
                             shape = RoundedCornerShape(50),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2106,6 +2106,16 @@ internal val GlassFilm: Color
     } else {
         Color.White.copy(alpha = 0.12f)
     }
+
+/**
+ * The film on the player's own glass, which is always the dark one.
+ *
+ * The same tint the glass recipe puts under light ink, at the same strength,
+ * so the panes that draw their film themselves match the ones that get it from
+ * [GlassEffect]. Everywhere else the film follows the phone's setting; the
+ * player does not, see playerInk in SquareApp.
+ */
+internal val PlayerFilm = Color(0xFF23232A).copy(alpha = 0.5f)
 
 /**
  * The lyrics, centre stage.

@@ -40,6 +40,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
+import dev.lelonio.square.ui.glass.backdrop.BackdropEffectScope
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -51,7 +53,6 @@ import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
 import dev.lelonio.square.ui.glass.backdrop.Backdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.layerBackdrop
-import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberCombinedBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberLayerBackdrop
 import dev.lelonio.square.ui.glass.backdrop.drawBackdrop
 import dev.lelonio.square.ui.glass.backdrop.effects.blur
@@ -242,6 +243,15 @@ fun LiquidBottomTabs(
                 lerp(1f, 1.2f, dampedDragAnimation.pressProgress)
             }
         ) {
+            // LOCAL CHANGE: only the tabs, tinted, on nothing.
+            //
+            // This copy used to carry the page and the bar's film under the
+            // tabs, and the lit slot drew all of it through itself and then laid
+            // its own wash on top. The wash is what makes the slot, and on top
+            // it darkened the one tab that has to stand out: at the dark side's
+            // strength a white tab came out a flat mid grey. The page now comes
+            // through the slot on its own, and this is drawn over the wash; see
+            // the two layers below.
             Row(
                 Modifier
                     .clearAndSetSemantics {}
@@ -250,24 +260,6 @@ fun LiquidBottomTabs(
                     .graphicsLayer {
                         translationX = panelOffset
                     }
-                    .drawBackdrop(
-                        backdrop = backdrop,
-                        shape = { ContinuousCapsule() },
-                        effects = {
-                            val progress = dampedDragAnimation.pressProgress
-                            vibrancy()
-                            blur(8f.dp.toPx())
-                            lens(
-                                lensDepth.toPx() * progress,
-                                lensDepth.toPx() * progress
-                            )
-                        },
-                        highlight = {
-                            val progress = dampedDragAnimation.pressProgress
-                            Highlight.Default.copy(alpha = progress)
-                        },
-                        onDrawSurface = { drawRect(containerColor) }
-                    )
                     .then(interactiveHighlight.modifier)
                     .height(height - 8f.dp)
                     .fillMaxWidth()
@@ -284,27 +276,45 @@ fun LiquidBottomTabs(
             label = "indicatorAlpha",
         )
 
+        // Where the slot is and how it is bent, shared by its two layers so
+        // they move and stretch as one.
+        val slotPlacement = Modifier
+            .padding(horizontal = 4f.dp)
+            .graphicsLayer {
+                alpha = indicatorAlpha
+                translationX =
+                    if (isLtr) dampedDragAnimation.value * tabWidth + panelOffset
+                    else size.width - (dampedDragAnimation.value + 1f) * tabWidth + panelOffset
+            }
+        val slotLayer: GraphicsLayerScope.() -> Unit = {
+            scaleX = dampedDragAnimation.scaleX
+            scaleY = dampedDragAnimation.scaleY
+            val velocity = dampedDragAnimation.velocity / 10f
+            scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
+            scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
+        }
+        val slotLens: BackdropEffectScope.() -> Unit = {
+            val progress = dampedDragAnimation.pressProgress
+            lens(
+                10f.dp.toPx() * progress,
+                14f.dp.toPx() * progress,
+                chromaticAberration = true
+            )
+        }
+
+        // The slot: the page through it, frosted and filmed the way the tabs'
+        // copy used to bring it, then the wash, the rim and the shadow.
         Box(
-            Modifier
-                .padding(horizontal = 4f.dp)
-                .graphicsLayer {
-                    alpha = indicatorAlpha
-                    translationX =
-                        if (isLtr) dampedDragAnimation.value * tabWidth + panelOffset
-                        else size.width - (dampedDragAnimation.value + 1f) * tabWidth + panelOffset
-                }
+            slotPlacement
                 .then(interactiveHighlight.gestureModifier)
                 .then(dampedDragAnimation.modifier)
                 .drawBackdrop(
-                    backdrop = rememberCombinedBackdrop(backdrop, tabsBackdrop),
+                    backdrop = backdrop,
                     shape = { ContinuousCapsule() },
                     effects = {
-                        val progress = dampedDragAnimation.pressProgress
-                        lens(
-                            10f.dp.toPx() * progress,
-                            14f.dp.toPx() * progress,
-                            chromaticAberration = true
-                        )
+                        vibrancy()
+                        blur(8f.dp.toPx())
+                        slotLens()
                     },
                     highlight = {
                         val progress = dampedDragAnimation.pressProgress
@@ -321,15 +331,10 @@ fun LiquidBottomTabs(
                             alpha = progress
                         )
                     },
-                    layerBlock = {
-                        scaleX = dampedDragAnimation.scaleX
-                        scaleY = dampedDragAnimation.scaleY
-                        val velocity = dampedDragAnimation.velocity / 10f
-                        scaleX /= 1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f)
-                        scaleY *= 1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f)
-                    },
+                    layerBlock = slotLayer,
                     onDrawSurface = {
                         val progress = dampedDragAnimation.pressProgress
+                        drawRect(containerColor)
                         drawRect(
                             indicatorColor ?: if (isLightTheme) Color.Black.copy(0.1f)
                             else Color.White.copy(0.1f),
@@ -337,6 +342,26 @@ fun LiquidBottomTabs(
                         )
                         drawRect(Color.Black.copy(alpha = 0.03f * progress))
                     }
+                )
+                .height(height - 8f.dp)
+                .fillMaxWidth(1f / tabsCount)
+        )
+
+        // LOCAL CHANGE: the lit tab, over its slot rather than under the wash.
+        //
+        // Bent by the same lens and stretched by the same drag, so while a
+        // finger is on the bar it still reads as one piece of glass; no rim or
+        // shadow of its own, those belong to the slot. Nothing takes touches
+        // here, so the slot underneath still gets them.
+        Box(
+            slotPlacement
+                .drawBackdrop(
+                    backdrop = tabsBackdrop,
+                    shape = { ContinuousCapsule() },
+                    effects = slotLens,
+                    highlight = null,
+                    shadow = null,
+                    layerBlock = slotLayer,
                 )
                 .height(height - 8f.dp)
                 .fillMaxWidth(1f / tabsCount)

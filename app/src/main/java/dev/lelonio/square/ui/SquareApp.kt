@@ -248,6 +248,35 @@ private fun inkTintedBy(color: Color): Color {
     return androidx.compose.ui.graphics.lerp(Ink, Color(android.graphics.Color.HSVToColor(hsv)), 0.3f)
 }
 
+/**
+ * The lit tab on a page with a colour of its own: that colour, made to read on
+ * the bar.
+ *
+ * Its hue at full strength, where [inkTintedBy] only leans the ink towards it:
+ * the other tabs whisper the page's colour and the one you are on says it.
+ * Bright over the dark film and deep over the light one, like the ink it takes
+ * the place of. A page with no colour to speak of gets that ink.
+ */
+@Composable
+private fun litTabInk(color: Color): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(color.toArgb(), hsv)
+    if (hsv[1] < 0.06f) return neutralTabInk()
+    hsv[1] = hsv[1].coerceIn(0.55f, 1f)
+    hsv[2] = if (dev.lelonio.square.ui.theme.lightPage()) 0.42f else 1f
+    return Color(android.graphics.Color.HSVToColor(hsv))
+}
+
+/**
+ * The lit tab where the page has no colour: whichever ink reads on the bar's
+ * film, dark on the light one and light on the dark one. The films are the ones
+ * the glass recipe gives the bar on each side; see GlassEffect.
+ */
+@Composable
+private fun neutralTabInk(): Color = dev.lelonio.square.ui.theme.inkOn(
+    if (dev.lelonio.square.ui.theme.lightPage()) Color(0xFFFAFAFA) else Color(0xFF23232A),
+)
+
 /** Roughly what the search circle takes: the row's height, which is its own. */
 private val SearchCircle = 58.dp
 
@@ -714,13 +743,6 @@ fun SquareApp(
     var clipColumns by remember { mutableStateOf<List<Color>>(emptyList()) }
 
     // What the player's field is made of, worked out once.
-    //
-    // Both the background and the player itself need it: one paints it, and the
-    // other has to know whether what it is writing on is light or dark. It was
-    // computed inside the background's own lambda, where the player could not
-    // see it — and the player was choosing its ink from the phone's setting
-    // instead, which is how a dark Canvas ended up with a near-black progress
-    // bar drawn on it in the light setting.
     val ambientArt = nowPlayingArt?.heroUrl
         ?: nowPlayingArt?.coverUrl
         ?: playback.artworkUrl
@@ -735,19 +757,14 @@ fun SquareApp(
         else -> pageColorFor(ambientAccent)
     }
 
-    // And the ink that field asks for.
+    // The player's ink, which is always the light one.
     //
-    // Damped a little first: the lower half of the player carries a black wash
-    // for legibility, so the colour the transport actually sits on is darker
-    // than the field's own — deciding on the undamped colour left dark ink on
-    // a field that had since been taken down towards black.
-    val playerInk = dev.lelonio.square.ui.theme.inkOn(
-        androidx.compose.ui.graphics.lerp(
-            if (clipColumns.isNotEmpty()) clipColumns.mean() else playerTone,
-            Color.Black,
-            0.22f,
-        ),
-    )
+    // It used to be read off the field, and the glass took the opposite film
+    // from it: a pale sleeve turned the whole player into white panes with dark
+    // writing, and the next song could turn it back. The player is dark now
+    // whatever the record and whatever the phone's setting, so the ink is light
+    // and the glass, which still reads it, always takes its dark film.
+    val playerInk = Color(0xFFF7F8FA)
 
     // Emptied by the track change itself, not by the answer about the new
     // track's Canvas.
@@ -1096,7 +1113,14 @@ fun SquareApp(
                     if (spotifyVideoOn) {
                         dev.lelonio.square.backend.spotify.SpotifyVideoMode.skip(forward = false)
                     } else {
-                        player.seekToPreviousMediaItem()
+                        // The track before in the first three seconds, the
+                        // start of this one after, decided here by the position
+                        // on screen. It was always the track before, and the
+                        // engine then made its own three-second decision by its
+                        // own clock: past three seconds it restarted the song
+                        // while the queue moved back, and the app stayed a
+                        // track behind the speaker.
+                        player.seekToPrevious()
                     }
                 },
                 onSeek = { player.seekTo(it) },
@@ -2005,7 +2029,7 @@ fun SquareApp(
                                 },
                                 onPrevious = {
                                     if (remote != null) onRemote(RemoteConnect::previous)
-                                    else player?.seekToPreviousMediaItem()
+                                    else player?.seekToPrevious()
                                 },
                                 onSeek = { positionMillis -> player?.seekTo(positionMillis) },
                             )
@@ -2041,26 +2065,11 @@ fun SquareApp(
                     // from the screen rather than fixed: four labels and a circle
                     // on a narrow phone is exactly where a constant starts
                     // pushing the last tab off the end.
-                    // The colour the current tab is drawn in: the artwork's
-                    // own, straight from the palette rather than through the
-                    // theme.
-                    //
-                    // The theme's primary is that colour after the material
-                    // scheme has had it — pulled toward its own tonal palette,
-                    // which is what made the lit tab a near-relative of the
-                    // cover rather than the cover's colour. This is the same
-                    // value the pages are tinted from, at full strength, which
-                    // is how the reference draws the place you are.
-                    // The app's accent, which is the cover's own: the theme is
-                    // seeded from it through ArtworkColor and every switch,
-                    // slider and progress bar in the app is drawn in it.
-                    //
-                    // This used to read the palette a second time here, and off
-                    // the *other* catalogue's picture — so the bar could be
-                    // violet while the rest of the app was orange, on the same
-                    // song. One accent, taken from where the app already keeps
-                    // it.
-                    val tabAccent = MaterialTheme.colorScheme.primary
+                    // The app's accent, which is the playing cover's own. Only
+                    // the faint tint of the other tabs comes from it now; see
+                    // barInk below.
+                    val songAccent = MaterialTheme.colorScheme.primary
+
 
                     // And the white the rest of the bar is drawn in: never a
                     // pure one. The reference tints its icons with the colour of
@@ -2079,16 +2088,31 @@ fun SquareApp(
                     val onDetail = route == Routes.PLAYLIST
                     val detailArt = playlist.heroUrl ?: playlist.coverUrl ?: playlist.artworkUrl
                     val detailAccent by rememberArtworkColor(detailArt.takeIf { onDetail })
-                    val surfaceTint = when {
-                        // Off a detail page the bar is tinted by what is
-                        // playing, which is what those pages are tinted by too.
-                        !onDetail -> tabAccent
+                    // The colour of the page under the bar, where it has one: a
+                    // record's own, the catalogue's where there is one and the
+                    // picture's where there is not.
+                    val pageTint: Color? = when {
+                        !onDetail -> null
                         playlist.tintHex != null -> runCatching {
                             Color(android.graphics.Color.parseColor("#${playlist.tintHex}"))
-                        }.getOrDefault(tabAccent)
-                        else -> detailAccent ?: tabAccent
+                        }.getOrNull()
+                        else -> detailAccent
                     }
+                    // Off a detail page the bar is tinted by what is playing,
+                    // which is what those pages are tinted by too.
+                    val surfaceTint = pageTint ?: songAccent
                     val barInk = inkTintedBy(surfaceTint)
+
+                    // The colour the current tab is drawn in: the page's, never
+                    // the song's.
+                    //
+                    // It was the accent, so the one mark that says where you
+                    // are changed colour with every song, and on a green list
+                    // with a grey record playing it came out grey. On a page
+                    // with a colour of its own it is that colour, at the
+                    // strength the other tabs only lean towards; on the neutral
+                    // pages it is plain ink, chosen by the film it sits on.
+                    val tabAccent = pageTint?.let { litTabInk(it) } ?: neutralTabInk()
 
                     // What the lit slot is filled with. The listener's own glass
                     // settings still own it — the puck was a surface of this
@@ -2629,10 +2653,9 @@ fun SquareApp(
                               dev.lelonio.square.ui.player.LocalGlassEnabled provides
                                   (glassConfig.playerEnabled &&
                                       dev.lelonio.square.ui.player.LocalGlassEnabled.current),
-                              // Everything on this screen writes on the field,
-                              // and the field is the record — not the phone's
-                              // setting. The glass reads this too and takes the
-                              // opposite film; see GlassEffect.
+                              // Light ink on every surface of the player, and
+                              // through it the dark film on its glass; see
+                              // playerInk above and GlassEffect.
                               dev.lelonio.square.ui.theme.LocalInkOverride provides playerInk,
                               androidx.compose.material3.LocalContentColor provides playerInk,
                           ) {
@@ -2711,7 +2734,7 @@ fun SquareApp(
                                         dev.lelonio.square.backend.spotify
                                             .SpotifyVideoMode.skip(forward = false)
                                     } else {
-                                        player?.seekToPreviousMediaItem()
+                                        player?.seekToPrevious()
                                     }
                                 },
                                 onSeek = { target ->
@@ -3895,13 +3918,3 @@ private suspend fun awaitAudible(
 
 /** How long the extras wait for the song; see [awaitAudible]. */
 private const val AUDIBLE_TIMEOUT_MS = 5_000L
-
-/** The one colour a row of sampled columns amounts to. */
-private fun List<Color>.mean(): Color {
-    if (isEmpty()) return Color.Black
-    return Color(
-        red = sumOf { it.red.toDouble() }.toFloat() / size,
-        green = sumOf { it.green.toDouble() }.toFloat() / size,
-        blue = sumOf { it.blue.toDouble() }.toFloat() / size,
-    )
-}

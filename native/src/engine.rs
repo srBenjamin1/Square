@@ -1958,7 +1958,11 @@ pub fn next() -> EngineResult<()> {
 
 pub fn previous() -> EngineResult<()> {
     leaving();
-    transport("previous", |e| e.spirc()?.prev(), |e| e.player.stop())
+    // The track before, never a restart of this one: the app sends this only
+    // once it has decided to move back, by the position on its own screen,
+    // and a restart here left it one track behind the speaker. A restart is
+    // sent as a seek to zero instead.
+    transport("previous", |e| e.spirc()?.prev_track(), |e| e.player.stop())
 }
 
 

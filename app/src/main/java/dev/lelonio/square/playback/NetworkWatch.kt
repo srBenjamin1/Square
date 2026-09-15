@@ -68,9 +68,20 @@ class NetworkWatch(context: Context, private val scope: CoroutineScope) {
         evaluate()
     }
 
+    /** What was last written to the log; see [evaluate]. */
+    private var lastReport: String? = null
+
     private fun evaluate() {
         val connected = connected()
-        android.util.Log.i(TAG, "network is ${if (connected) "up" else "gone"}: ${describe()}")
+        // Only when it changes. The system reports every step in signal
+        // strength as a new set of capabilities, so this was a line every second
+        // or two, and it pushed out of the phone's log the very playback lines
+        // a bug report needs.
+        val report = "network is ${if (connected) "up" else "gone"}: ${describe()}"
+        if (report != lastReport) {
+            lastReport = report
+            android.util.Log.i(TAG, report)
+        }
         pending?.cancel()
         if (connected) {
             OfflineMode.setNoSession(false)

@@ -452,7 +452,10 @@ fun AmbientArtworkBackground(
                     ),
                 ),
         )
-        val scrim = dev.lelonio.square.ui.theme.scrimColor()
+        // Black on both sides of the phone's setting: the player is always
+        // dark, and a white wash under its light writing would be working
+        // against it.
+        val scrim = Color.Black
         if (scrimFloor > 0f) {
             Box(
                 Modifier
