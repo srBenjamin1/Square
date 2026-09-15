@@ -3463,7 +3463,6 @@ fun SquareApp(
                     OnboardingScreen(
                         state = state,
                         webApi = webApi,
-                        backdrop = artBackdrop,
                         onLogIn = viewModel::logIn,
                         onClientIdChange = viewModel::onWebApiClientIdChange,
                         onConnectWebApi = { viewModel.connectWebApi() },
