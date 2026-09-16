@@ -161,6 +161,7 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
             .getOrThrow()
             .items
             .filterIsInstance<PlaylistItem>()
+            .onEach { if (it.isEditable || it.id == LIKED_MUSIC_ID) editable.add(it.id) }
             .map { item ->
                 CatalogPlaylist(
                     uri = "$PLAYLIST_PREFIX${item.id}",
@@ -201,7 +202,7 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
                 .filterIsInstance<ArtistItem>()
                 .map { artist ->
                     SearchItem(
-                        uri = "$ARTIST_PREFIX${artist.id}",
+                        uri = "$ARTIST_PREFIX${publicArtistId(artist.id)}",
                         title = artist.title,
                         subtitle = "",
                         artworkUrl = artist.thumbnail?.atSize(COVER_SIZE),
@@ -385,18 +386,54 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
             // An artist has no track list of its own, so what "open an artist"
             // means here is the same as everywhere else: their best-known
             // songs.
-            uri.startsWith(ARTIST_PREFIX) ->
-                YouTube.artist(id).getOrThrow()
-                    .sections
+            uri.startsWith(ARTIST_PREFIX) -> {
+                val page = YouTube.artist(publicArtistId(id)).getOrThrow()
+                // Kept for the follow button, which asks right after the page
+                // opens: the same response already says both.
+                artists[publicArtistId(id)] = ArtistFacts(
+                    channelId = page.artist.channelId ?: id,
+                    subscribed = page.isSubscribed,
+                )
+                page.sections
                     .flatMap { it.items }
                     .filterIsInstance<SongItem>()
                     .map(::toCatalogTrack)
+            }
 
             else -> YouTube.playlist(id).getOrThrow()
                 .songs
+                .onEach { song ->
+                    // What taking a song out of this list will need: YouTube
+                    // removes an entry, not a song, and names the entry here.
+                    song.setVideoId?.let { entries["$id/${song.id}"] = it }
+                }
                 .map(::toCatalogTrack)
         }
     }
+
+    /** The lists the library said the account can write to; see [canWriteTo]. */
+    private val editable = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    override fun canWriteTo(playlistUri: String): Boolean =
+        account.isSignedIn && playlistUri.removePrefix(PLAYLIST_PREFIX) in editable
+
+    /** Playlist entry ids, by "playlist/video"; see [removeFromPlaylist]. */
+    private val entries = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * The id an artist's public page answers to.
+     *
+     * The library lists the artists it follows under an id of its own, the
+     * channel's with "MPLA" in front, and that page only opens with the
+     * account's credentials: opened as it came, it was a 401 in place of the
+     * artist. Their public page is the channel itself.
+     */
+    private fun publicArtistId(id: String): String = id.removePrefix(LIBRARY_ARTIST_PREFIX)
+
+    /** What an artist's page said about following them. */
+    private data class ArtistFacts(val channelId: String, val subscribed: Boolean)
+
+    private val artists = java.util.concurrent.ConcurrentHashMap<String, ArtistFacts>()
 
     /**
      * lossless.wtf first, LrcLib for everything it does not have.
@@ -451,6 +488,81 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
         }
     }
 
+    /**
+     * The account's own lists, and its liked songs.
+     *
+     * Liked songs are a list on YouTube Music like any other, and the one a
+     * listener reaches for first, so they are offered here; what writes to them
+     * is the like button, see [addToPlaylist].
+     */
+    override suspend fun writablePlaylists(): List<CatalogPlaylist> = withContext(Dispatchers.IO) {
+        if (!account.isSignedIn) return@withContext emptyList()
+        YouTube.library(LIKED_PLAYLISTS_BROWSE_ID)
+            .getOrThrow()
+            .items
+            .filterIsInstance<PlaylistItem>()
+            .filter { it.isEditable || it.id == LIKED_MUSIC_ID }
+            // Liked songs first, as the other source puts its own.
+            .sortedBy { if (it.id == LIKED_MUSIC_ID) 0 else 1 }
+            .map { item ->
+                CatalogPlaylist(
+                    uri = "$PLAYLIST_PREFIX${item.id}",
+                    name = item.title,
+                    artworkUrl = item.thumbnail?.atSize(COVER_SIZE),
+                )
+            }
+    }
+
+    override suspend fun addToPlaylist(playlistUri: String, trackUri: String) {
+        withContext(Dispatchers.IO) {
+            val playlistId = playlistUri.removePrefix(PLAYLIST_PREFIX)
+            val videoId = videoIdOfUri(trackUri)
+            if (playlistId == LIKED_MUSIC_ID) {
+                YouTube.likeVideo(videoId, like = true).getOrThrow()
+            } else {
+                YouTube.addToPlaylist(playlistId, videoId).getOrThrow()
+            }
+        }
+    }
+
+    override suspend fun removeFromPlaylist(playlistUri: String, trackUri: String) {
+        withContext(Dispatchers.IO) {
+            val playlistId = playlistUri.removePrefix(PLAYLIST_PREFIX)
+            val videoId = videoIdOfUri(trackUri)
+            if (playlistId == LIKED_MUSIC_ID) {
+                YouTube.likeVideo(videoId, like = false).getOrThrow()
+                return@withContext
+            }
+            val key = "$playlistId/$videoId"
+            // Read again when the list was not read here: the entry id is the
+            // only thing YouTube removes by.
+            if (entries[key] == null) tracksOf(playlistUri)
+            val entry = entries[key] ?: error("no entry for $videoId in $playlistId")
+            YouTube.removeFromPlaylist(playlistId, videoId, entry).getOrThrow()
+            entries.remove(key)
+        }
+    }
+
+    override suspend fun isFollowing(artistUri: String): Boolean? = withContext(Dispatchers.IO) {
+        if (!account.isSignedIn) return@withContext null
+        val id = publicArtistId(artistUri.removePrefix(ARTIST_PREFIX))
+        artists[id]?.subscribed ?: runCatching {
+            val page = YouTube.artist(id).getOrThrow()
+            ArtistFacts(page.artist.channelId ?: id, page.isSubscribed).also { artists[id] = it }
+        }.getOrNull()?.subscribed
+    }
+
+    override suspend fun setFollowing(artistUri: String, follow: Boolean) {
+        withContext(Dispatchers.IO) {
+            val id = publicArtistId(artistUri.removePrefix(ARTIST_PREFIX))
+            val channel = artists[id]?.channelId
+                ?: YouTube.artist(id).getOrThrow().artist.channelId
+                ?: id
+            YouTube.subscribeChannel(channel, subscribe = follow).getOrThrow()
+            artists[id] = ArtistFacts(channel, follow)
+        }
+    }
+
     override fun owns(uri: String) = uri.startsWith(URI_SCHEME)
 
     override fun createPlayer(host: PlaybackHost): Player =
@@ -468,6 +580,12 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
         private const val SAVED_ALBUMS_BROWSE_ID = "FEmusic_liked_albums"
         private const val FOLLOWED_ARTISTS_BROWSE_ID = "FEmusic_library_corpus_track_artists"
         private const val NEW_RELEASES_BROWSE_ID = "FEmusic_new_releases"
+
+        /** What the library puts in front of the artists it follows; see publicArtistId. */
+        private const val LIBRARY_ARTIST_PREFIX = "MPLA"
+
+        /** YouTube Music's own id for the account's liked songs. */
+        private const val LIKED_MUSIC_ID = "LM"
 
         /** How many moods, and how many genres, the Radio tab reads. */
         private const val RADIO_PER_GROUP = 5

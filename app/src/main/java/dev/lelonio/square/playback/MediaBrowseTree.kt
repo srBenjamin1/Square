@@ -291,7 +291,7 @@ class MediaBrowseTree(
                 } else {
                     app.downloads.removeLiked(uri)
                     app.downloads.pruneOrphans().forEach { orphanUri ->
-                        runCatching { NativeBridge.removeDownload(orphanUri) }
+                        runCatching { dev.lelonio.square.download.YouTubeDownloads.forget(app, orphanUri) }
                         dev.lelonio.square.download.DownloadExtras.forget(orphanUri)
                     }
                 }

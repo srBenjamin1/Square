@@ -40,8 +40,13 @@ object YouTubePlayerFactory {
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(
                     ResolvingDataSource.Factory(
-                        DefaultHttpDataSource.Factory(),
-                        YouTubeStreamResolver(),
+                        // Files as well as the network: a kept song resolves to
+                        // one on the phone, which an HTTP source cannot open.
+                        androidx.media3.datasource.DefaultDataSource.Factory(
+                            host.context,
+                            DefaultHttpDataSource.Factory(),
+                        ),
+                        YouTubeStreamResolver(host.context.applicationContext),
                     ),
                 ),
             )
@@ -128,6 +133,16 @@ object YouTubePlayerFactory {
             ) = androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
                 .setEnableFloatOutput(enableFloatOutput)
                 .setEnableAudioTrackPlaybackParams(false)
+                // Karaoke, ahead of Sonic. The default chain was all this sink
+                // had, so the dial moved and the voice stayed: the removal is a
+                // processor of this app's, and a chain that does not list it
+                // does not run it. Before the stretcher, because it works on
+                // what the two channels share and a stretched pair shares less.
+                .setAudioProcessorChain(
+                    androidx.media3.exoplayer.audio.DefaultAudioSink.DefaultAudioProcessorChain(
+                        dev.lelonio.square.playback.VocalAudioProcessor(),
+                    ),
+                )
                 .build()
         }
 }
@@ -144,20 +159,32 @@ object YouTubePlayerFactory {
  * Runs on ExoPlayer's loading thread, so blocking here is correct.
  */
 @UnstableApi
-private class YouTubeStreamResolver : ResolvingDataSource.Resolver {
+private class YouTubeStreamResolver(
+    private val context: android.content.Context,
+) : ResolvingDataSource.Resolver {
 
     override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
         val uri = dataSpec.uri.toString()
         if (!uri.startsWith(YouTubeBackend.TRACK_PREFIX)) return dataSpec
 
+        // A song kept on the phone plays from the phone. Not while the video is
+        // showing and there is a network to fetch it over: the file is the
+        // sound alone.
+        val kept = dev.lelonio.square.download.YouTubeDownloads.fileFor(context, uri)
+        if (kept != null &&
+            (!YouTubeVideoMode.enabled.value || dev.lelonio.square.playback.OfflineMode.active.value)
+        ) {
+            return dataSpec.withUri(android.net.Uri.fromFile(kept))
+        }
+
         // NewPipe holds its downloader in a static, and every extractor reads it
         // at construction: without this the first resolve dies on "downloader is
         // null". Done here rather than at startup so a session that never plays
         // a YouTube track never builds one.
-        ensureNewPipe()
+        YouTubeStreams.ensureNewPipe()
 
         val videoId = YouTubeBackend.videoIdOfUri(uri)
-        val info = StreamInfo.getInfo(ServiceList.YouTube, "$WATCH_URL$videoId")
+        val info = StreamInfo.getInfo(ServiceList.YouTube, "${YouTubeStreams.WATCH_URL}$videoId")
 
         // With the video showing, one of YouTube's muxed streams: those are the
         // only ones carrying picture and sound in a single file, and a single
@@ -183,18 +210,20 @@ private class YouTubeStreamResolver : ResolvingDataSource.Resolver {
         return dataSpec.withUri(android.net.Uri.parse(url))
     }
 
-    private companion object {
-        const val WATCH_URL = "https://www.youtube.com/watch?v="
+}
 
-        @Volatile
-        private var initialised = false
+/** NewPipe's one-time setup, shared by the player and the downloads. */
+object YouTubeStreams {
+    const val WATCH_URL = "https://www.youtube.com/watch?v="
 
-        /** Idempotent: several tracks resolve on the same thread pool. */
-        @Synchronized
-        fun ensureNewPipe() {
-            if (initialised) return
-            NewPipe.init(NewPipeDownloader.create(), Localization.DEFAULT)
-            initialised = true
-        }
+    @Volatile
+    private var initialised = false
+
+    /** Idempotent: several tracks resolve on the same thread pool. */
+    @Synchronized
+    fun ensureNewPipe() {
+        if (initialised) return
+        NewPipe.init(NewPipeDownloader.create(), Localization.DEFAULT)
+        initialised = true
     }
 }

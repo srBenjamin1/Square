@@ -1223,15 +1223,28 @@ fun PlayerScreen(
                                         }
                                     },
                                 ) {
+                                    // A heart where a tap likes the song, a plus
+                                    // where the tap opens the lists instead: the
+                                    // picture says what pressing it does.
+                                    val hearts = onToggleLike != null
                                     Icon(
-                                        if (inLikedSongs) PhosphorIcons.Fill.Heart else PhosphorIcons.Regular.Heart,
+                                        when {
+                                            !hearts -> PhosphorIcons.Regular.Plus
+                                            inLikedSongs -> PhosphorIcons.Fill.Heart
+                                            else -> PhosphorIcons.Regular.Heart
+                                        },
                                         contentDescription = stringResource(
-                                            if (inLikedSongs) R.string.remove_from_liked else R.string.liked_songs,
+                                            when {
+                                                !hearts -> R.string.add_to_playlist
+                                                inLikedSongs -> R.string.remove_from_liked
+                                                else -> R.string.liked_songs
+                                            },
                                         ),
                                         tint = when {
                                             panel == PlayerPanel.ADD_TO_PLAYLIST ->
                                                 panelTint(true)
-                                            inLikedSongs -> SavedInk
+                                            hearts && inLikedSongs -> SavedInk
+                                            !hearts && alreadySaved -> SavedInk
                                             else -> panelTint(false)
                                         },
                                         modifier = Modifier.size(20.dp),

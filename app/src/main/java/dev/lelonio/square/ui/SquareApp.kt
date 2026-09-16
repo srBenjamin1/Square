@@ -1875,14 +1875,13 @@ fun SquareApp(
                                         trackMenu = TrackMenuRequest(
                                             track = track,
                                             // Only a playlist can have
-                                            // something taken out of it.
-                                            // Taking a track out goes through
-                                            // the Spotify Web API, so only a
-                                            // Spotify playlist can offer it.
+                                            // something taken out of it, and
+                                            // only one the account can write
+                                            // to: on YouTube Music the library
+                                            // also holds lists it only saved.
                                             removable = page.kind ==
                                                 MainViewModel.DetailKind.PLAYLIST &&
-                                                backend ==
-                                                dev.lelonio.square.backend.BackendId.SPOTIFY,
+                                                viewModel.canRemoveFrom(page.uri),
                                         )
                                     },
                                     storedSort = trackSort,
@@ -1900,14 +1899,12 @@ fun SquareApp(
                                         ?.let { downloadOwners[it] }
                                         ?: dev.lelonio.square.data.OwnerState.None,
                                     onToggleDownload = { viewModel.toggleDownload(page) },
-                                    // The store belongs to the librespot engine,
-                                    // so only Spotify pages can be kept — and
-                                    // with no network the button would only ever
-                                    // queue work that cannot start.
-                                    canDownload = backend ==
-                                        dev.lelonio.square.backend.BackendId.SPOTIFY &&
-                                        page.uri?.startsWith("spotify:") == true &&
-                                        !offlineNow,
+                                    // Pages of the source that is playing, on
+                                    // either source now: Spotify's through its
+                                    // engine, YouTube Music's as files of their
+                                    // own. With no network the button would only
+                                    // ever queue work that cannot start.
+                                    canDownload = viewModel.canKeep(page.uri) && !offlineNow,
                                     onToggleFollow = viewModel::toggleFollowArtist,
                                     onToggleLatestSaved = viewModel::toggleLatestSaved,
                                     onToggleSaved = viewModel::toggleSaved,
@@ -2986,7 +2983,15 @@ fun SquareApp(
                                         asSheet = false,
                                     )
                                 },
-                                onToggleLike = playback.mediaId?.let { uri ->
+                                // The heart is Spotify's library. On the other
+                                // source the button is a plus instead and opens
+                                // the lists, liked songs among them.
+                                onToggleLike = playback.mediaId
+                                    ?.takeIf {
+                                        it.startsWith("spotify:") &&
+                                            backend == dev.lelonio.square.backend.BackendId.SPOTIFY
+                                    }
+                                    ?.let { uri ->
                                     {
                                         viewModel.toggleLike(
                                             uri,
@@ -2999,7 +3004,9 @@ fun SquareApp(
                                 addToPlaylist = addToPlaylist,
                                 onPickPlaylist = viewModel::addToPlaylist,
                                 playlistEditAvailable =
-                                    backend == dev.lelonio.square.backend.BackendId.SPOTIFY,
+                                    backend == dev.lelonio.square.backend.BackendId.SPOTIFY ||
+                                        (viewModel.canEditPlaylists && !offlineNow &&
+                                            playback.mediaId?.startsWith("ytmusic:track:") == true),
                                 onWatchVideo = player
                                     ?.takeIf {
                                         // A video is streamed, so there is
@@ -3085,17 +3092,16 @@ fun SquareApp(
                         // three you press while listening. This is a decision
                         // about storage, which is what a menu is for.
                         //
-                        // The store belongs to the librespot engine, so only
-                        // Spotify pages can be kept — and with no network the
-                        // entry would only ever queue work that cannot start.
+                        // Pages of the source that is playing can be kept,
+                        // and with no network the entry would only ever queue
+                        // work that cannot start.
                         //
                         // Offered only for the page that is open, because
                         // keeping one means keeping its songs and the track list
                         // is what this reads: the same sheet opens over a
                         // library row, where there is a name and nothing to
                         // fetch yet.
-                        val keepable = backend == dev.lelonio.square.backend.BackendId.SPOTIFY &&
-                            shownPlaylist.uri.startsWith("spotify:") &&
+                        val keepable = viewModel.canKeep(shownPlaylist.uri) &&
                             playlist.uri == shownPlaylist.uri &&
                             playlist.tracks.isNotEmpty() &&
                             // An artist page has no keep button of its own: its
@@ -3234,10 +3240,12 @@ fun SquareApp(
                             trackMenu = null
                             onEnqueue(menu.track)
                         }
-                        // Writing to a playlist is the Spotify Web API's; on
-                        // another source, or with no network, the entry would
-                        // only ever fail.
-                        if (backend == dev.lelonio.square.backend.BackendId.SPOTIFY && !offlineNow) {
+                        // Writing to a playlist needs the account: Spotify's
+                        // Web API, or a signed-in YouTube Music. With no
+                        // network the entry would only ever fail.
+                        if ((backend == dev.lelonio.square.backend.BackendId.SPOTIFY ||
+                                viewModel.canEditPlaylists) && !offlineNow
+                        ) {
                             TrackSheetAction(stringResource(R.string.add_to_playlist), PhosphorIcons.Regular.Plus) {
                                 trackMenu = null
                                 viewModel.openAddToPlaylist(menu.track.uri, menu.track.name)
@@ -3260,8 +3268,7 @@ fun SquareApp(
                             }
                         }
                         // Keeping one song, as opposed to keeping the list it
-                        // came from. Spotify only: this is the engine's own
-                        // store, and the other backend streams from elsewhere.
+                        // came from, on whichever source it belongs to.
                         // Removing is offered only for a song kept on its
                         // own. One that is here because a playlist wants it
                         // cannot be let go of from this menu — the file is
@@ -3270,7 +3277,7 @@ fun SquareApp(
                         // worse than no row.
                         val onItsOwn = menu.track.uri in downloadSingles
                         val here = menu.track.uri in downloadedFiles
-                        if (backend == dev.lelonio.square.backend.BackendId.SPOTIFY &&
+                        if (viewModel.canKeep(menu.track.uri) &&
                             (onItsOwn || (!here && !offlineNow))
                         ) {
                             val kept = onItsOwn

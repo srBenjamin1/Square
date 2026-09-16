@@ -1,5 +1,7 @@
 package dev.lelonio.square.download
 
+import dev.lelonio.square.backend.youtube.YouTubeBackend
+
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
@@ -287,11 +289,17 @@ class DownloadQueue(
                 chunk.map { uri ->
                     async {
                         coversTried += uri
-                        val cover = runCatching { NativeBridge.downloadState(uri) }
-                            .getOrNull()
-                            ?.let { runCatching { JSONObject(it).optString("coverUrl") }.getOrNull() }
-                            ?.takeIf { it.isNotBlank() }
-                            ?: return@async
+                        // A YouTube Music song has no engine record to ask; its
+                        // cover is the one the store kept with the song.
+                        val cover = if (uri.startsWith(YouTubeBackend.TRACK_PREFIX)) {
+                            store.trackOf(uri)?.artworkUrl ?: return@async
+                        } else {
+                            runCatching { NativeBridge.downloadState(uri) }
+                                .getOrNull()
+                                ?.let { runCatching { JSONObject(it).optString("coverUrl") }.getOrNull() }
+                                ?.takeIf { it.isNotBlank() }
+                                ?: return@async
+                        }
                         DownloadExtras.keep(cover, "art")
                     }
                 }.awaitAll()
@@ -329,6 +337,10 @@ class DownloadQueue(
 
         for (uri in missing) {
             extrasTried += uri
+            if (uri.startsWith(YouTubeBackend.TRACK_PREFIX)) {
+                store.trackOf(uri)?.artworkUrl?.let { runCatching { DownloadExtras.keep(it, "art") } }
+                continue
+            }
             // No sidecar is not a reason to skip: it carries the cover url the
             // engine recorded, and everything else here — the words, the tall
             // picture — is asked for by name from the index instead.
@@ -368,7 +380,13 @@ class DownloadQueue(
      */
     private fun needsExtras(trackUri: String): Boolean =
         needsCover(trackUri) ||
-            !DownloadExtras.asked("lyrics", trackUri) ||
+            // The rest is Spotify's: its words, its tall pictures and its
+            // Canvas are looked up by a Spotify track, and a YouTube Music song
+            // would be asked about them on every run and never have them.
+            (!trackUri.startsWith(YouTubeBackend.TRACK_PREFIX) && needsSpotifyExtras(trackUri))
+
+    private fun needsSpotifyExtras(trackUri: String): Boolean =
+        !DownloadExtras.asked("lyrics", trackUri) ||
             !DownloadExtras.asked("canvas", trackUri) ||
             needsArt(trackUri) ||
             needsClip(trackUri)
@@ -392,6 +410,7 @@ class DownloadQueue(
     private enum class Outcome { DONE, FAILED, NOT_NOW }
 
     private suspend fun attempt(trackUri: String): Outcome {
+        if (trackUri.startsWith(YouTubeBackend.TRACK_PREFIX)) return attemptYouTube(trackUri)
         val kbps = settings.quality.value.kbps
         val outcome = runCatching {
             withContext(Dispatchers.IO) { NativeBridge.downloadTrack(trackUri, kbps) }
@@ -434,6 +453,38 @@ class DownloadQueue(
         }
         store.onFailed(trackUri, reason.ifEmpty { "download failed" })
         return Outcome.FAILED
+    }
+
+    /**
+     * The same for a YouTube Music song, which is a file of its own rather than
+     * the engine's; see YouTubeDownloads. Its cover is kept with it, since it
+     * is the one extra this source has.
+     */
+    private suspend fun attemptYouTube(trackUri: String): Outcome {
+        val outcome = runCatching {
+            YouTubeDownloads.download(appContext, trackUri) { store.onProgress(trackUri, it) }
+        }
+        outcome.onSuccess { record ->
+            store.onCompleted(trackUri, record)
+            store.trackOf(trackUri)?.artworkUrl?.let { runCatching { DownloadExtras.keep(it, "art") } }
+            return Outcome.DONE
+        }
+
+        val error = outcome.exceptionOrNull()
+        store.clearProgress(trackUri)
+        return when {
+            // The queue itself stopping, which is not this song's doing.
+            error is kotlinx.coroutines.CancellationException && !kotlin.coroutines.coroutineContext.isActive ->
+                throw error
+            // Taken off the list while it was coming.
+            error is kotlinx.coroutines.CancellationException -> Outcome.FAILED
+            // The network, which is worth another go once it is back.
+            error is java.io.IOException -> Outcome.NOT_NOW
+            else -> {
+                store.onFailed(trackUri, error?.message.orEmpty().ifEmpty { "download failed" })
+                Outcome.FAILED
+            }
+        }
     }
 
     /**

@@ -980,7 +980,7 @@ private fun DownloadsSection(backdrop: Backdrop) {
                     scope.launch {
                         store.removeOwner(dev.lelonio.square.data.DownloadStore.LIKED)
                         store.pruneOrphans().forEach { orphanUri ->
-                            runCatching { dev.lelonio.square.nativecore.NativeBridge.removeDownload(orphanUri) }
+                            runCatching { dev.lelonio.square.download.YouTubeDownloads.forget(context, orphanUri) }
                             dev.lelonio.square.download.DownloadExtras.forget(orphanUri)
                         }
                     }

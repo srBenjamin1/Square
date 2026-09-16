@@ -1069,6 +1069,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      *   shows the same picker in its own panel and would otherwise get both.
      */
     fun openAddToPlaylist(trackUri: String?, trackTitle: String, asSheet: Boolean = true) {
+        // The other source writes through its own account, to the lists it
+        // says can be written to; they are asked for as the sheet opens.
+        val backend = container.activeBackend
+        if (backend.id != BackendId.SPOTIFY) {
+            val writable = trackUri != null && backend.owns(trackUri) && backend.canEditPlaylists
+            _addToPlaylist.value = AddToPlaylistState(
+                open = asSheet,
+                trackUri = trackUri,
+                trackTitle = trackTitle,
+                error = if (writable) null else string(R.string.track_cannot_be_added),
+            )
+            if (writable) viewModelScope.launch {
+                val lists = runCatching { backend.writablePlaylists() }
+                    .onFailure { android.util.Log.w(TAG, "writable playlists unavailable: ${describe(it)}") }
+                    .getOrDefault(emptyList())
+                if (_addToPlaylist.value.trackUri == trackUri) {
+                    _addToPlaylist.value = _addToPlaylist.value.copy(playlists = lists)
+                }
+            }
+            return
+        }
         _addToPlaylist.value = AddToPlaylistState(
             open = asSheet,
             trackUri = trackUri,
@@ -1102,6 +1123,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val trackUri = current.trackUri ?: return
         if (current.busy != null) return
         val id = playlist.uri.substringAfterLast(':')
+
+        if (!playlist.uri.startsWith("spotify:")) {
+            _addToPlaylist.value =
+                current.copy(busy = playlist.uri, done = null, removed = null, error = null)
+            viewModelScope.launch {
+                runCatching { container.activeBackend.addToPlaylist(playlist.uri, trackUri) }
+                    .onSuccess {
+                        _addToPlaylist.value = _addToPlaylist.value.copy(busy = null, done = playlist.name)
+                        _inPlaylists.value = _inPlaylists.value + trackUri
+                        invalidateContext(playlist.uri)
+                        if (_playlist.value.uri == playlist.uri) openPlaylist(playlist)
+                    }
+                    .onFailure {
+                        android.util.Log.e(TAG, "add to playlist failed: ${chain(it)}", it)
+                        _addToPlaylist.value = _addToPlaylist.value.copy(
+                            busy = null,
+                            error = string(R.string.add_failed, playlist.name),
+                        )
+                    }
+            }
+            return
+        }
 
         // Liked Songs is in this list like any other, and is the one entry that
         // is not a playlist: it is the account's library, saved to by its own
@@ -2889,7 +2932,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 } else {
                     container.downloads.removeLiked(trackUri)
                     container.downloads.pruneOrphans().forEach {
-                        runCatching { NativeBridge.removeDownload(it) }
+                        runCatching { dev.lelonio.square.download.YouTubeDownloads.forget(getApplication(), it) }
                         dev.lelonio.square.download.DownloadExtras.forget(it)
                     }
                 }
@@ -3061,7 +3104,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // JNI calls to stop the one or two that are running.
                 val inFlight = container.downloads.progress.value.keys.toList()
                 container.downloads.removeOwner(uri)
-                inFlight.forEach { runCatching { NativeBridge.cancelDownload(it) } }
+                inFlight.forEach { runCatching { dev.lelonio.square.download.YouTubeDownloads.stop(it) } }
                 sweepOrphans()
             } else {
                 // The page's own cover, kept like the songs are. It is one
@@ -3100,7 +3143,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val singles = container.downloads.owners.value[DownloadStore.SINGLES].orEmpty()
             if (track.uri in singles) {
                 container.downloads.removeSingle(track.uri)
-                runCatching { NativeBridge.cancelDownload(track.uri) }
+                runCatching { dev.lelonio.square.download.YouTubeDownloads.stop(track.uri) }
                 sweepOrphans()
             } else {
                 container.downloads.addSingle(track)
@@ -3124,7 +3167,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private suspend fun sweepOrphans() {
         container.downloads.pruneOrphans().forEach {
-            runCatching { NativeBridge.removeDownload(it) }
+            runCatching { dev.lelonio.square.download.YouTubeDownloads.forget(getApplication(), it) }
             dev.lelonio.square.download.DownloadExtras.forget(it)
         }
         // And whatever is left in the extras that no surviving track can
@@ -3141,7 +3184,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun clearDownloads() {
         viewModelScope.launch {
             container.downloads.progress.value.keys.forEach {
-                runCatching { NativeBridge.cancelDownload(it) }
+                runCatching { dev.lelonio.square.download.YouTubeDownloads.stop(it) }
             }
             container.downloads.clearAll()
         }
@@ -3451,6 +3494,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
             try {
                 if (!playlist.uri.startsWith("spotify:")) {
+                    // Whether the account follows this artist, for the button
+                    // on their page. After the tracks, which read the same
+                    // page and leave the answer behind for this to pick up.
+                    if (kind == DetailKind.ARTIST) launch {
+                        val following = container.activeBackend.isFollowing(playlist.uri)
+                            ?: return@launch
+                        base = base.copy(following = following)
+                        if (isActive && _playlist.value.uri == playlist.uri) {
+                            _playlist.value = _playlist.value.copy(following = following)
+                        }
+                    }
                     // Another backend's context. Resolved in one call rather
                     // than page by page: the Spotify paths below are built
                     // around the Web API's paging and the access point's
@@ -3766,6 +3820,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun removeFromPlaylist(track: CatalogTrack) {
         val uri = _playlist.value.uri ?: return
+        // The other source removes through its own account; the same
+        // optimistic row going and coming back if it refuses.
+        if (!uri.startsWith("spotify:") && container.activeBackend.owns(uri)) {
+            val before = _playlist.value.tracks
+            _playlist.value = _playlist.value.copy(tracks = before.filterNot { it.uri == track.uri })
+            invalidateContext(uri)
+            viewModelScope.launch {
+                runCatching { container.activeBackend.removeFromPlaylist(uri, track.uri) }
+                    .onFailure {
+                        android.util.Log.e(TAG, "remove from playlist failed: ${chain(it)}", it)
+                        if (_playlist.value.uri == uri) {
+                            _playlist.value = _playlist.value.copy(tracks = before)
+                        }
+                    }
+            }
+            return
+        }
         if (!uri.startsWith("spotify:playlist:")) return
 
         val before = _playlist.value.tracks
@@ -3790,6 +3861,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Whether the active source lets the account make and change playlists. */
     val canEditPlaylists: Boolean get() = container.activeBackend.canEditPlaylists
+
+    /** Whether a track can be taken out of this particular list. */
+    fun canRemoveFrom(playlistUri: String?): Boolean {
+        val uri = playlistUri ?: return false
+        return if (uri.startsWith("spotify:")) {
+            container.activeBackend.id == BackendId.SPOTIFY
+        } else {
+            container.activeBackend.owns(uri) && container.activeBackend.canWriteTo(uri)
+        }
+    }
+
+    /** Whether the active source's pages and songs can be kept on the phone. */
+    fun canKeep(uri: String?): Boolean {
+        val it = uri ?: return false
+        val backend = container.activeBackend
+        return backend.owns(it) && when (backend.id) {
+            BackendId.SPOTIFY -> it.startsWith("spotify:")
+            BackendId.YOUTUBE_MUSIC -> true
+        }
+    }
 
     /**
      * Makes a playlist and puts it at the top of the library.
@@ -4809,6 +4900,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         _playlist.value = _playlist.value.copy(following = !was)
 
+        // The other source follows through its own account.
+        if (!uri.startsWith("spotify:")) {
+            runCatching { container.activeBackend.setFollowing(uri, !was) }
+                .onSuccess { loadFollowedArtists() }
+                .onFailure {
+                    android.util.Log.e(TAG, "follow failed: ${chain(it)}", it)
+                    if (_playlist.value.uri == uri) {
+                        _playlist.value = _playlist.value.copy(following = was)
+                    }
+                }
+            return@launch
+        }
+
         if (!container.webApi.isReady) {
             val currentList = _followedArtists.value.toMutableList()
             if (was) {
@@ -4932,6 +5036,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun kindOf(uri: String): DetailKind = when {
         uri.startsWith("spotify:artist:") -> DetailKind.ARTIST
+        // An artist on the other source is an artist too: the page they open on
+        // is the one with the follow button, whichever catalogue they are from.
+        uri.startsWith(dev.lelonio.square.backend.youtube.YouTubeBackend.ARTIST_PREFIX) ->
+            DetailKind.ARTIST
         uri.startsWith("spotify:album:") -> DetailKind.ALBUM
         else -> DetailKind.PLAYLIST
     }

@@ -216,7 +216,7 @@ class DownloadStore(context: Context) {
             val current = _index.value
             val surviving = current.files.filterKeys { uri ->
                 val record = current.files[uri] ?: return@filterKeys false
-                audioFile(record.trackId).exists()
+                hasAudio(uri, record)
             }
             if (surviving.size != current.files.size) {
                 publish(current.copy(files = surviving))
@@ -600,6 +600,18 @@ class DownloadStore(context: Context) {
     private fun audioFile(trackId: String): File =
         File(File(root, "audio"), trackId.take(2)).resolve(trackId.drop(2))
 
+    /**
+     * Whether a kept song's audio is still on the phone, wherever its source
+     * keeps it: the engine's store for Spotify, a file of its own named after
+     * the video for YouTube Music. See YouTubeDownloads.
+     */
+    private fun hasAudio(trackUri: String, record: FileRecord): Boolean =
+        if (trackUri.startsWith(dev.lelonio.square.backend.youtube.YouTubeBackend.TRACK_PREFIX)) {
+            File(File(root, YOUTUBE_DIR), "${record.trackId}.${record.format}").exists()
+        } else {
+            audioFile(record.trackId).exists()
+        }
+
     private fun publish(index: Index) {
         _index.value = index
         _files.value = index.files
@@ -644,6 +656,9 @@ class DownloadStore(context: Context) {
         const val MAX_ATTEMPTS = 5
 
         const val DIR_NAME = "downloads"
+
+        /** Where YouTube Music's kept songs live inside it; see YouTubeDownloads. */
+        const val YOUTUBE_DIR = "youtube"
         private const val INDEX_NAME = "index.json"
 
         /** The owner every single track downloaded on its own belongs to. */
