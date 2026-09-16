@@ -60,6 +60,33 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
+    /** The countdown that is running, if one is; see SleepTimer. */
+    private var sleepJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * The end of a sleep timer: down to silence, then paused.
+     *
+     * Falling asleep to music and being cut off mid-bar is the one thing a
+     * sleep timer should not do. Where the player cannot be turned down, which
+     * is Spotify's own engine, it pauses, which is still the promise kept.
+     *
+     * The volume is put back once it is paused, so pressing play afterwards is
+     * not silent.
+     */
+    private suspend fun fadeOutAndPause() {
+        if (!player.isCommandAvailable(androidx.media3.common.Player.COMMAND_SET_VOLUME)) {
+            player.pause()
+            return
+        }
+        val was = player.volume
+        repeat(SLEEP_FADE_STEPS) { step ->
+            player.volume = was * (1f - (step + 1f) / SLEEP_FADE_STEPS)
+            kotlinx.coroutines.delay(SLEEP_FADE_MS / SLEEP_FADE_STEPS)
+        }
+        player.pause()
+        player.volume = was
+    }
+
     private var autoplayInFlight = false
     private var lastAutoplayTrackUri: String? = null
 
@@ -73,6 +100,17 @@ class PlaybackService : MediaLibraryService() {
             reason: Int,
         ) {
             redrawButtons()
+            // A sleep timer set to the end of the track, at the moment the
+            // track ends. Not faded: the next one has already started, and
+            // fading it in to fade it out would play a second of a song
+            // nobody asked to hear.
+            if (SleepTimer.atTrackEnd.value &&
+                reason == androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+            ) {
+                SleepTimer.cancel()
+                player.pause()
+                return
+            }
             maybeTriggerAutoplay(mediaItem)
         }
 
@@ -240,6 +278,21 @@ class PlaybackService : MediaLibraryService() {
         scope.launch {
             container.likedStore.likedTracks.collect {
                 redrawButtons()
+            }
+        }
+
+        // The sleep timer runs here rather than on the screen that set it; see
+        // SleepTimer.
+        scope.launch {
+            SleepTimer.endsAt.collect { deadline ->
+                sleepJob?.cancel()
+                if (deadline == null) return@collect
+                sleepJob = scope.launch {
+                    val wait = deadline - android.os.SystemClock.elapsedRealtime()
+                    if (wait > 0) kotlinx.coroutines.delay(wait)
+                    fadeOutAndPause()
+                    SleepTimer.cancel()
+                }
             }
         }
 
@@ -1485,6 +1538,10 @@ class PlaybackService : MediaLibraryService() {
 
     companion object {
         private const val TAG = "PlaybackService"
+
+        /** How long the music takes to go quiet at the end of a sleep timer. */
+        private const val SLEEP_FADE_MS = 6_000L
+        private const val SLEEP_FADE_STEPS = 60
 
         /** Maximum upcoming tracks to buffer in queue for autoplay. */
         private const val AUTOPLAY_QUEUE_CAP = 10

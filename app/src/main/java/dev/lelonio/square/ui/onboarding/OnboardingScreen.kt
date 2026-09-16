@@ -45,7 +45,7 @@ import com.adamglin.phosphoricons.regular.ArrowUpRight
 import dev.lelonio.square.R
 import dev.lelonio.square.data.AppLanguages
 import dev.lelonio.square.ui.MainViewModel
-import dev.lelonio.square.ui.components.AppIcon
+import dev.lelonio.square.ui.components.AppGlyph
 import dev.lelonio.square.ui.components.FilterChip
 import dev.lelonio.square.ui.components.SquareWordmark
 import dev.lelonio.square.ui.theme.Ink
@@ -156,7 +156,7 @@ private fun stepOf(index: Int): String = stringResource(R.string.onboarding_step
 @Composable
 private fun Welcome(language: String, onLanguage: (String) -> Unit) {
     Spacer(Modifier.height(20.dp))
-    AppIcon(88.dp)
+    AppGlyph(64.dp)
     Spacer(Modifier.height(22.dp))
     SquareWordmark(height = 28.dp)
     ProseText(stringResource(R.string.onboarding_welcome_1))
@@ -315,7 +315,7 @@ private fun ClientId(
 @Composable
 private fun Done() {
     Spacer(Modifier.height(20.dp))
-    AppIcon(72.dp)
+    AppGlyph(56.dp)
     StepHeader(stringResource(R.string.onboarding_done_title))
     ProseText(stringResource(R.string.onboarding_done_1))
     ProseText(stringResource(R.string.onboarding_done_2))

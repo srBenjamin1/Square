@@ -142,6 +142,11 @@
     <string name="speed">Hız</string>
     <string name="pitch">Perde</string>
     <string name="reverb">Yankı</string>
+    <string name="sleep_timer">Uyku zamanlayıcı</string>
+    <string name="sleep_timer_minutes">%1$d dk</string>
+    <string name="sleep_timer_track_end">Parça sonu</string>
+    <string name="sleep_timer_left">%1$s sonra durur</string>
+    <string name="sleep_timer_track_end_active">Bu parçanın sonunda durur</string>
     <string name="save_preset">Ön ayarı kaydet</string>
     <string name="delete_preset">%1$s ön ayarını sil</string>
     <string name="shuffle_play">Karıştır</string>
@@ -275,6 +280,8 @@
     <string name="popular_playlists">Popüler çalma listeleri</string>
     <string name="youtube_account">YouTube hesabı</string>
     <string name="youtube_sign_in">Google ile giriş yap</string>
+    <string name="use_youtube_music">YouTube Music ile dinle</string>
+    <string name="youtube_sign_in_hint">Kitaplığın, mikslerin ve sana özel öneriler için Google hesabınla giriş yap.</string>
     <string name="youtube_channel">Kanal</string>
     <string name="youtube_session_expired">Oturum sona erdi</string>
     <string name="youtube_sign_in_again">Yeniden giriş yap</string>

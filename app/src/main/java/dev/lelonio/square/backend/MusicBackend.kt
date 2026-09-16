@@ -129,6 +129,19 @@ interface MusicBackend {
     suspend fun homeFeed(cursor: String? = null, params: String? = null): HomeFeed = HomeFeed()
 
     /**
+     * What is new, as the service itself lays it out: its rows, under its own
+     * titles, for the New tab.
+     *
+     * Empty by default. Spotify's tab is assembled elsewhere, out of the
+     * gateway's browse pages; this is for a source whose page can be read as it
+     * comes.
+     */
+    suspend fun newRows(): List<HomeRow> = emptyList()
+
+    /** The same for the Radio tab: the service's own stations and mood lists. */
+    suspend fun radioRows(): List<HomeRow> = emptyList()
+
+    /**
      * The albums the account has saved, for the library's own shelf of them.
      *
      * Apart from [playlists] because the library filters by kind, and a shelf

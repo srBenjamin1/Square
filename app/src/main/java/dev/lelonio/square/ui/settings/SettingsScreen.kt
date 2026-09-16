@@ -407,7 +407,10 @@ fun SettingsScreen(
             }
         }
 
-        if (ready != null && open == SettingsPage.Account) {
+        // Spotify's sign-out, so only while Spotify is the source. On YouTube
+        // Music the account section above has its own, and this one signed the
+        // app out of Spotify from a page about a Google account.
+        if (ready != null && open == SettingsPage.Account && showSpotify) {
             item("logout") {
                 Section(null) {
                     ActionRow(stringResource(R.string.log_out), destructive = true, onClick = onLogOut)

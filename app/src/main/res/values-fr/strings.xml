@@ -132,6 +132,11 @@
     <string name="speed">Vitesse</string>
     <string name="pitch">Hauteur</string>
     <string name="reverb">Réverbération</string>
+    <string name="sleep_timer">Minuteur</string>
+    <string name="sleep_timer_minutes">%1$d min</string>
+    <string name="sleep_timer_track_end">Fin du morceau</string>
+    <string name="sleep_timer_left">S\'arrête dans %1$s</string>
+    <string name="sleep_timer_track_end_active">S\'arrête à la fin du morceau</string>
     <string name="save_preset">Enregistrer le préréglage</string>
     <string name="delete_preset">Supprimer %1$s</string>
     <string name="shuffle_play">Lecture aléatoire</string>
@@ -260,6 +265,8 @@
     <string name="popular_playlists">Playlists populaires</string>
     <string name="youtube_account">Compte YouTube</string>
     <string name="youtube_sign_in">Se connecter avec Google</string>
+    <string name="use_youtube_music">Écouter avec YouTube Music</string>
+    <string name="youtube_sign_in_hint">Connectez-vous avec votre compte Google pour retrouver votre bibliothèque, vos mix et des recommandations faites pour vous.</string>
     <string name="youtube_channel">Chaîne</string>
     <string name="youtube_session_expired">Session expirée</string>
     <string name="youtube_sign_in_again">Se reconnecter</string>

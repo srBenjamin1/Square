@@ -142,6 +142,11 @@
     <string name="speed">गति</string>
     <string name="pitch">पिच</string>
     <string name="reverb">रीवर्ब</string>
+    <string name="sleep_timer">स्लीप टाइमर</string>
+    <string name="sleep_timer_minutes">%1$d मिनट</string>
+    <string name="sleep_timer_track_end">गाने के अंत में</string>
+    <string name="sleep_timer_left">%1$s में रुकेगा</string>
+    <string name="sleep_timer_track_end_active">इस गाने के अंत में रुकेगा</string>
     <string name="save_preset">प्रीसेट सहेजें</string>
     <string name="delete_preset">%1$s मिटाएँ</string>
     <string name="shuffle_play">शफ़ल</string>
@@ -275,6 +280,8 @@
     <string name="popular_playlists">लोकप्रिय प्लेलिस्ट</string>
     <string name="youtube_account">YouTube खाता</string>
     <string name="youtube_sign_in">Google से साइन इन करें</string>
+    <string name="use_youtube_music">YouTube Music से सुनें</string>
+    <string name="youtube_sign_in_hint">अपनी लाइब्रेरी, अपने मिक्स और आपके लिए बनी सिफ़ारिशें पाने के लिए अपने Google खाते से साइन इन करें।</string>
     <string name="youtube_channel">चैनल</string>
     <string name="youtube_session_expired">सत्र समाप्त हो गया</string>
     <string name="youtube_sign_in_again">फिर से साइन इन करें</string>

@@ -4,18 +4,15 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.foundation.Image
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -209,20 +206,6 @@ fun AppGlyph(size: Dp, modifier: Modifier = Modifier, tint: Color = Ink) {
         contentDescription = null,
         tint = tint,
         modifier = modifier.size(size),
-    )
-}
-
-@Composable
-fun AppIcon(size: Dp, modifier: Modifier = Modifier) {
-    Image(
-        // The adaptive icon's foreground, which is a plain PNG per density —
-        // `ic_launcher` itself is the adaptive XML, which painterResource
-        // cannot load.
-        painter = painterResource(R.mipmap.ic_launcher_foreground),
-        contentDescription = null,
-        modifier = modifier
-            .size(size)
-            .clip(RoundedCornerShape(size * 0.26f)),
     )
 }
 

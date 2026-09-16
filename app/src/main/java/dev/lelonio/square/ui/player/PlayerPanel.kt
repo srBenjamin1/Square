@@ -407,8 +407,112 @@ internal fun EffectsPanel(
             onChange = onReverb,
             onReset = { onReverb(0f) },
         )
+
+        SleepTimerRow()
     }
 }
+
+/**
+ * When to stop, under the things that change how it sounds.
+ *
+ * Here rather than in the settings because it is about the song playing now,
+ * like everything else in this panel, and because it is set from bed. What it
+ * sets lives in the service; see SleepTimer.
+ */
+@Composable
+private fun SleepTimerRow() {
+    val endsAt by dev.lelonio.square.playback.SleepTimer.endsAt.collectAsStateWithLifecycle()
+    val chosen by dev.lelonio.square.playback.SleepTimer.minutes.collectAsStateWithLifecycle()
+    val atTrackEnd by dev.lelonio.square.playback.SleepTimer.atTrackEnd.collectAsStateWithLifecycle()
+
+    // Read once a second while something is running, and not at all otherwise:
+    // a clock nobody set should cost nothing.
+    var left by remember { mutableStateOf(dev.lelonio.square.playback.SleepTimer.remaining()) }
+    LaunchedEffect(endsAt) {
+        while (endsAt != null) {
+            left = dev.lelonio.square.playback.SleepTimer.remaining()
+            kotlinx.coroutines.delay(1_000)
+        }
+        left = null
+    }
+
+    Text(
+        stringResource(R.string.sleep_timer),
+        style = MaterialTheme.typography.labelLarge,
+        color = GlassInkDim,
+        modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+    )
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SleepChip(
+            label = stringResource(R.string.off),
+            selected = endsAt == null && !atTrackEnd,
+            onClick = { dev.lelonio.square.playback.SleepTimer.cancel() },
+        )
+        SleepLengths.forEach { minutes ->
+            SleepChip(
+                label = stringResource(R.string.sleep_timer_minutes, minutes),
+                selected = chosen == minutes,
+                onClick = { dev.lelonio.square.playback.SleepTimer.inMinutes(minutes) },
+            )
+        }
+        SleepChip(
+            label = stringResource(R.string.sleep_timer_track_end),
+            selected = atTrackEnd,
+            onClick = { dev.lelonio.square.playback.SleepTimer.atEndOfTrack() },
+        )
+    }
+
+    // What the chosen chip means, in words and counting down: a lit chip says
+    // which length was asked for, not how much of it is left.
+    val running = left
+    if (atTrackEnd || running != null) {
+        Text(
+            if (atTrackEnd) {
+                stringResource(R.string.sleep_timer_track_end_active)
+            } else {
+                stringResource(
+                    R.string.sleep_timer_left,
+                    dev.lelonio.square.ui.library.formatDuration(running ?: 0L),
+                )
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = GlassInkDim,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+    }
+}
+
+/** A chip of the timer row, drawn like the preset chips above it. */
+@Composable
+private fun SleepChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        style = MaterialTheme.typography.bodySmall,
+        maxLines = 1,
+        color = if (selected) GlassInk else GlassInkDim,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(
+                if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.background
+                },
+            )
+            .pressable(onClick, pressedScale = 0.94f)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}
+
+/** The lengths offered, which are the ones every player offers. */
+private val SleepLengths = listOf(5, 15, 30, 45, 60)
 
 /**
  * The preset chips.

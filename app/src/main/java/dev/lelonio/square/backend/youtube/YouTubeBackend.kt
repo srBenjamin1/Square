@@ -36,6 +36,7 @@ import dev.lelonio.square.backend.HomeChip
 import dev.lelonio.square.backend.HomeFeed
 import dev.lelonio.square.backend.HomeRow
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
 /**
@@ -244,21 +245,86 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
             )
         }
 
-    private fun toHomeRow(section: HomePage.Section): HomeRow {
-        val songs = section.items.filterIsInstance<SongItem>()
+    private fun toHomeRow(section: HomePage.Section): HomeRow =
+        rowOf(section.title, section.items, section.label)
+
+    private fun rowOf(title: String, items: List<YTItem>, strapline: String? = null): HomeRow {
+        val songs = items.filterIsInstance<SongItem>()
         // An episode plays like a song and is listed like one; the only
         // difference the queue would notice is its length.
-        val episodes = section.items.filterIsInstance<EpisodeItem>()
+        val episodes = items.filterIsInstance<EpisodeItem>()
         return HomeRow(
-            title = section.title,
-            strapline = section.label,
+            title = title,
+            strapline = strapline,
             tracks = songs.map(::toCatalogTrack) + episodes.map(::toCatalogTrack),
             // Everything that is not a song opens something: an album, a
             // playlist, an artist. They travel as one list because the row
             // draws them identically.
-            items = section.items.filterNot { it is SongItem || it is EpisodeItem }
+            items = items.filterNot { it is SongItem || it is EpisodeItem }
                 .mapNotNull(::toCatalogPlaylist),
         )
+    }
+
+    /**
+     * The New tab: YouTube Music's own page of new releases, then its charts.
+     *
+     * Both are the same for anyone in the country, signed in or not, which is
+     * what a tab of what came out should be. Read side by side, and either can
+     * fail without taking the other with it. Titled by YouTube, in the phone's
+     * language: renaming them would be this app pretending it chose them.
+     */
+    override suspend fun newRows(): List<HomeRow> = withContext(Dispatchers.IO) {
+        coroutineScope {
+            val releases = async {
+                runCatching { YouTube.browse(NEW_RELEASES_BROWSE_ID, null).getOrThrow() }
+                    .onFailure { android.util.Log.w(LOG_TAG, "new releases unavailable: $it") }
+                    .getOrNull()
+                    ?.items.orEmpty()
+                    .mapNotNull { section -> section.title?.let { rowOf(it, section.items) } }
+            }
+            val charts = async {
+                runCatching { YouTube.getChartsPage().getOrThrow() }
+                    .onFailure { android.util.Log.w(LOG_TAG, "charts unavailable: $it") }
+                    .getOrNull()
+                    ?.sections.orEmpty()
+                    .map { rowOf(it.title, it.items) }
+            }
+            (releases.await() + charts.await())
+                .filterNot { it.isEmpty }
+                // The charts page repeats the new albums under the same name.
+                .distinctBy { it.title }
+        }
+    }
+
+    /**
+     * The Radio tab: YouTube Music's moods and genres, a row of lists each.
+     *
+     * What the service itself files as stations to put on, rather than records
+     * to look at, and there to read without an account. A handful from each
+     * group rather than all of them: every mood is its own request, and the
+     * tab should arrive in one breath rather than trickle in over twenty.
+     */
+    override suspend fun radioRows(): List<HomeRow> = withContext(Dispatchers.IO) {
+        val groups = runCatching { YouTube.moodAndGenres().getOrThrow() }
+            .onFailure { android.util.Log.w(LOG_TAG, "moods unavailable: $it") }
+            .getOrNull()
+            .orEmpty()
+        val picks = groups.flatMap { group ->
+            group.items.take(RADIO_PER_GROUP).map { mood -> group.title to mood }
+        }
+        coroutineScope {
+            picks.map { (group, mood) ->
+                async {
+                    runCatching {
+                        YouTube.browse(mood.endpoint.browseId, mood.endpoint.params).getOrThrow()
+                    }
+                        .getOrNull()
+                        ?.items
+                        ?.firstOrNull { it.items.isNotEmpty() }
+                        ?.let { rowOf(mood.title, it.items, strapline = group) }
+                }
+            }.awaitAll().filterNotNull().filterNot { it.isEmpty }
+        }
     }
 
     private fun toCatalogPlaylist(item: YTItem): CatalogPlaylist? {
@@ -401,6 +467,10 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
         private const val LIKED_PLAYLISTS_BROWSE_ID = "FEmusic_liked_playlists"
         private const val SAVED_ALBUMS_BROWSE_ID = "FEmusic_liked_albums"
         private const val FOLLOWED_ARTISTS_BROWSE_ID = "FEmusic_library_corpus_track_artists"
+        private const val NEW_RELEASES_BROWSE_ID = "FEmusic_new_releases"
+
+        /** How many moods, and how many genres, the Radio tab reads. */
+        private const val RADIO_PER_GROUP = 5
 
         /** The `list=` id of a playlist URL. */
         private fun playlistIdOf(url: String?): String? =

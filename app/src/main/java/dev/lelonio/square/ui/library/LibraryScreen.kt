@@ -136,11 +136,24 @@ fun LibraryScreen(
     albums: List<CatalogPlaylist> = emptyList(),
     /** Tries the servers again from the offline banner; null hides the button. */
     onRetryOnline: (suspend () -> Boolean)? = null,
+    /**
+     * Suggest signing in to the source's account: the library is the page an
+     * account fills, so it is the first place its absence shows.
+     */
+    signInHint: Boolean = false,
+    onSignIn: () -> Unit = {},
+    /** Signed out of Spotify: the other source, and the settings; see SignedOutOptions. */
+    onUseYouTube: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     backdrop: Backdrop,
 ) {
     when (state) {
+        // The same page the home tab shows signed out, mark and all: the two
+        // are one state reached from two tabs, and a plain title here made
+        // them read as two different apps.
         MainViewModel.UiState.LoggedOut -> Centered {
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.displayLarge)
+            dev.lelonio.square.ui.components.AppGlyph(64.dp)
+            dev.lelonio.square.ui.components.SquareWordmark(height = 28.dp)
             Text(
                 stringResource(R.string.unofficial_client),
                 style = MaterialTheme.typography.bodyMedium,
@@ -149,6 +162,7 @@ fun LibraryScreen(
                 modifier = Modifier.padding(horizontal = 40.dp),
             )
             GlassAction(stringResource(R.string.log_in_with_spotify), backdrop, onLogIn)
+            dev.lelonio.square.ui.components.SignedOutOptions(onUseYouTube, onOpenSettings)
         }
 
         MainViewModel.UiState.Connecting,
@@ -316,6 +330,12 @@ fun LibraryScreen(
                             dev.lelonio.square.ui.components.OfflineNotice(onRetry = onRetryOnline)
                         }
 
+                        if (signInHint) {
+                            item(span = { GridItemSpan(maxLineSpan) }, key = "sign-in") {
+                                dev.lelonio.square.ui.components.SignInHint(onSignIn = onSignIn)
+                            }
+                        }
+
                         if (artists.isNotEmpty() && filter == Filter.ALL) {
                             item(span = { GridItemSpan(maxLineSpan) }, key = "artists") {
                                 ArtistShelf(artists, onOpenArtist)
@@ -363,6 +383,15 @@ fun LibraryScreen(
 
                         item(key = "offline") {
                             dev.lelonio.square.ui.components.OfflineNotice(onRetry = onRetryOnline)
+                        }
+
+                        if (signInHint) {
+                            item(key = "sign-in") {
+                                dev.lelonio.square.ui.components.SignInHint(
+                                    onSignIn = onSignIn,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                                )
+                            }
                         }
 
                         if (artists.isNotEmpty() && filter == Filter.ALL) {

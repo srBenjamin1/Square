@@ -268,8 +268,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var inFlight: Job? = null
     private var playlistJob: Job? = null
 
+    // Signed out is a Spotify state. The other source works without an account
+    // and has its library loading from the start, and reading only Spotify's
+    // login here put a Spotify sign-in button on the YouTube Music library until
+    // the first refresh replaced it, or for good when that refresh never came.
     private val _state = MutableStateFlow<UiState>(
-        if (container.spotifySignedIn) UiState.Connecting else UiState.LoggedOut,
+        when {
+            container.activeBackend.id != BackendId.SPOTIFY -> UiState.Loading
+            container.spotifySignedIn -> UiState.Connecting
+            else -> UiState.LoggedOut
+        },
     )
     val state: StateFlow<UiState> = _state.asStateFlow()
 
@@ -428,6 +436,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _youtubeHome = MutableStateFlow(YouTubeHomeState())
     val youtubeHome: StateFlow<YouTubeHomeState> = _youtubeHome.asStateFlow()
     private var youtubeHomeJob: Job? = null
+
+    /** One of the other two tabs when the source is not Spotify; see [MusicBackend.newRows]. */
+    data class SourceRowsState(
+        val rows: List<HomeRow> = emptyList(),
+        val loading: Boolean = false,
+    )
+
+    private val _sourceNew = MutableStateFlow(SourceRowsState())
+    val sourceNew: StateFlow<SourceRowsState> = _sourceNew.asStateFlow()
+    private val _sourceRadio = MutableStateFlow(SourceRowsState())
+    val sourceRadio: StateFlow<SourceRowsState> = _sourceRadio.asStateFlow()
+    private var sourceNewJob: Job? = null
+    private var sourceRadioJob: Job? = null
+
+    /**
+     * The New tab for a source that lays its own out. Read once a session: it
+     * is the same page for anyone in the country and moves once a week.
+     */
+    fun loadSourceNew() {
+        if (container.activeBackend.id == BackendId.SPOTIFY) return
+        if (sourceNewJob?.isActive == true || _sourceNew.value.rows.isNotEmpty()) return
+        _sourceNew.value = _sourceNew.value.copy(loading = true)
+        sourceNewJob = viewModelScope.launch {
+            val rows = runCatching { container.activeBackend.newRows() }.getOrDefault(emptyList())
+            _sourceNew.value = SourceRowsState(rows = rows, loading = false)
+        }
+    }
+
+    /** And the Radio tab; see [loadSourceNew]. */
+    fun loadSourceRadio() {
+        if (container.activeBackend.id == BackendId.SPOTIFY) return
+        if (sourceRadioJob?.isActive == true || _sourceRadio.value.rows.isNotEmpty()) return
+        _sourceRadio.value = _sourceRadio.value.copy(loading = true)
+        sourceRadioJob = viewModelScope.launch {
+            val rows = runCatching { container.activeBackend.radioRows() }.getOrDefault(emptyList())
+            _sourceRadio.value = SourceRowsState(rows = rows, loading = false)
+        }
+    }
 
     /**
      * Loads it, once per sign-in state.
@@ -1816,6 +1862,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { container.contextCache.clear() }
         _playlist.value = PlaylistState()
         _feed.value = FeedState()
+        // Signed out of Spotify while playing from somewhere else leaves that
+        // source exactly as usable as it was: its library is read again rather
+        // than replaced with a screen asking to sign in to Spotify.
+        if (container.activeBackend.id != BackendId.SPOTIFY) {
+            refresh()
+            return
+        }
         _state.value = UiState.LoggedOut
     }
 
@@ -1829,6 +1882,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _feed.value = FeedState()
         _search.value = SearchState()
         _youtubeHome.value = YouTubeHomeState()
+        sourceNewJob?.cancel()
+        sourceRadioJob?.cancel()
+        _sourceNew.value = SourceRowsState()
+        _sourceRadio.value = SourceRowsState()
         _state.value = UiState.Loading
         if (container.activeBackend.id == BackendId.SPOTIFY && container.spotifySignedIn) {
             PlaybackService.connect(getApplication())

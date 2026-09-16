@@ -161,6 +161,9 @@ private const val PAUSED_DIM = 0.55f
  * Matched to the clip's own fade below: the two are one movement, and a
  * handover where each half runs at its own speed is visible as a dip.
  */
+/** How far the picture behind an open panel goes down. */
+private const val PANEL_DIM = 0.26f
+
 private const val CANVAS_HANDOVER = 500
 
 /** The shape the catalogue files an extended cover in: three by four. */
@@ -409,6 +412,16 @@ fun PlayerScreen(
         targetValue = if (panelOpen) 26.dp else 0.dp,
         animationSpec = tween(320),
         label = "canvasBlur",
+    )
+
+    // And a little darker with it. Blur takes the detail out of what is behind
+    // a panel but not the light: on a bright sleeve the words of a lyric sat on
+    // a white glow. A clip has a dimmer of its own below, for the same reason
+    // and on the same signal.
+    val panelDim by animateFloatAsState(
+        targetValue = if (panelOpen) PANEL_DIM else 0f,
+        animationSpec = tween(320),
+        label = "panelDim",
     )
 
     // The video's own light, sampled by the stage below and spread over the
@@ -735,6 +748,18 @@ fun PlayerScreen(
                         },
                 )
             }
+            }
+
+            // The panel's own shade over the picture, inside the recorded layer
+            // so the glass above refracts what the reader sees rather than the
+            // bright original. Not over a Canvas: that one is darkened by the
+            // gradient above, which already answers an open panel.
+            if (panelDim > 0f && canvas == null) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = panelDim)),
+                )
             }
         }
 

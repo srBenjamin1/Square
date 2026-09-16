@@ -819,6 +819,13 @@ fun SquareApp(
     val backendChosen by preferences.backendChosen.collectAsStateWithLifecycle()
     val backend by preferences.backend.collectAsStateWithLifecycle()
     val youtubeHome by viewModel.youtubeHome.collectAsStateWithLifecycle()
+    val sourceNew by viewModel.sourceNew.collectAsStateWithLifecycle()
+    val sourceRadio by viewModel.sourceRadio.collectAsStateWithLifecycle()
+    // Whether YouTube Music knows whose it is, for the pages that suggest
+    // signing in when it does not.
+    val youtubeAccountName by remember(context) {
+        (context.applicationContext as dev.lelonio.square.SquareApplication).youtubeAccount.accountName
+    }.collectAsStateWithLifecycle()
     // What is kept on the phone. Read here rather than inside the pages that
     // draw it, because the same answer is wanted by the playlist button, the
     // track rows and the track menu, and one collection is one recomposition.
@@ -1512,6 +1519,11 @@ fun SquareApp(
                                 },
                                 onPickYouTubeChip = viewModel::selectYouTubeChip,
                                 onLoadMoreYouTube = viewModel::loadMoreYouTubeHome,
+                                youtubeSignedIn = youtubeAccountName != null,
+                                onYouTubeSignIn = { showYouTubeLogin = true },
+                                onUseYouTube = {
+                                    preferences.setBackend(dev.lelonio.square.backend.BackendId.YOUTUBE_MUSIC)
+                                },
                                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                                 friends = friends,
                                 onOpenFriends = {
@@ -1525,6 +1537,24 @@ fun SquareApp(
                         }
 
                         composable(Routes.NEW) {
+                            // A source that lays out its own page of what is new
+                            // gets that page; the one below is built out of
+                            // Spotify's gateway and has nothing to show for any
+                            // other catalogue.
+                            if (backend != dev.lelonio.square.backend.BackendId.SPOTIFY) {
+                                LaunchedEffect(backend) { viewModel.loadSourceNew() }
+                                dev.lelonio.square.ui.home.SourceRowsPage(
+                                    title = newLabel,
+                                    rows = sourceNew.rows,
+                                    loading = sourceNew.loading,
+                                    contentPadding = listPadding,
+                                    onPlay = { tracks, index ->
+                                        onPlay(tracks, index, null, false, newLabel, 0L)
+                                    },
+                                    onOpen = { navController.openPlaylist(viewModel, it) },
+                                )
+                                return@composable
+                            }
                             LaunchedEffect(Unit) {
                                 viewModel.loadNewPage()
                                 viewModel.loadBrowse()
@@ -1554,6 +1584,21 @@ fun SquareApp(
                         }
 
                         composable(Routes.RADIO) {
+                            // The same for the stations; see the New tab above.
+                            if (backend != dev.lelonio.square.backend.BackendId.SPOTIFY) {
+                                LaunchedEffect(backend) { viewModel.loadSourceRadio() }
+                                dev.lelonio.square.ui.home.SourceRowsPage(
+                                    title = stringResource(R.string.tab_radio),
+                                    rows = sourceRadio.rows,
+                                    loading = sourceRadio.loading,
+                                    contentPadding = listPadding,
+                                    onPlay = { tracks, index ->
+                                        onPlay(tracks, index, null, false, radioLabel, 0L)
+                                    },
+                                    onOpen = { navController.openPlaylist(viewModel, it) },
+                                )
+                                return@composable
+                            }
                             LaunchedEffect(Unit) { viewModel.loadBrowse() }
                             RadioScreen(
                                 seeds = radioSeeds,
@@ -1665,6 +1710,13 @@ fun SquareApp(
                                 artists = followedArtists,
                                 albums = savedAlbums,
                                 onRetryOnline = viewModel::retryOnline,
+                                signInHint = backend == dev.lelonio.square.backend.BackendId.YOUTUBE_MUSIC &&
+                                    youtubeAccountName == null,
+                                onSignIn = { showYouTubeLogin = true },
+                                onUseYouTube = {
+                                    preferences.setBackend(dev.lelonio.square.backend.BackendId.YOUTUBE_MUSIC)
+                                },
+                                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                                 onOpenArtist = { artist ->
                                     viewModel.openContext(
                                         artist.uri,
@@ -3378,7 +3430,7 @@ fun SquareApp(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            dev.lelonio.square.ui.components.AppIcon(84.dp)
+                            dev.lelonio.square.ui.components.AppGlyph(64.dp)
                             dev.lelonio.square.ui.components.SquareWordmark(height = 28.dp)
                             // Which source is being opened, named and marked:
                             // the whole point of the wait is that the app is

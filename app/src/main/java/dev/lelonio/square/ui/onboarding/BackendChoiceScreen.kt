@@ -35,7 +35,7 @@ import com.adamglin.phosphoricons.fill.YoutubeLogo
 import com.adamglin.phosphoricons.regular.CaretRight
 import dev.lelonio.square.R
 import dev.lelonio.square.backend.BackendId
-import dev.lelonio.square.ui.components.AppIcon
+import dev.lelonio.square.ui.components.AppGlyph
 import dev.lelonio.square.ui.components.SquareWordmark
 import dev.lelonio.square.ui.glass.pressable
 import dev.lelonio.square.ui.theme.Ink
@@ -74,7 +74,7 @@ fun BackendChoiceScreen(onChoose: (BackendId) -> Unit) {
             ) {
                 Column {
                     Spacer(Modifier.height(8.dp))
-                    AppIcon(72.dp)
+                    AppGlyph(56.dp)
                     Spacer(Modifier.height(20.dp))
                     SquareWordmark(height = 24.dp)
                     StepHeader(stringResource(R.string.backend_choice_title))

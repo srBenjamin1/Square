@@ -148,6 +148,11 @@
     <string name="speed">Speed</string>
     <string name="pitch">Pitch</string>
     <string name="reverb">Reverb</string>
+    <string name="sleep_timer">Sleep timer</string>
+    <string name="sleep_timer_minutes">%1$d min</string>
+    <string name="sleep_timer_track_end">End of track</string>
+    <string name="sleep_timer_left">Stops in %1$s</string>
+    <string name="sleep_timer_track_end_active">Stops at the end of this track</string>
     <string name="save_preset">Save preset</string>
     <string name="delete_preset">Delete %1$s</string>
     <string name="shuffle_play">Shuffle</string>
@@ -281,6 +286,8 @@
     <string name="popular_playlists">Popular playlists</string>
     <string name="youtube_account">YouTube account</string>
     <string name="youtube_sign_in">Sign in with Google</string>
+    <string name="use_youtube_music">Listen on YouTube Music instead</string>
+    <string name="youtube_sign_in_hint">Sign in with your Google account to bring in your library, your mixes and recommendations made for you.</string>
     <string name="youtube_channel">Channel</string>
     <string name="youtube_session_expired">Session expired</string>
     <string name="youtube_sign_in_again">Sign in again</string>

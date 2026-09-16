@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -75,7 +76,7 @@ import dev.lelonio.square.data.CatalogTrack
 import dev.lelonio.square.data.SearchItem
 import dev.lelonio.square.data.sortedByRecentlyOpened
 import dev.lelonio.square.ui.MainViewModel
-import dev.lelonio.square.ui.components.AppIcon
+import dev.lelonio.square.ui.components.AppGlyph
 import dev.lelonio.square.ui.components.AppLockup
 import dev.lelonio.square.ui.components.Artwork
 import dev.lelonio.square.ui.components.SquareWordmark
@@ -158,6 +159,11 @@ fun HomeScreen(
     onPickYouTubeChip: (dev.lelonio.square.backend.HomeChip?) -> Unit = {},
     /** Called from the bottom of the page: the next shelves, if there are any. */
     onLoadMoreYouTube: () -> Unit = {},
+    /** Whether a Google account is signed in; the page suggests one otherwise. */
+    youtubeSignedIn: Boolean = true,
+    onYouTubeSignIn: () -> Unit = {},
+    /** Signed out of Spotify: play from the other source instead. */
+    onUseYouTube: () -> Unit = {},
     /**
      * Spotify's own personalised shelves, empty when the gateway said nothing.
      *
@@ -180,13 +186,15 @@ fun HomeScreen(
             onOpenSettings = onOpenSettings,
             onPickChip = onPickYouTubeChip,
             onLoadMore = onLoadMoreYouTube,
+            signedIn = youtubeSignedIn,
+            onSignIn = onYouTubeSignIn,
         )
         return
     }
 
     when (state) {
         MainViewModel.UiState.LoggedOut -> Centered {
-            AppIcon(84.dp)
+            AppGlyph(64.dp)
             SquareWordmark(height = 28.dp)
             Text(
                 stringResource(R.string.unofficial_client),
@@ -196,6 +204,7 @@ fun HomeScreen(
                 modifier = Modifier.padding(horizontal = 40.dp),
             )
             GlassAction(stringResource(R.string.log_in_with_spotify), backdrop, onLogIn)
+            dev.lelonio.square.ui.components.SignedOutOptions(onUseYouTube, onOpenSettings)
         }
 
         MainViewModel.UiState.Connecting,
@@ -1250,6 +1259,8 @@ private fun YouTubeHome(
     onOpenSettings: () -> Unit,
     onPickChip: (dev.lelonio.square.backend.HomeChip?) -> Unit,
     onLoadMore: () -> Unit,
+    signedIn: Boolean,
+    onSignIn: () -> Unit,
 ) {
     val empty = home.rows.isEmpty() && recent.isEmpty()
     if (empty) {
@@ -1258,7 +1269,7 @@ private fun YouTubeHome(
                 if (home.loading) {
                     CircularProgressIndicator(color = Ink, strokeWidth = 2.dp)
                 } else {
-                    AppIcon(84.dp)
+                    AppGlyph(64.dp)
                     SquareWordmark(height = 28.dp)
                     Text(
                         stringResource(R.string.youtube_home_empty),
@@ -1329,6 +1340,17 @@ private fun YouTubeHome(
                 bottom = contentPadding.calculateBottomPadding(),
             ),
         ) {
+        // First, above the page it would change: signed out, this is the
+        // country's home rather than the listener's.
+        if (!signedIn) {
+            item(key = "sign-in") {
+                dev.lelonio.square.ui.components.SignInHint(
+                    onSignIn = onSignIn,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 4.dp),
+                )
+            }
+        }
+
         // YouTube's own filters, where it sent any: each is a page in its own
         // right rather than a sieve over this one.
         if (home.chips.isNotEmpty()) {
@@ -1414,6 +1436,81 @@ private fun YouTubeHome(
                 }
             }
         }
+        }
+    }
+}
+
+/**
+ * One of the other tabs, for a source that lays its own pages out.
+ *
+ * The rows as the service sent them, drawn the way its home page is: a long
+ * shelf of songs as quick picks, a short one as tiles, and everything else as
+ * covers to open. New and Radio are both this page; what differs is which rows
+ * the source was asked for. See MusicBackend.newRows.
+ */
+@Composable
+fun SourceRowsPage(
+    title: String,
+    rows: List<dev.lelonio.square.backend.HomeRow>,
+    loading: Boolean,
+    contentPadding: PaddingValues,
+    onPlay: (List<CatalogTrack>, Int) -> Unit,
+    onOpen: (CatalogPlaylist) -> Unit,
+) {
+    if (rows.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (loading) {
+                CircularProgressIndicator(color = Ink, strokeWidth = 2.dp)
+            } else {
+                Text(
+                    stringResource(R.string.nothing_here),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = InkDim,
+                )
+            }
+        }
+        return
+    }
+
+    LazyColumn(
+        contentPadding = PaddingValues(
+            top = contentPadding.calculateTopPadding() + 8.dp,
+            bottom = contentPadding.calculateBottomPadding() + 24.dp,
+        ),
+    ) {
+        item(key = "title") {
+            Text(
+                title,
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 20.dp, top = 6.dp),
+            )
+        }
+
+        rows.forEachIndexed { index, row ->
+            item(key = "head-$index-${row.title}") { Heading(row.title, row.strapline) }
+            if (row.tracks.isNotEmpty()) {
+                item(key = "tracks-$index-${row.title}") {
+                    if (row.tracks.size >= QUICK_PICK_MINIMUM) {
+                        QuickPicks(row.tracks) { i -> onPlay(row.tracks, i) }
+                    } else {
+                        TrackRow(row.tracks) { i -> onPlay(row.tracks, i) }
+                    }
+                }
+            }
+            if (row.items.isNotEmpty()) {
+                item(key = "items-$index-${row.title}") {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(top = 14.dp),
+                    ) {
+                        items(row.items, key = { it.uri }) { entry ->
+                            PlaylistTile(entry) { onOpen(entry) }
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -132,6 +132,11 @@
     <string name="speed">Velocidade</string>
     <string name="pitch">Tom</string>
     <string name="reverb">Reverb</string>
+    <string name="sleep_timer">Temporizador</string>
+    <string name="sleep_timer_minutes">%1$d min</string>
+    <string name="sleep_timer_track_end">Fim da música</string>
+    <string name="sleep_timer_left">Para em %1$s</string>
+    <string name="sleep_timer_track_end_active">Para no fim desta música</string>
     <string name="save_preset">Salvar predefinição</string>
     <string name="delete_preset">Excluir %1$s</string>
     <string name="shuffle_play">Reprodução aleatória</string>
@@ -260,6 +265,8 @@
     <string name="popular_playlists">Playlists populares</string>
     <string name="youtube_account">Conta YouTube</string>
     <string name="youtube_sign_in">Iniciar sessão com Google</string>
+    <string name="use_youtube_music">Ouvir no YouTube Music</string>
+    <string name="youtube_sign_in_hint">Entre com a sua conta Google para trazer a sua biblioteca, os seus mixes e recomendações feitas para si.</string>
     <string name="youtube_channel">Canal</string>
     <string name="youtube_session_expired">Sessão expirada</string>
     <string name="youtube_sign_in_again">Iniciar sessão de novo</string>
