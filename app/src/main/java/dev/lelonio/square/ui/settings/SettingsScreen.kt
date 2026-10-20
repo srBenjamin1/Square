@@ -157,6 +157,8 @@ fun SettingsScreen(
     onYouTubeSignIn: () -> Unit = {},
     /** After switching channel: the library and the home belong to the new one. */
     onYouTubeChannelChange: () -> Unit = {},
+    /** Embed the original playback settings without opening the settings index. */
+    playbackOnly: Boolean = false,
 ) {
     val ready = state as? MainViewModel.UiState.Ready
     val context = LocalContext.current
@@ -186,11 +188,13 @@ fun SettingsScreen(
      * Remembered across a rotation, since coming back to the top of the
      * settings after turning the phone is not what anyone meant to do.
      */
-    var open by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+    var open by rememberSaveable(playbackOnly) {
+        mutableStateOf<SettingsPage?>(if (playbackOnly) SettingsPage.Playback else null)
+    }
 
     // The back gesture closes the page first and leaves the settings second,
     // which is the order the screen is read in.
-    BackHandler(enabled = open != null) { open = null }
+    BackHandler(enabled = open != null && !playbackOnly) { open = null }
 
     // One accent for the whole screen; see LocalSettingsAccent.
     val accent = rememberSettingsAccent()
@@ -258,7 +262,7 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             LiquidButton(
-                onClick = { if (shown != null) goTo(null) else onBack() },
+                onClick = { if (shown != null && !playbackOnly) goTo(null) else onBack() },
                 backdrop = backdrop,
             ) {
                 Icon(PhosphorIcons.Regular.ArrowLeft, contentDescription = stringResource(R.string.back))

@@ -29,6 +29,7 @@ import dev.lelonio.square.thor.input.ThorPanel
 @UnstableApi
 class ThorActivity : ComponentActivity() {
     private var controller by mutableStateOf<MediaController?>(null)
+    private var toolsOpen by mutableStateOf(false)
     private var panel by mutableStateOf(ThorPanel.LYRICS)
     private var scrollRequest by mutableFloatStateOf(0f)
     private lateinit var input: ThorInputDispatcher
@@ -64,6 +65,8 @@ class ThorActivity : ComponentActivity() {
                     SquareApp(
                         player = controller,
                         showExpandedPlayer = false,
+                        toolsOpen = toolsOpen,
+                        onToolsOpenChange = { toolsOpen = it },
                         onPlay = { tracks, index, _, _, _, positionMs ->
                             playTracks(tracks, index, positionMs)
                         },

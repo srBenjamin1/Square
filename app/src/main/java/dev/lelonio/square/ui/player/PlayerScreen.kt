@@ -477,7 +477,33 @@ fun PlayerScreen(
     showPanelTabs: Boolean = true,
     /** Selects the first panel for dedicated surfaces without exposing tabs. */
     initialPanel: PlayerPanel = PlayerPanel.NONE,
+    role: PlayerVisualRole = PlayerVisualRole.STANDARD,
+    toolsSettings: @Composable () -> Unit = {},
 ) {
+    // Select the composition before creating artwork, video, lyrics, Connect
+    // or transport state. The lower display only consumes the existing session.
+    if (role == PlayerVisualRole.THOR_BOTTOM_TOOLS) {
+        PlayerToolsContent(
+            state = state,
+            onCollapse = onCollapse,
+            queue = queue,
+            queueActions = queueActions,
+            credits = credits,
+            creditsLoading = creditsLoading,
+            onWantCredits = onWantCredits,
+            reverb = reverb,
+            onSpeed = onSpeed,
+            onPitch = onPitch,
+            onReverb = onReverb,
+            presets = presets,
+            onApplyPreset = onApplyPreset,
+            onSavePreset = onSavePreset,
+            onDeletePreset = onDeletePreset,
+            backdrop = backdrop,
+            settings = toolsSettings,
+        )
+        return
+    }
     var panel by remember(initialPanel) { mutableStateOf(initialPanel) }
     // The official SDK mixes its own audio: no effects or karaoke reach it.
     val sdkPlayback by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse.collectAsStateWithLifecycle()

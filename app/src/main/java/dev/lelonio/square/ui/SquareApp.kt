@@ -422,6 +422,9 @@ fun SquareApp(
     viewModel: MainViewModel = viewModel(),
     showExpandedPlayer: Boolean = true,
     playerOnly: Boolean = false,
+    /** Owned by ThorActivity; never restored from the conventional player preference. */
+    toolsOpen: Boolean = false,
+    onToolsOpenChange: (Boolean) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listeningEvents by viewModel.listeningEvents.collectAsStateWithLifecycle()
@@ -944,9 +947,17 @@ fun SquareApp(
             if (showExpandedPlayer && (playerOnly || preferences.playerWasOpen())) 1f else 0f,
         )
     }
-    var toolsOpen by remember { mutableStateOf(false) }
-    var toolsPanel by remember {
-        mutableStateOf(dev.lelonio.square.ui.player.PlayerPanel.QUEUE)
+    val toolsExpand = remember { Animatable(0f) }
+    LaunchedEffect(toolsOpen) {
+        toolsExpand.animateTo(if (toolsOpen) 1f else 0f, expandSpec)
+    }
+    val toolsVisible by remember(toolsOpen) {
+        derivedStateOf { toolsOpen || toolsExpand.value > 0.001f }
+    }
+    // Clearing the queue must also restore the lower navigation: there is no
+    // expanded content to dismiss once playback no longer has an item.
+    LaunchedEffect(showExpandedPlayer, toolsOpen, playback.hasItem) {
+        if (!showExpandedPlayer && toolsOpen && !playback.hasItem) onToolsOpenChange(false)
     }
 
     // Open and standing still. Derived rather than read straight, so what
@@ -2252,7 +2263,7 @@ fun SquareApp(
                 // until the process dies.
                 // Faded out *and* taken out: a transparent bar still swallows
                 // the taps meant for the page underneath it.
-                if (chrome > 0.01f) Box(
+                if (chrome > 0.01f && (showExpandedPlayer || !toolsVisible)) Box(
                     Modifier
                         .align(Alignment.BottomCenter)
                         // Sideways, no wider than a phone held upright: a bar
@@ -2392,6 +2403,7 @@ fun SquareApp(
                                     // is empty now that what is playing lives in
                                     // the bar.
                                     .draggable(
+                                        enabled = showExpandedPlayer,
                                         state = rememberDraggableState { delta ->
                                             scope.launch {
                                                 val travel = playerTravelPx
@@ -2422,7 +2434,7 @@ fun SquareApp(
                                     if (showExpandedPlayer) {
                                         scope.launch { expand.animateTo(1f, expandSpec) }
                                     } else {
-                                        toolsOpen = true
+                                        onToolsOpenChange(true)
                                     }
                                 },
                                 onTogglePlay = {
@@ -3012,9 +3024,12 @@ fun SquareApp(
 
                 if (playback.hasItem && chrome > 0.01f) {
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = chrome }) {
-                    if (showExpandedPlayer) NowPlayingSheet(
-                        progress = expand,
+                    NowPlayingSheet(
+                        progress = if (showExpandedPlayer) expand else toolsExpand,
                         allowCollapse = !playerOnly,
+                        onCollapseRequest = if (showExpandedPlayer) null else {
+                            { onToolsOpenChange(false) }
+                        },
                         background = {
                           Box(Modifier.fillMaxSize().layerBackdrop(playerBackdrop)) {
                             // The player's own room, out of the record it is
@@ -3089,6 +3104,29 @@ fun SquareApp(
                                   },
                           ) {
                             PlayerScreen(
+                                role = when {
+                                    !showExpandedPlayer -> dev.lelonio.square.ui.player.PlayerVisualRole.THOR_BOTTOM_TOOLS
+                                    playerOnly -> dev.lelonio.square.ui.player.PlayerVisualRole.THOR_TOP
+                                    else -> dev.lelonio.square.ui.player.PlayerVisualRole.STANDARD
+                                },
+                                toolsSettings = {
+                                    SettingsScreen(
+                                        state = state,
+                                        webApi = webApi,
+                                        contentPadding = PaddingValues(bottom = 12.dp),
+                                        backdrop = playerBackdrop,
+                                        deviceName = android.os.Build.MODEL ?: "Android",
+                                        onClientIdChange = viewModel::onWebApiClientIdChange,
+                                        onConnectWebApi = viewModel::connectWebApi,
+                                        onDisconnectWebApi = viewModel::disconnectWebApi,
+                                        onLogOut = viewModel::logOut,
+                                        onShowTutorial = { showTutorial = true },
+                                        language = language,
+                                        onLanguage = setLanguage,
+                                        onBack = { onToolsOpenChange(false) },
+                                        playbackOnly = true,
+                                    )
+                                },
                                 state = playerState,
                                 djSpeaking = djSpeaking,
                                 // The title is the way onto the record. The
@@ -3141,7 +3179,8 @@ fun SquareApp(
                                     }
                                 },
                                 onCollapse = {
-                                    if (!playerOnly) scope.launch { expand.animateTo(0f, expandSpec) }
+                                    if (!showExpandedPlayer) onToolsOpenChange(false)
+                                    else if (!playerOnly) scope.launch { expand.animateTo(0f, expandSpec) }
                                 },
                                 onTogglePlay = {
                                     if (remote != null) {
@@ -3443,59 +3482,6 @@ fun SquareApp(
                           }
                         },
                     )
-                    }
-                }
-
-                if (!showExpandedPlayer && toolsOpen && playback.hasItem) {
-                    androidx.activity.compose.BackHandler { toolsOpen = false }
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.background)
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                    ) {
-                        dev.lelonio.square.ui.player.PlayerPanelSection(
-                            panel = toolsPanel,
-                            onSelect = { toolsPanel = it },
-                            queue = queue,
-                            lyrics = lyrics,
-                            lyricsLoading = playback.mediaId != null && lyricsFor != playback.mediaId,
-                            positionMs = positionMs,
-                            onPlayQueueItem = { player?.seekTo(it, 0L) },
-                            onSeek = { player?.seekTo(it) },
-                            speed = playback.speed,
-                            pitch = playback.pitch,
-                            reverb = reverb,
-                            onSpeed = {
-                                setPlaybackParameters(PlaybackParameters(it, playback.pitch))
-                            },
-                            onPitch = {
-                                setPlaybackParameters(PlaybackParameters(playback.speed, it))
-                            },
-                            onReverb = AudioEffects::setReverb,
-                            presets = presets,
-                            onApplyPreset = { preset ->
-                                player?.playbackParameters =
-                                    PlaybackParameters(preset.speed, preset.pitch)
-                                AudioEffects.setReverb(preset.reverbAmount)
-                            },
-                            onSavePreset = {
-                                viewModel.saveEffectPreset(
-                                    it,
-                                    playback.speed,
-                                    playback.pitch,
-                                    reverb,
-                                )
-                            },
-                            onDeletePreset = viewModel::deleteEffectPreset,
-                            backdrop = playerBackdrop,
-                            showCover = false,
-                            allowedPanels = setOf(
-                                dev.lelonio.square.ui.player.PlayerPanel.QUEUE,
-                                dev.lelonio.square.ui.player.PlayerPanel.EFFECTS,
-                                dev.lelonio.square.ui.player.PlayerPanel.INFO,
-                            ),
-                        )
                     }
                 }
 

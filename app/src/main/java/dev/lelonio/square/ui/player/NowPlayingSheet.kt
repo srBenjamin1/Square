@@ -71,6 +71,8 @@ fun NowPlayingSheet(
      */
     background: @Composable () -> Unit,
     expandedContent: @Composable () -> Unit,
+    /** A dedicated surface can own its expansion independently of the player. */
+    onCollapseRequest: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
 
@@ -108,7 +110,9 @@ fun NowPlayingSheet(
             }
         }
 
-        BackHandler(enabled = expandedVisible && allowCollapse) { settle(0f) }
+        BackHandler(enabled = expandedVisible && allowCollapse) {
+            onCollapseRequest?.invoke() ?: settle(0f)
+        }
 
         // The player, full size from the first frame to the last. Nothing about
         // the travel touches measure or layout any more: the growing container
