@@ -1,4 +1,4 @@
-# Square — Dual Screen Edition
+# Square — DS
 
 **An unofficial fork of Square for dual-screen Android devices, tested on the AYN Thor.**
 
