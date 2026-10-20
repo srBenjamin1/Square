@@ -24,6 +24,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -62,6 +65,9 @@ private enum class Tool(val title: Int, val icon: ImageVector) {
 internal fun PlayerToolsContent(
     state: PlaybackState,
     onCollapse: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onCycleRepeat: () -> Unit,
+    onRadio: (() -> Unit)?,
     queue: List<QueueEntry>,
     queueActions: QueueActions,
     credits: SpotifyCredits.Credits?,
@@ -81,6 +87,10 @@ internal fun PlayerToolsContent(
     var tool by rememberSaveable { mutableStateOf(Tool.QUEUE) }
     val selected = rememberUpdatedState(tool.ordinal)
     val selectedIndex = remember { { selected.value } }
+    val queueControlsFocus = remember { FocusRequester() }
+    LaunchedEffect(tool, state.hasItem) {
+        if (tool == Tool.QUEUE && state.hasItem) queueControlsFocus.requestFocus()
+    }
     val sdkPlayback by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse
         .collectAsStateWithLifecycle()
     LaunchedEffect(tool, state.mediaId) {
@@ -92,7 +102,7 @@ internal fun PlayerToolsContent(
             Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 LiquidButton(onClick = onCollapse, backdrop = backdrop) {
                     Icon(PhosphorIcons.Regular.CaretDown, stringResource(R.string.close))
                 }
@@ -100,8 +110,18 @@ internal fun PlayerToolsContent(
                     stringResource(tool.title),
                     style = MaterialTheme.typography.titleLarge,
                     color = GlassInk,
-                    modifier = Modifier.padding(start = 14.dp),
+                    modifier = Modifier.weight(1f).padding(start = 14.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                if (tool == Tool.QUEUE) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        ShuffleControl(state, onToggleShuffle, backdrop,
+                            Modifier.focusRequester(queueControlsFocus), enabled = state.hasItem)
+                        SongRadioControl(onRadio.takeIf { state.hasItem }, backdrop, header = true)
+                        RepeatControl(state, onCycleRepeat, backdrop, enabled = state.hasItem)
+                    }
+                }
             }
             GlassSurface(
                 backdrop = backdrop,

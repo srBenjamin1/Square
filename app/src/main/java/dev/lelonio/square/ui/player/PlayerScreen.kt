@@ -486,6 +486,9 @@ fun PlayerScreen(
         PlayerToolsContent(
             state = state,
             onCollapse = onCollapse,
+            onToggleShuffle = onToggleShuffle,
+            onCycleRepeat = onCycleRepeat,
+            onRadio = onRadio,
             queue = queue,
             queueActions = queueActions,
             credits = credits,
@@ -1135,6 +1138,17 @@ fun PlayerScreen(
                         onWatchVideo = onWatchVideo,
                         videoOn = videoOn,
                         showCollapse = showPanelTabs,
+                        favorite = if (role == PlayerVisualRole.THOR_TOP) {
+                            {
+                                FavoriteControl(
+                                    inLikedSongs,
+                                    onToggleLike.takeIf {
+                                        state.hasItem && state.mediaId?.startsWith("spotify:track:") == true
+                                    },
+                                    upperBackdrop,
+                                )
+                            }
+                        } else null,
                         modifier = barModifier,
                         dj = isDjQueue(state.contextUri),
                     )
@@ -1705,18 +1719,7 @@ fun PlayerScreen(
                                 // A station built from this track, the way the
                                 // official client's own radio button does it.
                                 if (onRadio != null) {
-                                    RoundGlassButton(
-                                        backdrop = lowerBackdrop,
-                                        size = 40.dp,
-                                        onClick = onRadio,
-                                    ) {
-                                        Icon(
-                                            PhosphorIcons.Regular.Broadcast,
-                                            contentDescription = stringResource(R.string.radio),
-                                            tint = panelTint(false),
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
+                                    SongRadioControl(onRadio, lowerBackdrop)
                                 }
                                 if (playlistEditAvailable) {
                                 Spacer(Modifier.size(8.dp))
@@ -1756,30 +1759,36 @@ fun PlayerScreen(
                                     // way to see that, or to take the song back
                                     // out of the list it was playing from.
                                     val hearts = onToggleLike != null
-                                    Icon(
-                                        when {
-                                            hearts && inLikedSongs -> PhosphorIcons.Fill.Heart
-                                            alreadySaved -> PhosphorIcons.Regular.Check
-                                            !hearts -> PhosphorIcons.Regular.Plus
-                                            else -> PhosphorIcons.Regular.Heart
-                                        },
-                                        contentDescription = stringResource(
+                                    if (hearts && (inLikedSongs || !alreadySaved) &&
+                                        panel != PlayerPanel.ADD_TO_PLAYLIST
+                                    ) {
+                                        FavoriteIcon(inLikedSongs)
+                                    } else {
+                                        Icon(
                                             when {
-                                                hearts && inLikedSongs -> R.string.remove_from_liked
-                                                alreadySaved -> R.string.in_a_playlist
-                                                !hearts -> R.string.add_to_playlist
-                                                else -> R.string.liked_songs
+                                                hearts && inLikedSongs -> PhosphorIcons.Fill.Heart
+                                                alreadySaved -> PhosphorIcons.Regular.Check
+                                                !hearts -> PhosphorIcons.Regular.Plus
+                                                else -> PhosphorIcons.Regular.Heart
                                             },
-                                        ),
-                                        tint = when {
-                                            panel == PlayerPanel.ADD_TO_PLAYLIST ->
-                                                panelTint(true)
-                                            hearts && inLikedSongs -> SavedInk
-                                            alreadySaved -> SavedInk
-                                            else -> panelTint(false)
-                                        },
-                                        modifier = Modifier.size(20.dp),
-                                    )
+                                            contentDescription = stringResource(
+                                                when {
+                                                    hearts && inLikedSongs -> R.string.remove_from_liked
+                                                    alreadySaved -> R.string.in_a_playlist
+                                                    !hearts -> R.string.add_to_playlist
+                                                    else -> R.string.liked_songs
+                                                },
+                                            ),
+                                            tint = when {
+                                                panel == PlayerPanel.ADD_TO_PLAYLIST ->
+                                                    panelTint(true)
+                                                hearts && inLikedSongs -> SavedInk
+                                                alreadySaved -> SavedInk
+                                                else -> panelTint(false)
+                                            },
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
                                 }
                                 }
                             }
@@ -2181,6 +2190,7 @@ private fun TopBar(
     modifier: Modifier = Modifier,
     /** The DJ's queue: the source is marked as the DJ's; see DjMark. */
     dj: Boolean = false,
+    favorite: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier
@@ -2188,6 +2198,11 @@ private fun TopBar(
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (favorite != null) {
+            favorite()
+            // Match the right-hand controls so the title stays centred.
+            if (connectAvailable && onWatchVideo != null) Spacer(Modifier.size(44.dp))
+        }
         if (showCollapse) {
             GlassButton(backdrop, onClick = onCollapse) {
                 Icon(PhosphorIcons.Regular.CaretDown, contentDescription = stringResource(R.string.close))
@@ -2285,6 +2300,9 @@ private fun TopBar(
                     },
                 )
             }
+        }
+        if (favorite != null && !connectAvailable && onWatchVideo == null) {
+            Spacer(Modifier.size(44.dp))
         }
 
     }
@@ -2542,11 +2560,8 @@ internal fun Controls(
         // place does nothing but bring them back.
         val togglesOn = toggles > 0.5f
         Box(Modifier.graphicsLayer { alpha = toggles }) {
-            ToggleIcon(
-                icon = PhosphorIcons.Regular.Shuffle,
-                description = stringResource(if (state.smartShuffle) R.string.smart_shuffle else R.string.shuffle_play),
-                active = state.shuffleEnabled,
-                smart = state.smartShuffle,
+            ShuffleControl(
+                state = state,
                 onClick = { if (togglesOn) onToggleShuffle() },
             )
         }
@@ -2614,14 +2629,8 @@ internal fun Controls(
         }
 
         Box(Modifier.graphicsLayer { alpha = toggles }) {
-            ToggleIcon(
-                icon = if (state.repeatMode == Player.REPEAT_MODE_ONE) {
-                    PhosphorIcons.Regular.RepeatOnce
-                } else {
-                    PhosphorIcons.Regular.Repeat
-                },
-                description = stringResource(R.string.repeat),
-                active = state.repeatMode != Player.REPEAT_MODE_OFF,
+            RepeatControl(
+                state = state,
                 onClick = { if (togglesOn) onCycleRepeat() },
             )
         }
@@ -2682,7 +2691,7 @@ private fun KaraokeBadge(amount: Float, backdrop: Backdrop, onClick: () -> Unit)
 }
 
 @Composable
-private fun RoundGlassButton(
+internal fun RoundGlassButton(
     backdrop: Backdrop,
     size: Dp,
     modifier: Modifier = Modifier,
@@ -2694,6 +2703,7 @@ private fun RoundGlassButton(
     LiquidButton(
         onClick = { if (enabled) onClick() },
         onLongClick = if (enabled) onLongClick else null,
+        enabled = enabled,
         backdrop = backdrop,
         modifier = modifier
             .size(size)
@@ -2728,17 +2738,20 @@ private fun panelTint(active: Boolean) =
 private val ConnectedInk = androidx.compose.ui.graphics.Color(0xFF1ED760)
 
 /** The same green for "this one is already in a playlist of yours". */
-private val SavedInk = ConnectedInk
+internal val SavedInk = ConnectedInk
 
 @Composable
-private fun ToggleIcon(
+internal fun ToggleIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     description: String,
     active: Boolean,
     smart: Boolean = false,
     onClick: () -> Unit,
+    backdrop: Backdrop? = null,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
-    IconButton(onClick = onClick) {
+    val glyph: @Composable () -> Unit = {
         Box(Modifier.size(if (smart) 28.dp else 22.dp)) {
         Icon(
             icon,
@@ -2753,6 +2766,11 @@ private fun ToggleIcon(
             modifier = Modifier.size(10.dp).align(Alignment.TopEnd),
         )
         }
+    }
+    if (backdrop != null) {
+        RoundGlassButton(backdrop, 44.dp, modifier, enabled, onClick = onClick, content = glyph)
+    } else {
+        IconButton(onClick = onClick, modifier = modifier, enabled = enabled, content = glyph)
     }
 }
 

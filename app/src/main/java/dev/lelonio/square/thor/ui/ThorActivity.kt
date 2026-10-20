@@ -138,8 +138,16 @@ class ThorActivity : ComponentActivity() {
         }
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
-        input.key(event, controller).also {
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // The tools use Compose focus. Let confirmation and directional keys
+        // reach their buttons rather than the legacy playback/panel shortcuts.
+        if (toolsOpen && event.keyCode in setOf(
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER,
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+            )
+        ) return super.dispatchKeyEvent(event)
+        return input.key(event, controller).also {
             if (dev.lelonio.square.BuildConfig.DEBUG) {
                 android.util.Log.i(
                     "ThorInput",
@@ -148,6 +156,7 @@ class ThorActivity : ComponentActivity() {
                 )
             }
         } || super.dispatchKeyEvent(event)
+    }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
         input.motion(event).also {

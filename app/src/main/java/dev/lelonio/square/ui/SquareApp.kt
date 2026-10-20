@@ -3378,9 +3378,11 @@ fun SquareApp(
                                                         artworkUrl = playback.artworkUrl,
                                                         tracks = tracks,
                                                     )
-                                                    expand.animateTo(0f, expandSpec)
-                                                    if (navController.currentDestination?.route != Routes.PLAYLIST) {
-                                                        navController.navigate(Routes.PLAYLIST) { launchSingleTop = true }
+                                                    if (showExpandedPlayer && !playerOnly) {
+                                                        expand.animateTo(0f, expandSpec)
+                                                        if (navController.currentDestination?.route != Routes.PLAYLIST) {
+                                                            navController.navigate(Routes.PLAYLIST) { launchSingleTop = true }
+                                                        }
                                                     }
                                                     onPlay(
                                                         tracks,

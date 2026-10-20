@@ -48,6 +48,7 @@ fun LiquidButton(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     isInteractive: Boolean = true,
+    enabled: Boolean = true,
     tint: Color = Color.Unspecified,
     /**
      * A wash of this control's own, over the shared film.
@@ -197,6 +198,7 @@ fun LiquidButton(
             .then(
                 if (onLongClick != null) {
                     Modifier.combinedClickable(
+                        enabled = enabled,
                         interactionSource = null,
                         indication = if (isInteractive) null else LocalIndication.current,
                         role = Role.Button,
@@ -205,6 +207,7 @@ fun LiquidButton(
                     )
                 } else {
                     Modifier.clickable(
+                        enabled = enabled,
                         interactionSource = null,
                         indication = if (isInteractive) null else LocalIndication.current,
                         role = Role.Button,
