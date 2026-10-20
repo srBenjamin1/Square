@@ -75,6 +75,18 @@ Controller functionality may vary between releases. Check the release notes for 
 
 ---
 
+## Screenshots
+
+Square Dual Screen running on the AYN Thor.
+
+| Dual-screen experience | Music player |
+| :---: | :---: |
+| ![AYN Thor screenshot 1](docs/screenshots/IMG_20261020_041622466.jpg) | ![AYN Thor screenshot 2](docs/screenshots/Screenshot_20261020-030401.png) |
+
+| Interface | Additional view |
+| :---: | :---: |
+| ![AYN Thor screenshot 3](docs/screenshots/Screenshot_20261020-041140.png) | ![AYN Thor screenshot 4](docs/screenshots/Screenshot_20261020-0412072.jpg) |
+
 ## Features
 
 The fork retains the features of the original Square project, including:
