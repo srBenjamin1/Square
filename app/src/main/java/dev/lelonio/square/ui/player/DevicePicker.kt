@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import dev.lelonio.square.thor.input.thorVerticalScroll as verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -64,7 +65,7 @@ fun DevicePicker(
             // Catches the tap that closes it, and dims what is behind so the
             // sheet reads as being in front rather than as another panel.
             .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(interactionSource = null, indication = null, onClick = onDismiss),
+            .thorFocus().clickable(interactionSource = null, indication = null, onClick = onDismiss),
         contentAlignment = Alignment.BottomCenter,
     ) {
         GlassSurface(
@@ -76,7 +77,7 @@ fun DevicePicker(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(28.dp))
                 // Swallows taps so one inside the sheet does not dismiss it.
-                .clickable(interactionSource = null, indication = null) {},
+                .thorFocus().clickable(interactionSource = null, indication = null) {},
         ) {
             Column(Modifier.padding(vertical = 18.dp)) {
                 Row(
@@ -95,7 +96,7 @@ fun DevicePicker(
                         Modifier
                             .size(36.dp)
                             .clip(RoundedCornerShape(50))
-                            .clickable(onClick = onRefresh),
+                            .thorFocus().clickable(onClick = onRefresh),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -179,7 +180,7 @@ fun DeviceList(
                         Modifier
                             .size(36.dp)
                             .clip(RoundedCornerShape(50))
-                            .clickable(onClick = onRefresh),
+                            .thorFocus().clickable(onClick = onRefresh),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -241,7 +242,7 @@ private fun DeviceRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(enabled = !device.isActive && !switching, onClick = onClick)
+            .thorFocus().clickable(enabled = !device.isActive && !switching, onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

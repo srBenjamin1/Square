@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -122,7 +123,7 @@ fun FullScreenVideo(
         Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable(interactionSource = null, indication = null) {
+            .thorFocus().clickable(interactionSource = null, indication = null) {
                 showControls = !showControls
             },
         contentAlignment = Alignment.Center,
@@ -179,7 +180,7 @@ fun FullScreenVideo(
                             .size(40.dp)
                             .clip(androidx.compose.foundation.shape.CircleShape)
                             .background(Color.Black.copy(alpha = 0.4f))
-                            .clickable(onClick = onSwitchToSong),
+                            .thorFocus().clickable(onClick = onSwitchToSong),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -195,7 +196,7 @@ fun FullScreenVideo(
                         .size(40.dp)
                         .clip(androidx.compose.foundation.shape.CircleShape)
                         .background(Color.Black.copy(alpha = 0.4f))
-                        .clickable { lockVideoOrientation(context, landscape = false) },
+                        .thorFocus().clickable { lockVideoOrientation(context, landscape = false) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(

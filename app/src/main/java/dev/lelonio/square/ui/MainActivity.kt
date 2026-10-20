@@ -160,6 +160,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (thorPlayerMode && dev.lelonio.square.thor.input.ThorInputRouter.key(event)) return true
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
+        if (thorPlayerMode && dev.lelonio.square.thor.input.ThorInputRouter.motion(event)) return true
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (thorPlayerMode && event.isFromSource(android.view.InputDevice.SOURCE_TOUCHSCREEN)) {
+            dev.lelonio.square.thor.input.ThorInteraction.touch()
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
     /**
      * Shrinks into a floating window when leaving the app with a video playing.
      *

@@ -1,5 +1,9 @@
 package dev.lelonio.square.ui.components
 
+import dev.lelonio.square.thor.input.ThorFocusScene
+import dev.lelonio.square.thor.input.LocalThorScrollPriority
+import androidx.compose.runtime.CompositionLocalProvider
+import dev.lelonio.square.thor.input.thorFocus
 import dev.lelonio.square.ui.player.GlassInk
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -87,31 +91,35 @@ fun GlassMenu(
         offset = anchor,
         properties = PopupProperties(focusable = true),
     ) {
-        AnimatedVisibility(
-            visibleState = open,
-            // Grows out of the corner it was opened from, which is the only
-            // thing tying it to the button that was tapped.
-            enter = scaleIn(tween(170), initialScale = 0.86f, transformOrigin = TopEnd) +
-                fadeIn(tween(120)),
-            exit = scaleOut(tween(130), targetScale = 0.9f, transformOrigin = TopEnd) +
-                fadeOut(tween(110)),
-        ) {
-            val shape = RoundedCornerShape(20.dp)
-            // Opaque, because a popup is its own window and cannot sample a
-            // layer belonging to another one — see the note on this function.
-            // What it can do is be the same colour as the menu that does have
-            // glass, so the two read as one thing rather than two designs: the
-            // settings' own tint, over a base dark enough to stand alone.
-            Column(
-                Modifier
-                    .width(MENU_WIDTH)
-                    .clip(shape)
-                    .background(MenuSurface)
-                    .background(menuFilm())
-                    .border(1.dp, MenuEdge, shape)
-                    .padding(vertical = 6.dp),
-                content = content,
-            )
+        CompositionLocalProvider(LocalThorScrollPriority provides 2) {
+            ThorFocusScene("menu:$anchor", ready = open.targetState) {
+                AnimatedVisibility(
+                    visibleState = open,
+                    // Grows out of the corner it was opened from, which is the only
+                    // thing tying it to the button that was tapped.
+                    enter = scaleIn(tween(170), initialScale = 0.86f, transformOrigin = TopEnd) +
+                        fadeIn(tween(120)),
+                    exit = scaleOut(tween(130), targetScale = 0.9f, transformOrigin = TopEnd) +
+                        fadeOut(tween(110)),
+                ) {
+                    val shape = RoundedCornerShape(20.dp)
+                    // Opaque, because a popup is its own window and cannot sample a
+                    // layer belonging to another one — see the note on this function.
+                    // What it can do is be the same colour as the menu that does have
+                    // glass, so the two read as one thing rather than two designs: the
+                    // settings' own tint, over a base dark enough to stand alone.
+                    Column(
+                        Modifier
+                            .width(MENU_WIDTH)
+                            .clip(shape)
+                            .background(MenuSurface)
+                            .background(menuFilm())
+                            .border(1.dp, MenuEdge, shape)
+                            .padding(vertical = 6.dp),
+                        content = content,
+                    )
+                }
+            }
         }
     }
 }
@@ -130,7 +138,7 @@ fun GlassMenuItem(
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .thorFocus().clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -198,7 +206,7 @@ fun BoxScope.GlassIconMenu(
         Box(
             Modifier
                 .fillMaxSize()
-                .clickable(interactionSource = null, indication = null, onClick = onDismiss),
+                .thorFocus().clickable(interactionSource = null, indication = null, onClick = onDismiss),
         )
     }
 
@@ -242,7 +250,7 @@ fun GlassIconMenuItem(
         Modifier
             .size(48.dp)
             .clip(CircleShape)
-            .clickable(onClick = onClick),
+            .thorFocus().clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -287,7 +295,7 @@ fun BoxScope.GlassChoiceMenu(
         Box(
             Modifier
                 .fillMaxSize()
-                .clickable(interactionSource = null, indication = null, onClick = onDismiss),
+                .thorFocus().clickable(interactionSource = null, indication = null, onClick = onDismiss),
         )
     }
 
@@ -424,7 +432,7 @@ fun GlassChoiceItem(
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .thorFocus().clickable(onClick = onClick)
             .padding(start = 16.dp, end = 12.dp, top = 9.dp, bottom = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

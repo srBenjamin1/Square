@@ -21,6 +21,7 @@
 
 package dev.lelonio.square.ui.glass.floatingtabbar
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.SizeTransform
@@ -782,7 +783,7 @@ private fun SharedTransitionScope.InlineTab(
             )
             .clip(shapes.tabBarShape)
             .then(tabBarContentModifier)
-            .clickable(
+            .thorFocus().clickable(
                 onClick = onClick,
                 indication = inlineTab.indication?.invoke(),
                 interactionSource = remember { MutableInteractionSource() }
@@ -836,7 +837,7 @@ private fun SharedTransitionScope.InlineStandaloneTab(
             )
             .clip(shapes.standaloneTabShape)
             .then(tabBarContentModifier)
-            .clickable(
+            .thorFocus().clickable(
                 onClick = standaloneTab.onClick,
                 indication = standaloneTab.indication?.invoke(),
                 interactionSource = remember { MutableInteractionSource() }
@@ -1194,7 +1195,7 @@ private fun SharedTransitionScope.ExpandedTabs(
                         color = animatedBgColor,
                         shape = shapes.tabShape
                     )
-                    .clickable(
+                    .thorFocus().clickable(
                         onClick = tab.onClick,
                         indication = tab.indication?.invoke(),
                         interactionSource = remember { MutableInteractionSource() }
@@ -1239,7 +1240,7 @@ private fun SharedTransitionScope.ExpandedStandaloneTab(
             )
             .clip(shapes.standaloneTabShape)
             .then(tabBarContentModifier)
-            .clickable(
+            .thorFocus().clickable(
                 onClick = standaloneTab.onClick,
                 indication = standaloneTab.indication?.invoke(),
                 interactionSource = remember { MutableInteractionSource() }

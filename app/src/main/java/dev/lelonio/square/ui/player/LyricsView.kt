@@ -9,6 +9,7 @@
  */
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Build
@@ -36,7 +37,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
@@ -291,7 +292,7 @@ private fun LyricLineItem(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !unsynced, onClick = onClick)
+            .thorFocus().clickable(enabled = !unsynced, onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 12.dp)
             .overflowBounds(12.dp)
             .graphicsLayer {
@@ -1014,7 +1015,7 @@ fun InterludeDotsItem(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .thorFocus().clickable(onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 12.dp),
         contentAlignment = Alignment.CenterStart,
     ) {

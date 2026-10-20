@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.components
 
+import dev.lelonio.square.thor.input.thorFocus
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -120,7 +121,7 @@ fun CreatePlaylistDialog(
                             .size(COVER)
                             .clip(RoundedCornerShape(14.dp))
                             .background(FieldFill)
-                            .clickable(enabled = !busy) {
+                            .thorFocus().clickable(enabled = !busy) {
                                 pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             },
                         contentAlignment = Alignment.Center,
@@ -167,7 +168,7 @@ fun CreatePlaylistDialog(
                             modifier = Modifier
                                 .padding(top = 8.dp)
                                 .clip(RoundedCornerShape(50))
-                                .clickable(enabled = !busy) {
+                                .thorFocus().clickable(enabled = !busy) {
                                     pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                                 }
                                 .padding(horizontal = 4.dp, vertical = 2.dp),
@@ -194,7 +195,7 @@ fun CreatePlaylistDialog(
                         .padding(top = 14.dp)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .clickable(enabled = !busy) { public = !public }
+                        .thorFocus().clickable(enabled = !busy) { public = !public }
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -284,7 +285,7 @@ private fun Field(
                 imeAction = imeAction,
             ),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.thorFocus(localArrows = true).then(Modifier.fillMaxWidth()),
         )
     }
 }
@@ -321,7 +322,7 @@ private fun Action(label: String, color: Color, onClick: () -> Unit) {
         color = color,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .clickable(onClick = onClick)
+            .thorFocus().clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }

@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.settings
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,7 +66,7 @@ internal fun WebApiSetup(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { clipboard.setText(AnnotatedString(state.redirectUri)) }) {
+            TextButton(onClick = { clipboard.setText(AnnotatedString(state.redirectUri)) }, modifier = Modifier.thorFocus()) {
                 Text(stringResource(R.string.copy))
             }
         }
@@ -96,9 +97,9 @@ internal fun WebApiSetupInline(
             singleLine = true,
             enabled = !state.connecting,
             shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
+            modifier = Modifier.thorFocus(localArrows = true).then(Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
+                .padding(top = 16.dp)),
         )
 
         if (state.error != null) {

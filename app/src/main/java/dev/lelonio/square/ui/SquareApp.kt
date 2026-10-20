@@ -1,5 +1,9 @@
 package dev.lelonio.square.ui
 
+import dev.lelonio.square.thor.input.*
+import dev.lelonio.square.ui.player.PlayerTool
+
+import androidx.compose.foundation.layout.offset
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -425,6 +429,7 @@ fun SquareApp(
     /** Owned by ThorActivity; never restored from the conventional player preference. */
     toolsOpen: Boolean = false,
     onToolsOpenChange: (Boolean) -> Unit = {},
+    thorInput: ThorInputSession? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listeningEvents by viewModel.listeningEvents.collectAsStateWithLifecycle()
@@ -437,6 +442,31 @@ fun SquareApp(
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
     val takenOut by viewModel.takenOut.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val thorFocusRegistry = remember { ThorFocusRegistry() }
+    val thorFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val thorInputMode = androidx.compose.ui.platform.LocalInputModeManager.current
+    val thorOwner = androidx.compose.ui.platform.LocalView.current
+    val thorSpatial = remember(thorOwner, thorFocusManager, thorInputMode) {
+        SpatialNavigation(
+            prepare = { thorInputMode.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard) },
+            hasFocus = { thorFocusRegistry.hasFocusIn(thorOwner) },
+            enter = { thorFocusRegistry.enterScene(thorOwner) ||
+                thorFocusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Next) },
+            move = { thorFocusManager.moveFocus(it.asFocusDirection()) },
+        )
+    }
+    androidx.compose.runtime.DisposableEffect(thorInput, thorSpatial) {
+        thorInput?.ensureFocus = { thorSpatial.ensureFocus() }
+        thorInput?.moveFocus = thorSpatial::move
+        thorInput?.handlesArrowsLocally = thorFocusRegistry::handlesDirectionLocally
+        thorInput?.scroll = thorFocusRegistry::scroll
+        onDispose {
+            thorInput?.ensureFocus = {}
+            thorInput?.moveFocus = { false }
+            thorInput?.handlesArrowsLocally = { false }
+            thorInput?.scroll = { _, _ -> }
+        }
+    }
 
     // The session as it was left, so the player has something to draw before
     // the media controller connects. Read once, off the saved queue.
@@ -947,6 +977,7 @@ fun SquareApp(
             if (showExpandedPlayer && (playerOnly || preferences.playerWasOpen())) 1f else 0f,
         )
     }
+    var toolsPanel by rememberSaveable { mutableStateOf(PlayerTool.QUEUE) }
     val toolsExpand = remember { Animatable(0f) }
     LaunchedEffect(toolsOpen) {
         toolsExpand.animateTo(if (toolsOpen) 1f else 0f, expandSpec)
@@ -956,8 +987,8 @@ fun SquareApp(
     }
     // Clearing the queue must also restore the lower navigation: there is no
     // expanded content to dismiss once playback no longer has an item.
-    LaunchedEffect(showExpandedPlayer, toolsOpen, playback.hasItem) {
-        if (!showExpandedPlayer && toolsOpen && !playback.hasItem) onToolsOpenChange(false)
+    LaunchedEffect(showExpandedPlayer, toolsOpen, playback.hasItem, toolsPanel) {
+        if (!showExpandedPlayer && toolsOpen && !playback.hasItem && toolsPanel != PlayerTool.SETTINGS) onToolsOpenChange(false)
     }
 
     // Open and standing still. Derived rather than read straight, so what
@@ -1355,7 +1386,44 @@ fun SquareApp(
         return
     }
 
+    val gamepadPlay by rememberUpdatedState<() -> Unit>({
+        if (remote != null) {
+            val playing = remote?.playing == true
+            onRemote { id ->
+                if (playing) RemoteConnect.pause(id)
+                else RemoteConnect.play(id)
+            }
+        } else {
+            player?.togglePlay()
+        }
+    })
+    val gamepadNext by rememberUpdatedState<() -> Unit>({
+        if (remote != null) onRemote(RemoteConnect::next)
+        // Skipping is about the song: a video has
+        // nowhere of its own to go, and the queue
+        // is held by the engine parked behind it.
+        else if (spotifyVideoOn) {
+            dev.lelonio.square.backend.spotify
+                .SpotifyVideoMode.skip(forward = true)
+        } else {
+            player?.seekToNextMediaItem()
+        }
+    })
+    val gamepadPrevious by rememberUpdatedState<() -> Unit>({
+        if (remote != null) onRemote(RemoteConnect::previous)
+        else if (spotifyVideoOn) {
+            dev.lelonio.square.backend.spotify
+                .SpotifyVideoMode.skip(forward = false)
+        } else {
+            player?.seekToPrevious()
+        }
+    })
+
     androidx.compose.runtime.CompositionLocalProvider(
+        LocalThorEnabled provides (playerOnly || !showExpandedPlayer),
+        LocalThorInputSession provides thorInput,
+        LocalThorFocusRegistry provides thorFocusRegistry,
+        LocalThorHintBackdrop provides artBackdrop,
         dev.lelonio.square.ui.glass.LocalBackdropLuminance provides backdropLuminance,
     ) {
     SquareTheme(seed = glassAccent) {
@@ -1435,6 +1503,7 @@ fun SquareApp(
                     else navController.openPlaylist(viewModel, playlist)
                 }
                 val currentEntry by navController.currentBackStackEntryAsState()
+                val visibleEntries by navController.visibleEntries.collectAsStateWithLifecycle()
                 val route = currentEntry?.destination?.route
 
                 // Every arrival starts the freeze window above. Keyed on the
@@ -1470,6 +1539,33 @@ fun SquareApp(
                  * time.
                  */
                 var searchOpen by rememberSaveable { mutableStateOf(false) }
+
+                LaunchedEffect(thorInput) {
+                    val input = thorInput ?: return@LaunchedEffect
+                    for (command in input.commands) when (command) {
+                        ThorCommand.SETTINGS -> {
+                            toolsPanel = PlayerTool.SETTINGS
+                            onToolsOpenChange(true)
+                        }
+                        ThorCommand.SEARCH -> {
+                            onToolsOpenChange(false)
+                            searchOpen = true
+                            navController.switchTab(Routes.SEARCH)
+                        }
+                        ThorCommand.PREVIOUS_SECTION, ThorCommand.NEXT_SECTION -> {
+                            onToolsOpenChange(false)
+                            val sections = listOf(Routes.HOME, Routes.NEW, Routes.RADIO, Routes.LIBRARY, Routes.SEARCH)
+                            val delta = if (command == ThorCommand.NEXT_SECTION) 1 else -1
+                            val at = sections.indexOf(activeTab).coerceAtLeast(0)
+                            val next = sections[Math.floorMod(at + delta, sections.size)]
+                            searchOpen = next == Routes.SEARCH
+                            navController.switchTab(next)
+                        }
+                        ThorCommand.PLAY_PAUSE -> gamepadPlay()
+                        ThorCommand.NEXT -> gamepadNext()
+                        ThorCommand.PREVIOUS -> gamepadPrevious()
+                    }
+                }
 
                 LaunchedEffect(route) {
                     if (route in TAB_ROUTES) activeTab = route.orEmpty()
@@ -1645,8 +1741,11 @@ fun SquareApp(
                         AppBackdrop()
                     }
 
-                    Box(
-                        Modifier
+                    ThorFocusScene(
+                        sceneKey = if (route == Routes.PLAYLIST) "page:playlist:${playlist.uri}" else "page:$route",
+                        ready = currentEntry != null && visibleEntries.size <= 1 &&
+                            (route != Routes.PLAYLIST || !playlist.loading),
+                        modifier = Modifier
                             .nestedScroll(tabBarScroll)
                             .nestedScroll(scrollActivity)
                             // Touching the page puts the keyboard away.
@@ -2288,6 +2387,11 @@ fun SquareApp(
                             }
                         },
                 ) {
+                    if (!showExpandedPlayer) {
+                        ThorHint("L1 ←", Modifier.align(Alignment.TopStart).padding(start = 6.dp))
+                        ThorHint("→ R1", Modifier.align(Alignment.TopEnd).padding(end = 6.dp))
+                    }
+
                     // The material comes from the settings now, provided once at
                     // the top of the app; what is still local here is which
                     // backdrop the bar's surfaces sample when they are not handed
@@ -2587,6 +2691,9 @@ fun SquareApp(
                         if (searching || !barFolds) tabBarScroll.expand()
                     }
 
+                    if (!showExpandedPlayer) {
+                        ThorHint("SELECT", Modifier.align(Alignment.TopEnd).padding(end = 42.dp))
+                    }
                     FloatingTabBar(
                         // The page's own tab. The bar keeps this tab when it
                         // folds and finds it by matching this key.
@@ -3022,7 +3129,7 @@ fun SquareApp(
                     }
                 }
 
-                if (playback.hasItem && chrome > 0.01f) {
+                if ((playback.hasItem || (!showExpandedPlayer && toolsVisible)) && chrome > 0.01f) {
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = chrome }) {
                     NowPlayingSheet(
                         progress = if (showExpandedPlayer) expand else toolsExpand,
@@ -3083,6 +3190,7 @@ fun SquareApp(
                           // one that buys the most. Off leaves the film every
                           // pane falls back to, not a hole.
                           androidx.compose.runtime.CompositionLocalProvider(
+                              LocalThorHintBackdrop provides playerBackdrop,
                               dev.lelonio.square.ui.player.LocalGlassEnabled provides
                                   (glassConfig.playerEnabled &&
                                       dev.lelonio.square.ui.player.LocalGlassEnabled.current),
@@ -3109,6 +3217,8 @@ fun SquareApp(
                                     playerOnly -> dev.lelonio.square.ui.player.PlayerVisualRole.THOR_TOP
                                     else -> dev.lelonio.square.ui.player.PlayerVisualRole.STANDARD
                                 },
+                                toolsPanel = toolsPanel,
+                                onToolsPanelChange = { toolsPanel = it },
                                 toolsSettings = {
                                     SettingsScreen(
                                         state = state,
@@ -3124,7 +3234,7 @@ fun SquareApp(
                                         language = language,
                                         onLanguage = setLanguage,
                                         onBack = { onToolsOpenChange(false) },
-                                        playbackOnly = true,
+                                        playbackOnly = false,
                                     )
                                 },
                                 state = playerState,
@@ -3182,38 +3292,9 @@ fun SquareApp(
                                     if (!showExpandedPlayer) onToolsOpenChange(false)
                                     else if (!playerOnly) scope.launch { expand.animateTo(0f, expandSpec) }
                                 },
-                                onTogglePlay = {
-                                    if (remote != null) {
-                                        val playing = remote?.playing == true
-                                        onRemote { id ->
-                                            if (playing) RemoteConnect.pause(id)
-                                            else RemoteConnect.play(id)
-                                        }
-                                    } else {
-                                        player?.togglePlay()
-                                    }
-                                },
-                                onNext = {
-                                    if (remote != null) onRemote(RemoteConnect::next)
-                                    // Skipping is about the song: a video has
-                                    // nowhere of its own to go, and the queue
-                                    // is held by the engine parked behind it.
-                                    else if (spotifyVideoOn) {
-                                        dev.lelonio.square.backend.spotify
-                                            .SpotifyVideoMode.skip(forward = true)
-                                    } else {
-                                        player?.seekToNextMediaItem()
-                                    }
-                                },
-                                onPrevious = {
-                                    if (remote != null) onRemote(RemoteConnect::previous)
-                                    else if (spotifyVideoOn) {
-                                        dev.lelonio.square.backend.spotify
-                                            .SpotifyVideoMode.skip(forward = false)
-                                    } else {
-                                        player?.seekToPrevious()
-                                    }
-                                },
+                                onTogglePlay = gamepadPlay,
+                                onNext = gamepadNext,
+                                onPrevious = gamepadPrevious,
                                 onSeek = { target ->
                                     if (remote != null) {
                                         onRemote { id -> RemoteConnect.seek(id, target) }
@@ -4481,10 +4562,10 @@ private fun BarSearchField(
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = ink),
             cursorBrush = androidx.compose.ui.graphics.SolidColor(ink),
-            modifier = Modifier
+            modifier = Modifier.thorFocus(localArrows = true).then(Modifier
                 .weight(1f)
                 .padding(start = 12.dp)
-                .focusRequester(focus),
+                .focusRequester(focus)),
             decorationBox = { field ->
                 if (query.isEmpty()) {
                     Text(

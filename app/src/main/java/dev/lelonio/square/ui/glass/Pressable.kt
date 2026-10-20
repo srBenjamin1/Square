@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.glass
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -42,6 +43,9 @@ fun Modifier.pressable(
     pressedScale: Float = 0.96f,
     onLongClick: (() -> Unit)? = null,
     enabled: Boolean = true,
+    focusPriority: Int = 0,
+    focusShape: Shape? = null,
+    squareFocus: Boolean = false,
 ): Modifier {
     val interaction = remember { MutableInteractionSource() }
 
@@ -107,7 +111,7 @@ fun Modifier.pressable(
                 }
             },
         )
-        .combinedClickable(
+        .thorFocus(shape = focusShape ?: shape, enabled = enabled, priority = focusPriority, square = squareFocus).combinedClickable(
             interactionSource = interaction,
             // The press animation is the indication. Leaving the default here
             // would draw the ripple on top of it.

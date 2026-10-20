@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,14 +11,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.horizontalScroll
+import dev.lelonio.square.thor.input.thorHorizontalScroll as horizontalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import dev.lelonio.square.thor.input.thorVerticalScroll as verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -522,7 +523,7 @@ private fun PresetRow(
                             MaterialTheme.colorScheme.background
                         },
                     )
-                    .clickable { onApply(preset) }
+                    .thorFocus().clickable { onApply(preset) }
                     .padding(start = 14.dp, end = if (selected && !preset.builtIn) 6.dp else 14.dp)
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -546,7 +547,7 @@ private fun PresetRow(
                             .padding(start = 4.dp)
                             .size(16.dp)
                             .clip(RoundedCornerShape(50))
-                            .clickable { onDelete(preset.id) },
+                            .thorFocus().clickable { onDelete(preset.id) },
                     )
                 }
             }
@@ -555,7 +556,7 @@ private fun PresetRow(
         Row(
             Modifier
                 .clip(RoundedCornerShape(50))
-                .clickable(onClick = onSaveCurrent)
+                .thorFocus().clickable(onClick = onSaveCurrent)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -587,13 +588,13 @@ private fun SavePresetDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit)
                 onValueChange = { name = it },
                 singleLine = true,
                 label = { Text(stringResource(R.string.name)) },
-            )
+             modifier = Modifier.thorFocus(localArrows = true))
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name) }) { Text(stringResource(R.string.save)) }
+            TextButton(onClick = { onConfirm(name) }, modifier = Modifier.thorFocus()) { Text(stringResource(R.string.save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = onDismiss, modifier = Modifier.thorFocus()) { Text(stringResource(R.string.cancel)) }
         },
     )
 }
@@ -674,7 +675,7 @@ private fun EffectSlider(
                 color = GlassInk,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .clickable(onClick = onReset)
+                    .thorFocus().clickable(onClick = onReset)
                     .padding(horizontal = 10.dp, vertical = 4.dp),
             )
         }

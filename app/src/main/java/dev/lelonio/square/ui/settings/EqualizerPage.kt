@@ -1,5 +1,12 @@
 package dev.lelonio.square.ui.settings
 
+import dev.lelonio.square.thor.input.thorAdjustable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,7 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -159,7 +166,7 @@ fun EqualizerPage(contentPadding: PaddingValues, header: @Composable () -> Unit)
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { Equalizer.reset(editing) }
+                        .thorFocus().clickable { Equalizer.reset(editing) }
                         .padding(horizontal = 18.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -258,6 +265,7 @@ private fun CurveEditor(
     val accent = settingsAccent()
     val ink = Ink
     val bands = Equalizer.FREQUENCIES.size
+    val bandFocus = remember(bands) { List(bands) { FocusRequester() } }
     var active by remember { mutableStateOf<Int?>(null) }
     val latestOnGain by rememberUpdatedState(onGain)
 
@@ -274,7 +282,26 @@ private fun CurveEditor(
                     color = if (band == active) accent else InkDim,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
+                        .focusRequester(bandFocus[band])
+                        .onPreviewKeyEvent { event ->
+                            val key = event.nativeKeyEvent
+                            val next = when (key.keyCode) {
+                                android.view.KeyEvent.KEYCODE_DPAD_UP -> band - 1
+                                android.view.KeyEvent.KEYCODE_DPAD_DOWN -> band + 1
+                                else -> -1
+                            }
+                            if (next in gains.indices) {
+                                if (key.action == android.view.KeyEvent.ACTION_DOWN) bandFocus[next].requestFocus()
+                                true
+                            } else false
+                        }
+                        .thorAdjustable({ gains[band] }, -Equalizer.RANGE_DB..Equalizer.RANGE_DB,
+                            enabled = enabled, step = 0.5f, allArrows = true) {
+                            active = band
+                            onGain(band, it)
+                        }
+                        .semantics { contentDescription = "${Equalizer.FREQUENCIES[band]} Hz" },
                 )
             }
         }
@@ -415,7 +442,7 @@ private fun PresetChip(
         Modifier
             .clip(ContinuousCapsule())
             .background(if (selected) accent else Ink.copy(alpha = 0.08f))
-            .clickable(onClick = onClick)
+            .thorFocus().clickable(onClick = onClick)
             .padding(start = 14.dp, end = if (onDelete != null) 6.dp else 14.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -431,7 +458,7 @@ private fun PresetChip(
                 modifier = Modifier
                     .size(22.dp)
                     .clip(ContinuousCapsule())
-                    .clickable(onClick = onDelete)
+                    .thorFocus().clickable(onClick = onDelete)
                     .padding(4.dp),
             )
         }

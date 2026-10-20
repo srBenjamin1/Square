@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorAdjustable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -53,6 +54,8 @@ fun GlassProgressBar(
 
     Box(
         modifier
+            .thorAdjustable({ positionMs.value.toFloat() }, 0f..durationMs.coerceAtLeast(1).toFloat(),
+                enabled = durationMs > 0, step = 5000f) { onSeek(it.toLong()) }
             .fillMaxWidth()
             // The touch target is taller than the bar. A 6dp-high capsule is
             // accurate to look at and almost impossible to grab.

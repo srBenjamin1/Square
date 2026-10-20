@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -11,7 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
@@ -113,7 +114,7 @@ fun ClassicLyricsView(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = line.startTimeMs != null) { line.startTimeMs?.let(onSeek) }
+                    .thorFocus().clickable(enabled = line.startTimeMs != null) { line.startTimeMs?.let(onSeek) }
                     .padding(horizontal = 24.dp, vertical = 2.dp),
             ) {
                 // The line being sung, word by word where the source times

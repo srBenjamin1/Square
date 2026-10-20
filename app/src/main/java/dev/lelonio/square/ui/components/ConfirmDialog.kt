@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.components
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,7 +78,7 @@ private fun DialogAction(label: String, color: Color, onClick: () -> Unit) {
         color = color,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .clickable(onClick = onClick)
+            .thorFocus().clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }

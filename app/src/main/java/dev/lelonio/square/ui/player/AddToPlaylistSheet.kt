@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.background
 import dev.lelonio.square.ui.glass.backdrop.effects.blur
 import dev.lelonio.square.ui.glass.backdrop.drawBackdrop
@@ -22,7 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import dev.lelonio.square.thor.input.thorVerticalScroll as verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -84,7 +85,7 @@ fun AddToPlaylistSheet(
                     effects = { blur(28f.dp.toPx()) },
                     onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.42f)) },
                 )
-                .clickable(interactionSource = null, indication = null, onClick = onDismiss),
+                .thorFocus().clickable(interactionSource = null, indication = null, onClick = onDismiss),
         )
     }
 
@@ -108,7 +109,7 @@ fun AddToPlaylistSheet(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(28.dp))
                 // Swallows taps so one inside the sheet does not dismiss it.
-                .clickable(interactionSource = null, indication = null) {},
+                .thorFocus().clickable(interactionSource = null, indication = null) {},
         ) {
             Column(Modifier.padding(vertical = 18.dp)) {
                 Text(
@@ -285,7 +286,7 @@ private fun PlaylistRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
+            .thorFocus().clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

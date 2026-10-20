@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.LazyRow
+import dev.lelonio.square.thor.input.ThorLazyVerticalGrid as LazyVerticalGrid
+import dev.lelonio.square.thor.input.ThorLazyRow as LazyRow
 import androidx.compose.foundation.lazy.items as rowItems
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape

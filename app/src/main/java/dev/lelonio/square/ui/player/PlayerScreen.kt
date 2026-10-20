@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import dev.lelonio.square.ui.components.copyFrame
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
@@ -29,11 +30,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.verticalScroll
+import dev.lelonio.square.thor.input.thorVerticalScroll as verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -479,6 +481,8 @@ fun PlayerScreen(
     initialPanel: PlayerPanel = PlayerPanel.NONE,
     role: PlayerVisualRole = PlayerVisualRole.STANDARD,
     toolsSettings: @Composable () -> Unit = {},
+    toolsPanel: PlayerTool = PlayerTool.QUEUE,
+    onToolsPanelChange: (PlayerTool) -> Unit = {},
 ) {
     // Select the composition before creating artwork, video, lyrics, Connect
     // or transport state. The lower display only consumes the existing session.
@@ -504,6 +508,8 @@ fun PlayerScreen(
             onDeletePreset = onDeletePreset,
             backdrop = backdrop,
             settings = toolsSettings,
+            tool = toolsPanel,
+            onToolChange = onToolsPanelChange,
         )
         return
     }
@@ -1840,6 +1846,7 @@ fun PlayerScreen(
                                 topBar(Modifier)
                                 SongCard(
                                     state = state,
+                                    showGamepadHints = role == PlayerVisualRole.THOR_TOP,
                                     positionMs = positionMs,
                                     onSeek = onSeek,
                                     onTogglePlay = onTogglePlay,
@@ -2770,7 +2777,7 @@ internal fun ToggleIcon(
     if (backdrop != null) {
         RoundGlassButton(backdrop, 44.dp, modifier, enabled, onClick = onClick, content = glyph)
     } else {
-        IconButton(onClick = onClick, modifier = modifier, enabled = enabled, content = glyph)
+        IconButton(onClick = onClick, modifier = Modifier.thorFocus().then(modifier), enabled = enabled, content = glyph)
     }
 }
 
@@ -3100,6 +3107,7 @@ private fun SongCard(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onCover: () -> Unit,
+    showGamepadHints: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -3110,41 +3118,49 @@ private fun SongCard(
         Box(
             Modifier
                 .weight(1f, fill = false)
-                .aspectRatio(1f)
-                .softShadow(RoundedCornerShape(18.dp), elevation = 20.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .clickable(onClick = onCover),
+                .aspectRatio(1f),
         ) {
-            dev.lelonio.square.ui.components.Artwork(
-                url = state.artworkUrl,
-                title = state.title,
-                modifier = Modifier.fillMaxSize(),
-                corner = 18.dp,
-            )
-            // A shade at the foot, so the transport reads over any sleeve.
             Box(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.42f)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
-            )
-            Row(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier.fillMaxSize()
+                    .softShadow(RoundedCornerShape(18.dp), elevation = 20.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .thorFocus().clickable(onClick = onCover),
             ) {
-                CardButton(PhosphorIcons.Fill.SkipBack, stringResource(R.string.previous), 40.dp, state.hasPrevious, onPrevious)
-                CardButton(
-                    if (state.wantsPlay) PhosphorIcons.Fill.Pause else PhosphorIcons.Fill.Play,
-                    stringResource(if (state.wantsPlay) R.string.pause else R.string.play),
-                    52.dp,
-                    true,
-                    onTogglePlay,
+                dev.lelonio.square.ui.components.Artwork(
+                    url = state.artworkUrl,
+                    title = state.title,
+                    modifier = Modifier.fillMaxSize(),
+                    corner = 18.dp,
                 )
-                CardButton(PhosphorIcons.Fill.SkipForward, stringResource(R.string.next), 40.dp, state.hasNext, onNext)
+                // A shade at the foot, so the transport reads over any sleeve.
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.42f)
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
+                )
+                Row(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CardButton(PhosphorIcons.Fill.SkipBack, stringResource(R.string.previous), 40.dp, state.hasPrevious, onPrevious)
+                    CardButton(
+                        if (state.wantsPlay) PhosphorIcons.Fill.Pause else PhosphorIcons.Fill.Play,
+                        stringResource(if (state.wantsPlay) R.string.pause else R.string.play),
+                        52.dp,
+                        true,
+                        onTogglePlay,
+                    )
+                    CardButton(PhosphorIcons.Fill.SkipForward, stringResource(R.string.next), 40.dp, state.hasNext, onNext)
+                }
+            }
+            if (showGamepadHints) {
+                dev.lelonio.square.thor.input.ThorHint("‹ L2", Modifier.align(Alignment.CenterStart).offset(x = (-28).dp))
+                dev.lelonio.square.thor.input.ThorHint("R2 ›", Modifier.align(Alignment.CenterEnd).offset(x = 28.dp))
             }
         }
         Column(Modifier.widthIn(max = 420.dp).padding(top = 12.dp)) {
@@ -3192,7 +3208,7 @@ private fun CardButton(
             .size(size)
             .clip(CircleShape)
             .background(Color.Black.copy(alpha = 0.35f))
-            .clickable(enabled = enabled, onClick = onClick),
+            .thorFocus().clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

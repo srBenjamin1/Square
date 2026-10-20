@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.home
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -16,11 +17,11 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
-import androidx.compose.foundation.lazy.LazyRow
+import dev.lelonio.square.thor.input.ThorLazyRow as LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -706,7 +707,7 @@ private fun Header(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .clickable(
+                        .thorFocus().clickable(
                             onClickLabel = stringResource(if (service == R.string.backend_spotify) R.string.backend_youtube else R.string.backend_spotify),
                             onClick = onSwitchSource,
                         )
@@ -787,6 +788,7 @@ private fun Header(
                 FriendFaces(friends, onOpenFriends)
             }
 
+            dev.lelonio.square.thor.input.ThorHint("START ⚙ " + stringResource(R.string.settings))
             dev.lelonio.square.ui.components.ProfilePicture(
                 url = avatarUrl,
                 name = name,
@@ -825,7 +827,7 @@ private fun FilterRow(selected: Feed, chips: List<Feed>, backdrop: Backdrop, onS
                 label = stringResource(entry.label),
                 selected = entry == selected,
                 onClick = { onSelect(entry) },
-            )
+             modifier = Modifier.thorFocus())
         }
     }
 }
@@ -951,7 +953,7 @@ private fun ArtistTile(artist: SearchItem, onClick: () -> Unit) {
     Column(
         Modifier
             .width(110.dp)
-            .pressable(onClick),
+            .pressable(onClick, focusShape = CircleShape, squareFocus = true),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Artwork(
@@ -982,7 +984,7 @@ private fun PlaylistTile(playlist: CatalogPlaylist, onClick: () -> Unit) {
     Column(
         Modifier
             .width(152.dp)
-            .pressable(onClick),
+            .pressable(onClick, focusShape = RoundedCornerShape(corner), squareFocus = true, focusPriority = 10),
     ) {
         Artwork(
             url = playlist.artworkUrl,
@@ -1281,7 +1283,7 @@ private fun ChipRow(
                 // Pressing the chip that is already on takes the filter off,
                 // which is what the service's own deselect does.
                 onClick = { onPick(if (isSelected) null else chip) },
-            )
+             modifier = Modifier.thorFocus())
         }
     }
 }

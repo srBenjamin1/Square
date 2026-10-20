@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.components
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -81,7 +82,7 @@ fun NameDialog(
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink),
                     cursorBrush = SolidColor(Ink),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.thorFocus(localArrows = true).then(Modifier.fillMaxWidth()),
                 )
             }
 
@@ -112,7 +113,7 @@ private fun DialogAction(label: String, color: Color, onClick: () -> Unit) {
         color = color,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .clickable(onClick = onClick)
+            .thorFocus().clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }

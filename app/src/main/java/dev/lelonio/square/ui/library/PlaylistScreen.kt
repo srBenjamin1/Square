@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.library
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.ui.text.withLink
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
@@ -29,7 +30,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -1069,7 +1070,7 @@ fun PlaylistScreen(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(50))
-                                    .clickable(onClick = onRefreshSuggestions)
+                                    .thorFocus().clickable(onClick = onRefreshSuggestions)
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                             )
                         }
@@ -1079,7 +1080,7 @@ fun PlaylistScreen(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { onAddSuggestion(track) }
+                            .thorFocus().clickable { onAddSuggestion(track) }
                             .padding(start = 24.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1111,7 +1112,7 @@ fun PlaylistScreen(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        IconButton(onClick = { onAddSuggestion(track) }) {
+                        IconButton(onClick = { onAddSuggestion(track) }, modifier = Modifier.thorFocus()) {
                             Icon(
                                 PhosphorIcons.Bold.Plus,
                                 contentDescription = stringResource(R.string.add_to_this_playlist),
@@ -2290,7 +2291,7 @@ private fun LatestReleaseCard(
         // Absent until Spotify has said whether the record is already kept —
         // the same rule as the star above.
         if (saved != null) {
-            IconButton(onClick = onToggleSaved, modifier = Modifier.size(38.dp)) {
+            IconButton(onClick = onToggleSaved, modifier = Modifier.thorFocus().then(Modifier.size(38.dp))) {
                 Icon(
                     if (saved) PhosphorIcons.Fill.Check else PhosphorIcons.Bold.Plus,
                     contentDescription = stringResource(
@@ -2776,10 +2777,10 @@ private fun SectionHeader(
 
         IconButton(
             onClick = { onSortOpen(true) },
-            modifier = Modifier.onGloballyPositioned {
+            modifier = Modifier.thorFocus().then(Modifier.onGloballyPositioned {
                 val root = it.boundsInRoot()
                 onAnchor(IntOffset(root.left.toInt(), root.bottom.toInt()))
-            },
+            }),
         ) {
             run {
                 Icon(
@@ -2992,7 +2993,7 @@ private fun TrackRow(
                     Modifier
                 } else {
                     // A long press opens the song's menu, the same as the dots.
-                    Modifier.pressable(onClick, shape = shape, pressedScale = 0.985f, onLongClick = onMenu)
+                    Modifier.pressable(onClick, shape = shape, pressedScale = 0.985f, onLongClick = onMenu, focusPriority = 100)
                 },
             )
             .graphicsLayer { alpha = dim }
@@ -3130,7 +3131,7 @@ private fun TrackRow(
             }
         }
 
-        IconButton(onClick = onMenu, modifier = Modifier.size(32.dp)) {
+        IconButton(onClick = onMenu, modifier = Modifier.thorFocus().then(Modifier.size(32.dp))) {
             Icon(
                 PhosphorIcons.Bold.DotsThree,
                 contentDescription = stringResource(R.string.more),

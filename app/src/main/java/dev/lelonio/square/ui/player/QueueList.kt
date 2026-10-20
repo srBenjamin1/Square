@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -20,7 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -326,7 +327,7 @@ private fun Heading(text: String, action: String? = null, onAction: () -> Unit =
                 color = GlassInk,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .clickable(onClick = onAction)
+                    .thorFocus().clickable(onClick = onAction)
                     .padding(horizontal = 10.dp, vertical = 4.dp),
             )
         }
@@ -349,7 +350,7 @@ private fun TrackRow(
         modifier
             .fillMaxWidth()
             .background(if (selected) GlassInk.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent)
-            .combinedClickable(
+            .thorFocus(shape = RoundedCornerShape(14.dp), priority = 100).combinedClickable(
                 onClick = { if (selecting) onToggle() else actions.onPlay(entry.index) },
                 onLongClick = onLongPress,
             )

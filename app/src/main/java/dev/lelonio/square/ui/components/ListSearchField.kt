@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.components
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -172,9 +173,9 @@ fun ListSearchField(
                     if (glass) ink else MaterialTheme.colorScheme.primary,
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                modifier = Modifier
+                modifier = Modifier.thorFocus(localArrows = true).then(Modifier
                     .fillMaxWidth()
-                    .focusRequester(focus),
+                    .focusRequester(focus)),
             )
         }
 

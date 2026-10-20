@@ -1,20 +1,9 @@
 package dev.lelonio.square.ui.player
 
-import android.view.KeyEvent
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -32,20 +21,6 @@ import com.adamglin.phosphoricons.regular.Shuffle
 import dev.lelonio.square.R
 import dev.lelonio.square.ui.glass.backdrop.Backdrop
 
-/** Keep the original glass press feedback and make gamepad focus visible. */
-private fun Modifier.headerControl(enabled: Boolean, onClick: () -> Unit): Modifier = composed {
-    var focused by remember { mutableStateOf(false) }
-    onFocusChanged { focused = it.isFocused }
-        .border(2.dp, if (focused && enabled) GlassInk else Color.Transparent, CircleShape)
-        .onPreviewKeyEvent { event ->
-            val key = event.nativeKeyEvent
-            if (enabled && key.keyCode == KeyEvent.KEYCODE_BUTTON_A) {
-                if (key.action == KeyEvent.ACTION_UP) onClick()
-                true
-            } else false
-        }
-}
-
 @Composable
 internal fun FavoriteIcon(liked: Boolean, modifier: Modifier = Modifier) {
     Icon(
@@ -60,7 +35,7 @@ internal fun FavoriteIcon(liked: Boolean, modifier: Modifier = Modifier) {
 internal fun FavoriteControl(liked: Boolean, onToggle: (() -> Unit)?, backdrop: Backdrop) {
     RoundGlassButton(
         backdrop, 44.dp,
-        modifier = Modifier.headerControl(onToggle != null) { onToggle?.invoke() }
+        modifier = Modifier
             .semantics { selected = liked },
         enabled = onToggle != null,
         onClick = { onToggle?.invoke() },
@@ -82,7 +57,7 @@ internal fun ShuffleControl(
         smart = state.smartShuffle,
         onClick = onClick,
         backdrop = backdrop,
-        modifier = if (backdrop == null) modifier else modifier.headerControl(enabled, onClick)
+        modifier = if (backdrop == null) modifier else modifier
             .semantics { selected = state.shuffleEnabled },
         enabled = enabled,
     )
@@ -103,7 +78,7 @@ internal fun RepeatControl(
         active = state.repeatMode != Player.REPEAT_MODE_OFF,
         onClick = onClick,
         backdrop = backdrop,
-        modifier = if (backdrop == null) modifier else modifier.headerControl(enabled, onClick)
+        modifier = if (backdrop == null) modifier else modifier
             .semantics { selected = state.repeatMode != Player.REPEAT_MODE_OFF },
         enabled = enabled,
     )
@@ -118,7 +93,7 @@ internal fun SongRadioControl(
 ) {
     RoundGlassButton(
         backdrop, if (header) 44.dp else 40.dp,
-        modifier = if (header) modifier.headerControl(onClick != null) { onClick?.invoke() } else modifier,
+        modifier = modifier,
         enabled = onClick != null,
         onClick = { onClick?.invoke() },
     ) {

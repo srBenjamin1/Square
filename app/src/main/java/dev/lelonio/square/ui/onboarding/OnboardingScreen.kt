@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.onboarding
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -8,7 +9,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
+import dev.lelonio.square.thor.input.thorHorizontalScroll as horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,7 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import dev.lelonio.square.thor.input.thorVerticalScroll as verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -291,9 +292,9 @@ private fun ClientId(
                 unfocusedLabelColor = InkDim,
                 cursorColor = Ink,
             ),
-            modifier = Modifier
+            modifier = Modifier.thorFocus(localArrows = true).then(Modifier
                 .fillMaxWidth()
-                .padding(top = 18.dp),
+                .padding(top = 18.dp)),
         )
         if (webApi.error != null) {
             Text(
@@ -343,7 +344,7 @@ private fun LanguageChips(language: String, onLanguage: (String) -> Unit) {
                 label = name.ifEmpty { stringResource(R.string.system_language) },
                 selected = tag == language,
                 onClick = { onLanguage(tag) },
-            )
+             modifier = Modifier.thorFocus())
         }
     }
 }

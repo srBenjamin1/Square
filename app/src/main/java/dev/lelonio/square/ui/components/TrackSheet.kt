@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.components
 
+import dev.lelonio.square.thor.input.thorFocus
 import dev.lelonio.square.ui.player.GlassInk
 import dev.lelonio.square.ui.player.GlassInkDim
 import androidx.compose.animation.AnimatedVisibility
@@ -84,7 +85,7 @@ fun BoxScope.TrackSheet(
                     effects = { blur(28f.dp.toPx()) },
                     onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.42f)) },
                 )
-                .clickable(interactionSource = null, indication = null, onClick = onDismiss),
+                .thorFocus().clickable(interactionSource = null, indication = null, onClick = onDismiss),
         )
     }
 
@@ -110,7 +111,7 @@ fun BoxScope.TrackSheet(
                 .clip(shape)
                 .softShadow(shape, elevation = 26.dp, spot = 0.35f)
                 // Swallows the tap that would otherwise close the sheet.
-                .clickable(interactionSource = null, indication = null) {},
+                .thorFocus().clickable(interactionSource = null, indication = null) {},
         ) {
             Column(Modifier.padding(vertical = 22.dp)) {
                 Row(
@@ -176,7 +177,7 @@ fun TrackSheetAction(
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .thorFocus().clickable(onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

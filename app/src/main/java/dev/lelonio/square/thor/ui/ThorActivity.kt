@@ -24,14 +24,14 @@ import dev.lelonio.square.playback.PlaybackService
 import dev.lelonio.square.data.CatalogTrack
 import dev.lelonio.square.ui.SquareApp
 import dev.lelonio.square.thor.input.ThorInputDispatcher
-import dev.lelonio.square.thor.input.ThorPanel
+import dev.lelonio.square.thor.input.ThorInputSession
+import dev.lelonio.square.thor.input.ThorInteraction
 
 @UnstableApi
 class ThorActivity : ComponentActivity() {
     private var controller by mutableStateOf<MediaController?>(null)
     private var toolsOpen by mutableStateOf(false)
-    private var panel by mutableStateOf(ThorPanel.LYRICS)
-    private var scrollRequest by mutableFloatStateOf(0f)
+    private val inputSession = ThorInputSession()
     private lateinit var input: ThorInputDispatcher
     private val closeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -48,22 +48,19 @@ class ThorActivity : ComponentActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         input = ThorInputDispatcher(
-            currentPanel = { panel },
-            onPanel = { panel = it },
-            onSearch = {
-                startActivity(
-                    android.content.Intent(this, dev.lelonio.square.ui.MainActivity::class.java)
-                        .putExtra(dev.lelonio.square.ui.EXTRA_THOR_BYPASS, true),
-                )
-            },
-            onContext = { panel = ThorPanel.EQUALIZER },
-            onNavigate = { scrollRequest += it * 140f },
+            session = inputSession,
+            displayId = { windowManager.defaultDisplay.displayId },
+            dispatch = { super.dispatchKeyEvent(it) },
+            back = { onBackPressedDispatcher.onBackPressed() },
         )
+        dev.lelonio.square.thor.input.ThorInputRouter.attach(input)
+        inputSession.dispatcher = input
         setContent {
             dev.lelonio.square.ui.theme.ChosenTheme {
                 dev.lelonio.square.ui.theme.SquareTheme(darkTheme = true) {
                     SquareApp(
                         player = controller,
+                        thorInput = inputSession,
                         showExpandedPlayer = false,
                         toolsOpen = toolsOpen,
                         onToolsOpenChange = { toolsOpen = it },
@@ -138,38 +135,31 @@ class ThorActivity : ComponentActivity() {
         }
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // The tools use Compose focus. Let confirmation and directional keys
-        // reach their buttons rather than the legacy playback/panel shortcuts.
-        if (toolsOpen && event.keyCode in setOf(
-                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER,
-                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
-                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
-            )
-        ) return super.dispatchKeyEvent(event)
-        return input.key(event, controller).also {
-            if (dev.lelonio.square.BuildConfig.DEBUG) {
-                android.util.Log.i(
-                    "ThorInput",
-                    "display=${windowManager.defaultDisplay.displayId} key=${event.keyCode} " +
-                        "action=${event.action} consumed=$it",
-                )
-            }
-        } || super.dispatchKeyEvent(event)
-    }
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        input.key(event) || super.dispatchKeyEvent(event)
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
-        input.motion(event).also {
-            if (dev.lelonio.square.BuildConfig.DEBUG) {
-                android.util.Log.i(
-                    "ThorInput",
-                    "display=${windowManager.defaultDisplay.displayId} motion action=${event.action} " +
-                        "x=${event.x} y=${event.y} consumed=$it",
-                )
-            }
-        } || super.dispatchGenericMotionEvent(event)
+        input.motion(event) || super.dispatchGenericMotionEvent(event)
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.isFromSource(android.view.InputDevice.SOURCE_TOUCHSCREEN)) {
+            ThorInteraction.touch()
+            input.stop()
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
+    override fun onStop() {
+        input.stop()
+        super.onStop()
+    }
 
     override fun onDestroy() {
+        inputSession.modalWindows.close()
+        inputSession.dispatcher = null
+        dev.lelonio.square.thor.input.ThorInputRouter.detach(input)
+        input.stop()
+        inputSession.commands.close()
         unregisterReceiver(closeReceiver)
         controller?.release()
         controller = null

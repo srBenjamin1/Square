@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.components
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -16,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -96,7 +97,7 @@ fun BoxScope.FriendsPanel(
                     effects = { blur(28f.dp.toPx()) },
                     onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.46f)) },
                 )
-                .clickable(interactionSource = null, indication = null, onClick = onDismiss),
+                .thorFocus().clickable(interactionSource = null, indication = null, onClick = onDismiss),
         )
     }
 
@@ -117,7 +118,7 @@ fun BoxScope.FriendsPanel(
                 .fillMaxWidth()
                 .clip(shape)
                 .softShadow(shape, elevation = 26.dp, spot = 0.35f)
-                .clickable(interactionSource = null, indication = null) {},
+                .thorFocus().clickable(interactionSource = null, indication = null) {},
         ) {
             Column(Modifier.padding(vertical = 22.dp)) {
                 Text(
@@ -186,11 +187,11 @@ private fun AddFriendField(
                 cursorBrush = SolidColor(Color.White),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onAdd(typed) }),
-                modifier = Modifier
+                modifier = Modifier.thorFocus(localArrows = true).then(Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color.White.copy(alpha = 0.10f))
-                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                    .padding(horizontal = 14.dp, vertical = 11.dp)),
                 decorationBox = { field ->
                     if (typed.isEmpty()) {
                         Text(

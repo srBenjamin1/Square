@@ -1,5 +1,7 @@
 package dev.lelonio.square.ui.settings
 
+import dev.lelonio.square.thor.input.thorAdjustable
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,7 +31,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import android.os.Build
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.graphics.toArgb
@@ -312,7 +314,7 @@ fun GlassPage(backdrop: Backdrop, contentPadding: PaddingValues, header: @Compos
                         color = Ink,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { store.reset() }
+                            .thorFocus().clickable { store.reset() }
                             .padding(horizontal = 18.dp, vertical = 16.dp),
                     )
                 }
@@ -551,7 +553,7 @@ private fun TintRow(
                 color = if (on) MaterialTheme.colorScheme.primary else InkDim,
                 modifier = Modifier
                     .clip(ContinuousCapsule())
-                    .clickable(enabled = on) { onHue(null) }
+                    .thorFocus().clickable(enabled = on) { onHue(null) }
                     .padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
@@ -662,7 +664,7 @@ private fun Swatch(colour: Color, selected: Boolean, onClick: () -> Unit) {
             .padding(if (selected) 3.dp else 0.dp)
             .clip(ContinuousCapsule())
             .background(colour)
-            .clickable(onClick = onClick),
+            .thorFocus().clickable(onClick = onClick),
     )
 }
 
@@ -747,7 +749,7 @@ private fun GlassSwitch(
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable { onChange(!checked) }
+            .thorFocus().clickable { onChange(!checked) }
             .padding(start = 18.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -872,7 +874,7 @@ internal fun SettingsChoiceRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .thorFocus().clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -910,7 +912,7 @@ internal fun PlainSlider(
 ) {
     val accent = settingsAccent()
     val span = (range.endInclusive - range.start).takeIf { it > 0f } ?: 1f
-    BoxWithConstraints(modifier.fillMaxWidth().height(28.dp)) {
+    BoxWithConstraints(modifier.thorAdjustable({ value }, range, onChange = onChange).fillMaxWidth().height(28.dp)) {
         val width = constraints.maxWidth.toFloat()
         val fraction = ((value - range.start) / span).coerceIn(0f, 1f)
         val pick = { x: Float -> onChange(range.start + (x / width).coerceIn(0f, 1f) * span) }
@@ -963,7 +965,7 @@ internal fun PlainToggle(checked: Boolean, onChange: (Boolean) -> Unit) {
             .size(width = 46.dp, height = 28.dp)
             .clip(ContinuousCapsule())
             .background(if (checked) accent else Ink.copy(alpha = 0.22f))
-            .clickable { onChange(!checked) },
+            .thorFocus().clickable { onChange(!checked) },
     ) {
         Box(
             Modifier

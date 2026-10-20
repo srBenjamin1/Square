@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.search
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -12,10 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyRow
+import dev.lelonio.square.thor.input.ThorLazyRow as LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -416,7 +417,7 @@ private fun KindRow(
                 label = stringResource(entry.label),
                 selected = entry == selected,
                 onClick = { onSelect(entry) },
-            )
+             modifier = Modifier.thorFocus())
         }
     }
 }

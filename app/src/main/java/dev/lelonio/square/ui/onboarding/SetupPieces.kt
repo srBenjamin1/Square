@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.onboarding
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -81,7 +82,7 @@ internal fun SetupScaffold(
             // while it is up, and a home page the user has not configured yet
             // would be showing them the problem rather than the way through it.
             .background(pageGround())
-            .clickable(interactionSource = null, indication = null) {},
+            .thorFocus().clickable(interactionSource = null, indication = null) {},
     ) {
         Column(
             Modifier

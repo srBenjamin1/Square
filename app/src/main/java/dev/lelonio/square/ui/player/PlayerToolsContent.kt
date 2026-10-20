@@ -52,7 +52,7 @@ import dev.lelonio.square.ui.settings.EqualizerPage
 /** Presentation only: every role consumes the same session and playback state. */
 enum class PlayerVisualRole { STANDARD, THOR_TOP, THOR_BOTTOM_TOOLS }
 
-private enum class Tool(val title: Int, val icon: ImageVector) {
+enum class PlayerTool(val title: Int, val icon: ImageVector) {
     QUEUE(R.string.queue, PhosphorIcons.Regular.Queue),
     EQUALIZER(R.string.equalizer, PhosphorIcons.Regular.Equalizer),
     EFFECTS(R.string.effects, PhosphorIcons.Regular.SlidersHorizontal),
@@ -83,21 +83,21 @@ internal fun PlayerToolsContent(
     onDeletePreset: (String) -> Unit,
     backdrop: Backdrop,
     settings: @Composable () -> Unit,
+    tool: PlayerTool,
+    onToolChange: (PlayerTool) -> Unit,
 ) {
-    var tool by rememberSaveable { mutableStateOf(Tool.QUEUE) }
     val selected = rememberUpdatedState(tool.ordinal)
     val selectedIndex = remember { { selected.value } }
-    val queueControlsFocus = remember { FocusRequester() }
-    LaunchedEffect(tool, state.hasItem) {
-        if (tool == Tool.QUEUE && state.hasItem) queueControlsFocus.requestFocus()
-    }
     val sdkPlayback by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse
         .collectAsStateWithLifecycle()
     LaunchedEffect(tool, state.mediaId) {
-        if (tool == Tool.INFO) onWantCredits(state.mediaId)
+        if (tool == PlayerTool.INFO) onWantCredits(state.mediaId)
     }
 
     DismissibleScreen(onDismiss = onCollapse, modifier = Modifier.fillMaxSize()) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            dev.lelonio.square.thor.input.LocalThorScrollPriority provides 1,
+        ) {
         Column(
             Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -114,10 +114,10 @@ internal fun PlayerToolsContent(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (tool == Tool.QUEUE) {
+                if (tool == PlayerTool.QUEUE) {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         ShuffleControl(state, onToggleShuffle, backdrop,
-                            Modifier.focusRequester(queueControlsFocus), enabled = state.hasItem)
+                            enabled = state.hasItem)
                         SongRadioControl(onRadio.takeIf { state.hasItem }, backdrop, header = true)
                         RepeatControl(state, onCycleRepeat, backdrop, enabled = state.hasItem)
                     }
@@ -130,13 +130,13 @@ internal fun PlayerToolsContent(
                 modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
                 AnimatedContent(targetState = tool, label = "playerTool") { shown ->
-                    Box(Modifier.fillMaxSize()) {
+                    dev.lelonio.square.thor.input.ThorFocusScene("tools:$shown", Modifier.fillMaxSize()) {
                         when (shown) {
-                            Tool.QUEUE -> QueueList(queue, queueActions)
-                            Tool.EQUALIZER -> if (sdkPlayback) {
+                            PlayerTool.QUEUE -> QueueList(queue, queueActions)
+                            PlayerTool.EQUALIZER -> if (sdkPlayback) {
                                 EmptyPanel(stringResource(R.string.web_sdk_limits))
                             } else EqualizerPage(PaddingValues(0.dp), header = {})
-                            Tool.EFFECTS -> if (sdkPlayback) {
+                            PlayerTool.EFFECTS -> if (sdkPlayback) {
                                 EmptyPanel(stringResource(R.string.web_sdk_limits))
                             } else EffectsPanel(
                                 speed = state.speed,
@@ -151,8 +151,8 @@ internal fun PlayerToolsContent(
                                 onDeletePreset = onDeletePreset,
                                 backdrop = backdrop,
                             )
-                            Tool.INFO -> CreditsView(credits, creditsLoading)
-                            Tool.SETTINGS -> settings()
+                            PlayerTool.INFO -> CreditsView(credits, creditsLoading)
+                            PlayerTool.SETTINGS -> settings()
                         }
                     }
                 }
@@ -161,9 +161,9 @@ internal fun PlayerToolsContent(
             // the slot count and the actual buttons, so their indices agree.
             LiquidBottomTabs(
                 selectedTabIndex = selectedIndex,
-                onTabSelected = { tool = Tool.entries[it] },
+                onTabSelected = { onToolChange(PlayerTool.entries[it]) },
                 backdrop = backdrop,
-                tabsCount = Tool.entries.size,
+                tabsCount = PlayerTool.entries.size,
                 accentColor = GlassInk,
                 containerColor = LocalPlayerFilm.current,
                 indicatorColor = GlassInk.copy(alpha = 0.18f),
@@ -171,8 +171,8 @@ internal fun PlayerToolsContent(
                 lensDepth = 12.dp,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Tool.entries.forEach { item ->
-                    LiquidBottomTab(onClick = { tool = item }) {
+                PlayerTool.entries.forEach { item ->
+                    LiquidBottomTab(onClick = { onToolChange(item) }) {
                         Icon(
                             item.icon,
                             contentDescription = stringResource(item.title),
@@ -182,6 +182,7 @@ internal fun PlayerToolsContent(
                     }
                 }
             }
+        }
         }
     }
 }

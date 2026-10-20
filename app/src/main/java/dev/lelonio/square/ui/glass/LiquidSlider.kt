@@ -10,6 +10,7 @@
 
 package dev.lelonio.square.ui.glass
 
+import dev.lelonio.square.thor.input.thorAdjustable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -76,7 +77,7 @@ fun LiquidSlider(
     val trackBackdrop = rememberLayerBackdrop()
 
     BoxWithConstraints(
-        modifier.fillMaxWidth(),
+        modifier.thorAdjustable(value, valueRange, onChange = onValueChange).fillMaxWidth(),
         contentAlignment = Alignment.CenterStart
     ) {
         val trackWidth = constraints.maxWidth

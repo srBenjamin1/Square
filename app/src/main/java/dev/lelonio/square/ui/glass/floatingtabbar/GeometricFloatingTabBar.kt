@@ -2,6 +2,7 @@
 
 package dev.lelonio.square.ui.glass.floatingtabbar
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.CubicBezierEasing
@@ -121,7 +122,7 @@ internal fun SharedTransitionScope.GeometricFloatingTabBar(
                 // 2: selected control only during the fold; resting tabs own their ink.
                 Box(Modifier.graphicsLayer {
                     alpha = maxOf(fold.value, search.value)
-                }.then(if (isInline || searchMode) Modifier.clickable {
+                }.then(if (isInline || searchMode) Modifier.thorFocus().clickable {
                     if (isInline) onExpand() else selected?.onClick?.invoke()
                 } else Modifier).then(if (!ownsSelectedSlot && !isInline && !searchMode) Modifier.clearAndSetSemantics {} else Modifier)) {
                     GeometricTabContent(
@@ -136,7 +137,7 @@ internal fun SharedTransitionScope.GeometricFloatingTabBar(
                     .clip(shapes.standaloneTabShape).then(tabBarContentModifier))
                 // 4: detached search control. At rest the fifth tab owns taps and drags.
                 Box(Modifier.graphicsLayer { alpha = maxOf(fold.value, search.value) * (1f - search.value * (1f - fold.value)) }
-                    .then(if (isInline || searchMode) Modifier.clickable(enabled = !searchMode || isInline) { searchTab?.onClick?.invoke() } else Modifier)
+                    .then(if (isInline || searchMode) Modifier.thorFocus().clickable(enabled = !searchMode || isInline) { searchTab?.onClick?.invoke() } else Modifier)
                     .then(if (searchMode && !isInline) Modifier.clearAndSetSemantics {} else Modifier)) {
                     GeometricTabContent(
                         icon = { searchTab?.icon?.invoke() },

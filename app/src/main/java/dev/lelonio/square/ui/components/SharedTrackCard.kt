@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.components
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -91,7 +92,7 @@ fun BoxScope.SharedTrackCard(
                     effects = { blur(30f.dp.toPx()) },
                     onDrawSurface = { drawRect(Color.Black.copy(alpha = 0.52f)) },
                 )
-                .clickable(interactionSource = null, indication = null, onClick = onDismiss),
+                .thorFocus().clickable(interactionSource = null, indication = null, onClick = onDismiss),
         )
     }
 
@@ -114,7 +115,7 @@ fun BoxScope.SharedTrackCard(
                 .fillMaxWidth()
                 .clip(shape)
                 .softShadow(shape, elevation = 30.dp, spot = 0.4f)
-                .clickable(interactionSource = null, indication = null) {},
+                .thorFocus().clickable(interactionSource = null, indication = null) {},
         ) {
             // The record's own light, thrown on the panel behind it. Blurred
             // past any shape of its own, so what is left is colour: the card of

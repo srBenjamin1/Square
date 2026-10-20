@@ -10,6 +10,7 @@
 
 package dev.lelonio.square.ui.glass
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
@@ -197,7 +198,7 @@ fun LiquidButton(
             )
             .then(
                 if (onLongClick != null) {
-                    Modifier.combinedClickable(
+                    Modifier.thorFocus(shape = ContinuousCapsule(), enabled = enabled).combinedClickable(
                         enabled = enabled,
                         interactionSource = null,
                         indication = if (isInteractive) null else LocalIndication.current,
@@ -206,7 +207,7 @@ fun LiquidButton(
                         onLongClick = onLongClick,
                     )
                 } else {
-                    Modifier.clickable(
+                    Modifier.thorFocus(shape = ContinuousCapsule(), enabled = enabled).clickable(
                         enabled = enabled,
                         interactionSource = null,
                         indication = if (isInteractive) null else LocalIndication.current,

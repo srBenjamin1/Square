@@ -12,6 +12,7 @@
 
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -184,7 +185,7 @@ fun FloatingMiniPlayer(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .clickable(
+                .thorFocus().clickable(
                     interactionSource = pressInteractionSource,
                     indication = null,
                     onClick = onClick,
@@ -272,8 +273,8 @@ fun FloatingMiniPlayer(
             // button that starts the music is the one nearest the thumb.
             if (fold < 1f) {
                 IconButton(onClick = onNext, enabled = fold < 0.5f,
-                    modifier = Modifier.width(ControlSize * (1f - fold)).height(controlSize)
-                        .graphicsLayer { alpha = 1f - fold }.clipToBounds()) {
+                    modifier = Modifier.thorFocus().then(Modifier.width(ControlSize * (1f - fold)).height(controlSize)
+                        .graphicsLayer { alpha = 1f - fold }.clipToBounds())) {
                     Icon(
                         PhosphorIcons.Fill.SkipForward,
                         contentDescription = stringResource(R.string.next),
@@ -285,7 +286,7 @@ fun FloatingMiniPlayer(
 
             IconButton(
                 onClick = onTogglePlay,
-                modifier = Modifier.size(controlSize),
+                modifier = Modifier.thorFocus().then(Modifier.size(controlSize)),
             ) {
                 // The same ring the full player draws, for the same reason: a
                 // track being fetched can take long enough that a tap on play

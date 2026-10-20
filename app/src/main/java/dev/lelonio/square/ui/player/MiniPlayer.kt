@@ -1,5 +1,6 @@
 package dev.lelonio.square.ui.player
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.AnimatedVisibility
@@ -159,7 +160,7 @@ fun MiniPlayer(
                 .sharedPill(sharedScope, animatedScope)
                 .softShadow(shape, elevation = 20.dp, spot = 0.26f),
         ) {
-        Column(Modifier.clickable(onClick = onExpand)) {
+        Column(Modifier.thorFocus().clickable(onClick = onExpand)) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -226,7 +227,7 @@ fun MiniPlayer(
                     }
                 }
 
-                IconButton(onClick = onNext, enabled = state.hasNext) {
+                IconButton(onClick = onNext, enabled = state.hasNext, modifier = Modifier.thorFocus()) {
                     Icon(
                         PhosphorIcons.Fill.SkipForward,
                         contentDescription = stringResource(R.string.next),

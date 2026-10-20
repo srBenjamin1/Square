@@ -10,6 +10,7 @@
 
 package dev.lelonio.square.ui.glass
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,7 +40,7 @@ fun RowScope.LiquidBottomTab(
     Column(
         modifier
             .clip(ContinuousCapsule())
-            .clickable(
+            .thorFocus().clickable(
                 interactionSource = null,
                 indication = null,
                 role = Role.Tab,

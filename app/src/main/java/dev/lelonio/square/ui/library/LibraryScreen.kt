@@ -1,7 +1,8 @@
 package dev.lelonio.square.ui.library
 
+import dev.lelonio.square.thor.input.thorFocus
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
+import dev.lelonio.square.thor.input.thorHorizontalScroll as horizontalScroll
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.AnimatedContent
@@ -19,10 +20,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import dev.lelonio.square.thor.input.ThorLazyVerticalGrid as LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.LazyColumn
+import dev.lelonio.square.thor.input.ThorLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -41,7 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
-import androidx.compose.foundation.lazy.LazyRow
+import dev.lelonio.square.thor.input.ThorLazyRow as LazyRow
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
@@ -658,7 +659,7 @@ private fun Header(
                     label = stringResource(entry.label),
                     selected = entry == filter,
                     onClick = { onFilter(entry) },
-                )
+                 modifier = Modifier.thorFocus())
             }
             }
         }
@@ -669,7 +670,7 @@ private fun Header(
             Modifier
                 .padding(start = 14.dp, top = 2.dp, bottom = 4.dp)
                 .clip(RoundedCornerShape(50))
-                .clickable(onClick = onSort)
+                .thorFocus().clickable(onClick = onSort)
                 .onGloballyPositioned {
                     val bounds = it.boundsInRoot()
                     onSortAnchor(
@@ -707,7 +708,7 @@ private fun GridTile(
     onLongClick: (() -> Unit)?,
 ) {
     Column(
-        Modifier.pressable(onClick, onLongClick = onLongClick),
+        Modifier.pressable(onClick, onLongClick = onLongClick, focusShape = RoundedCornerShape(20.dp), squareFocus = true),
     ) {
         Artwork(
             url = playlist.artworkUrl,
