@@ -420,6 +420,8 @@ fun SquareApp(
     /** A Spotify link the app was opened with; see [LinkRequest]. */
     link: LinkRequest? = null,
     viewModel: MainViewModel = viewModel(),
+    showExpandedPlayer: Boolean = true,
+    playerOnly: Boolean = false,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listeningEvents by viewModel.listeningEvents.collectAsStateWithLifecycle()
@@ -934,7 +936,13 @@ fun SquareApp(
 
     // How far the player is open, 0 to 1. A value rather than a destination:
     // see NowPlayingSheet for why the player stopped being a route.
-    val expand = remember { Animatable(if (preferences.playerWasOpen()) 1f else 0f) }
+    val expand = remember {
+        Animatable(if (playerOnly || preferences.playerWasOpen()) 1f else 0f)
+    }
+    var toolsOpen by remember { mutableStateOf(false) }
+    var toolsPanel by remember {
+        mutableStateOf(dev.lelonio.square.ui.player.PlayerPanel.QUEUE)
+    }
 
     // Open and standing still. Derived rather than read straight, so what
     // depends on it recomposes twice a journey instead of on every frame of
@@ -1008,6 +1016,14 @@ fun SquareApp(
                 expand.animateTo(1f, expandSpec)
             }
         }
+    }
+    LaunchedEffect(playerOnly, playback.hasItem) {
+        if (playerOnly && playback.hasItem && expand.value < 0.999f) {
+            expand.animateTo(1f, expandSpec)
+        }
+    }
+    LaunchedEffect(playerOnly) {
+        if (playerOnly && expand.value < 0.999f) expand.snapTo(1f)
     }
 
     // Measured rather than assumed. The constant this replaced was 62dp while
@@ -1226,6 +1242,7 @@ fun SquareApp(
             Box(
                 Modifier
                     .fillMaxSize()
+                    .graphicsLayer { alpha = if (playerOnly) 0f else 1f }
                     .background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
@@ -2394,7 +2411,11 @@ fun SquareApp(
                                 inline = dev.lelonio.square.ui.glass.floatingtabbar.LocalFloatingTabBarInline.current,
                                 collapseProgress = dev.lelonio.square.ui.glass.floatingtabbar.LocalFloatingTabBarCollapseProgress.current?.invoke(),
                                 onClick = {
-                                    scope.launch { expand.animateTo(1f, expandSpec) }
+                                    if (showExpandedPlayer) {
+                                        scope.launch { expand.animateTo(1f, expandSpec) }
+                                    } else {
+                                        toolsOpen = true
+                                    }
                                 },
                                 onTogglePlay = {
                                     if (remote != null) {
@@ -2983,8 +3004,9 @@ fun SquareApp(
 
                 if (playback.hasItem && chrome > 0.01f) {
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = chrome }) {
-                    NowPlayingSheet(
+                    if (showExpandedPlayer) NowPlayingSheet(
                         progress = expand,
+                        allowCollapse = !playerOnly,
                         background = {
                           Box(Modifier.fillMaxSize().layerBackdrop(playerBackdrop)) {
                             // The player's own room, out of the record it is
@@ -3110,7 +3132,9 @@ fun SquareApp(
                                             .SpotifyVideoMode.watch(id, at)
                                     }
                                 },
-                                onCollapse = { scope.launch { expand.animateTo(0f, expandSpec) } },
+                                onCollapse = {
+                                    if (!playerOnly) scope.launch { expand.animateTo(0f, expandSpec) }
+                                },
                                 onTogglePlay = {
                                     if (remote != null) {
                                         val playing = remote?.playing == true
@@ -3229,6 +3253,21 @@ fun SquareApp(
                                     )
                                 },
                                 onDeletePreset = viewModel::deleteEffectPreset,
+                                allowedPanels = if (playerOnly) {
+                                    setOf(
+                                        dev.lelonio.square.ui.player.PlayerPanel.NONE,
+                                        dev.lelonio.square.ui.player.PlayerPanel.LYRICS,
+                                        dev.lelonio.square.ui.player.PlayerPanel.DEVICES,
+                                    )
+                                } else {
+                                    null
+                                },
+                                showPanelTabs = !playerOnly,
+                                initialPanel = if (playerOnly) {
+                                    dev.lelonio.square.ui.player.PlayerPanel.LYRICS
+                                } else {
+                                    dev.lelonio.square.ui.player.PlayerPanel.NONE
+                                },
                                 backdrop = playerBackdrop,
                                 canvas = canvas,
                                 // The record's own artwork from the other
@@ -3396,6 +3435,59 @@ fun SquareApp(
                           }
                         },
                     )
+                    }
+                }
+
+                if (!showExpandedPlayer && toolsOpen && playback.hasItem) {
+                    androidx.activity.compose.BackHandler { toolsOpen = false }
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                    ) {
+                        dev.lelonio.square.ui.player.PlayerPanelSection(
+                            panel = toolsPanel,
+                            onSelect = { toolsPanel = it },
+                            queue = queue,
+                            lyrics = lyrics,
+                            lyricsLoading = playback.mediaId != null && lyricsFor != playback.mediaId,
+                            positionMs = positionMs,
+                            onPlayQueueItem = { player?.seekTo(it, 0L) },
+                            onSeek = { player?.seekTo(it) },
+                            speed = playback.speed,
+                            pitch = playback.pitch,
+                            reverb = reverb,
+                            onSpeed = {
+                                setPlaybackParameters(PlaybackParameters(it, playback.pitch))
+                            },
+                            onPitch = {
+                                setPlaybackParameters(PlaybackParameters(playback.speed, it))
+                            },
+                            onReverb = AudioEffects::setReverb,
+                            presets = presets,
+                            onApplyPreset = { preset ->
+                                player?.playbackParameters =
+                                    PlaybackParameters(preset.speed, preset.pitch)
+                                AudioEffects.setReverb(preset.reverbAmount)
+                            },
+                            onSavePreset = {
+                                viewModel.saveEffectPreset(
+                                    it,
+                                    playback.speed,
+                                    playback.pitch,
+                                    reverb,
+                                )
+                            },
+                            onDeletePreset = viewModel::deleteEffectPreset,
+                            backdrop = playerBackdrop,
+                            showCover = false,
+                            allowedPanels = setOf(
+                                dev.lelonio.square.ui.player.PlayerPanel.QUEUE,
+                                dev.lelonio.square.ui.player.PlayerPanel.EFFECTS,
+                                dev.lelonio.square.ui.player.PlayerPanel.INFO,
+                            ),
+                        )
                     }
                 }
 

@@ -20,11 +20,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -118,6 +120,8 @@ import dev.lelonio.square.ui.glass.LiquidButton
 import dev.lelonio.square.ui.theme.Ink
 import dev.lelonio.square.ui.theme.InkDim
 import dev.lelonio.square.ui.theme.softShadow
+import dev.lelonio.square.thor.display.ThorDisplayInfo
+import dev.lelonio.square.thor.display.ThorDisplayManager
 
 /**
  * Everything that is configuration rather than listening.
@@ -723,7 +727,25 @@ fun SettingsScreen(
         if (shown == SettingsPage.App) groupHeading(Group.SYSTEM, open = "system" in openGroups) { toggleGroup("system") }
 
         if (shown == SettingsPage.App && "system" in openGroups) groupItem("system", Group.SYSTEM) {
+            val thor by app.preferences.thorMode.collectAsStateWithLifecycle()
             Section(stringResource(R.string.page_app_system)) {
+                DownloadSwitch(
+                    label = stringResource(R.string.thor_mode),
+                    checked = thor,
+                    backdrop = backdrop,
+                    icon = PhosphorIcons.Regular.SlidersHorizontal,
+                    onChange = { enabled ->
+                        app.preferences.setThorMode(enabled)
+                        context.sendBroadcast(
+                            android.content.Intent("dev.lelonio.square.THOR_MODE_CHANGED")
+                                .setPackage(context.packageName)
+                                .putExtra("enabled", enabled),
+                        )
+                    },
+                )
+                RowDivider()
+                ThorDisplaySelection()
+                RowDivider()
                 ActionRow(
                     stringResource(R.string.app_system_settings),
                     destructive = false,
@@ -737,6 +759,7 @@ fun SettingsScreen(
                             ),
                         )
                     }
+
                 }
                 RowDivider()
                 ActionRow(
@@ -2421,6 +2444,73 @@ private fun RowDivider() {
             .height(1.dp)
             .background(Ink.copy(alpha = 0.08f)),
     )
+}
+
+@Composable
+private fun ThorDisplaySelection() {
+    val context = LocalContext.current
+    val manager = remember(context) { ThorDisplayManager(context) }
+    val displays by manager.displays.collectAsStateWithLifecycle()
+    var playerId by remember(manager) { mutableStateOf(displays.primaryId) }
+    var panelId by remember(manager) { mutableStateOf(displays.secondaryId) }
+    var choosingPlayer by remember { mutableStateOf(true) }
+
+    DisposableEffect(manager) {
+        onDispose { manager.close() }
+    }
+
+    Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
+        Text(stringResource(R.string.thor_display_selection), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(if (choosingPlayer) R.string.thor_player_display else R.string.thor_panel_display),
+            style = MaterialTheme.typography.bodySmall,
+            color = InkDim,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { choosingPlayer = true }) {
+                Text(stringResource(R.string.thor_player_display))
+            }
+            Button(onClick = { choosingPlayer = false }) {
+                Text(stringResource(R.string.thor_panel_display))
+            }
+        }
+        displays.available.forEach { display ->
+            ThorDisplayChoice(
+                display = display,
+                selected = if (choosingPlayer) display.id == playerId else display.id == panelId,
+                onClick = {
+                    if (choosingPlayer) playerId = display.id else panelId = display.id
+                    manager.setManualSelection(
+                        if (choosingPlayer) display.id else playerId,
+                        if (choosingPlayer) panelId else display.id,
+                    )
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThorDisplayChoice(
+    display: ThorDisplayInfo,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "${if (selected) "✓ " else ""}${display.id}: ${display.name} " +
+                "(${display.width}×${display.height}, ${display.state})" +
+                if (display.isPresentation) " · Presentation" else "",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
 }
 
 /** Kept next to the request that asks for them; see MainViewModel.connectWebApi. */

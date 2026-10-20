@@ -107,6 +107,14 @@
                 <data android:scheme="https" android:host="link.tospotify.com" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".thor.ui.ThorActivity"
+            android:exported="false"
+            android:launchMode="standard"
+            android:taskAffinity="dev.lelonio.square.thor"
+            android:excludeFromRecents="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
 
         <!--
           The download of a new version, which has to be allowed to finish:

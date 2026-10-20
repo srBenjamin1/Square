@@ -56,6 +56,31 @@ class PreferencesStore(context: Context) {
         prefs.edit().putBoolean("show_connected_device", value).apply()
     }
 
+    private val _thorMode = MutableStateFlow(prefs.getBoolean(KEY_THOR_MODE, false))
+    val thorMode: StateFlow<Boolean> = _thorMode.asStateFlow()
+
+    fun setThorMode(value: Boolean) {
+        _thorMode.value = value
+        prefs.edit().putBoolean(KEY_THOR_MODE, value).apply()
+    }
+
+    fun thorPlayerDisplayId(): Int? =
+        prefs.getString(KEY_THOR_PLAYER_DISPLAY, null)?.toIntOrNull()
+
+    fun thorPanelDisplayId(): Int? =
+        prefs.getString(KEY_THOR_PANEL_DISPLAY, null)?.toIntOrNull()
+
+    fun setThorDisplaySelection(playerDisplayId: Int?, panelDisplayId: Int?) {
+        prefs.edit()
+            .apply {
+                if (playerDisplayId == null) remove(KEY_THOR_PLAYER_DISPLAY)
+                else putString(KEY_THOR_PLAYER_DISPLAY, playerDisplayId.toString())
+                if (panelDisplayId == null) remove(KEY_THOR_PANEL_DISPLAY)
+                else putString(KEY_THOR_PANEL_DISPLAY, panelDisplayId.toString())
+            }
+            .apply()
+    }
+
     /**
      * This phone's Connect id, made once and kept for good.
      *
@@ -399,6 +424,9 @@ class PreferencesStore(context: Context) {
         const val FILE_NAME = "square_preferences"
         const val KEY_TRACK_SORT = "track_sort"
         const val KEY_TRACK_DESC = "track_sort_descending"
+        const val KEY_THOR_MODE = "thor_mode"
+        const val KEY_THOR_PLAYER_DISPLAY = "thor_player_display"
+        const val KEY_THOR_PANEL_DISPLAY = "thor_panel_display"
         const val KEY_DEVICE_ID = "device_id"
         const val KEY_ONBOARDED = "onboarded"
         const val KEY_CANVAS = "canvas_enabled"

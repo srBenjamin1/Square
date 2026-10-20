@@ -60,6 +60,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun NowPlayingSheet(
     progress: Animatable<Float, *>,
+    allowCollapse: Boolean = true,
     /**
      * Drawn under the player, fading in with it.
      *
@@ -107,7 +108,7 @@ fun NowPlayingSheet(
             }
         }
 
-        BackHandler(enabled = expandedVisible) { settle(0f) }
+        BackHandler(enabled = expandedVisible && allowCollapse) { settle(0f) }
 
         // The player, full size from the first frame to the last. Nothing about
         // the travel touches measure or layout any more: the growing container

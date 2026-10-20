@@ -349,6 +349,8 @@ fun PlayerScreen(
     onApplyPreset: (dev.lelonio.square.playback.EffectPreset) -> Unit,
     onSavePreset: (String) -> Unit,
     onDeletePreset: (String) -> Unit,
+    /** Restricts panels for a dedicated surface such as Thor's top display. */
+    allowedPanels: Set<PlayerPanel>? = null,
     /**
      * The app-wide backdrop, shared rather than built here: this screen covers
      * the same blurred artwork the rest of the app already draws, and recording
@@ -471,8 +473,12 @@ fun PlayerScreen(
     connectAvailable: Boolean = true,
     /** Whether the sound is coming out of another of the account's devices. */
     onAnotherDevice: Boolean = false,
+    /** Keeps the dedicated Thor player free of the lower navigation controls. */
+    showPanelTabs: Boolean = true,
+    /** Selects the first panel for dedicated surfaces without exposing tabs. */
+    initialPanel: PlayerPanel = PlayerPanel.NONE,
 ) {
-    var panel by remember { mutableStateOf(PlayerPanel.NONE) }
+    var panel by remember(initialPanel) { mutableStateOf(initialPanel) }
     // The official SDK mixes its own audio: no effects or karaoke reach it.
     val sdkPlayback by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse.collectAsStateWithLifecycle()
     LaunchedEffect(sdkPlayback) {
@@ -1048,7 +1054,10 @@ fun PlayerScreen(
         }
 
         CompositionLocalProvider(LocalContentColor provides GlassInk) {
-            DismissibleScreen(onDismiss = onCollapse, modifier = Modifier.fillMaxSize()) {
+            DismissibleScreen(
+                onDismiss = if (showPanelTabs) onCollapse else ({ }),
+                modifier = Modifier.fillMaxSize(),
+            ) {
                 Column(
                     Modifier
                         .fillMaxSize()
@@ -1099,6 +1108,7 @@ fun PlayerScreen(
                         onAnotherDevice = onAnotherDevice,
                         onWatchVideo = onWatchVideo,
                         videoOn = videoOn,
+                        showCollapse = showPanelTabs,
                         modifier = barModifier,
                         dj = isDjQueue(state.contextUri),
                     )
@@ -1156,6 +1166,7 @@ fun PlayerScreen(
                             backdrop = lowerBackdrop,
                             modifier = Modifier.retreat(chrome),
                             showCover = !sideways,
+                            allowedPanels = allowedPanels,
                         )
                     }
                     val stageBlock: @Composable ColumnScope.() -> Unit = {
@@ -1777,7 +1788,7 @@ fun PlayerScreen(
 
                         // Under the transport upright; under the sleeve on
                         // its side, where there is no height left for it here.
-                        if (!sideways) {
+                        if (!sideways && showPanelTabs) {
                             Spacer(Modifier.height(14.dp))
                             tabsBlock()
                         }
@@ -1814,7 +1825,7 @@ fun PlayerScreen(
                             ) {
                                 stageBlock()
                                 Spacer(Modifier.height(8.dp))
-                                tabsBlock()
+                                if (showPanelTabs) tabsBlock()
                                 Spacer(Modifier.height(12.dp))
                             }
                         }
@@ -2140,6 +2151,7 @@ private fun TopBar(
     /** Null when the track has no video to watch. */
     onWatchVideo: (() -> Unit)?,
     videoOn: Boolean,
+    showCollapse: Boolean = true,
     modifier: Modifier = Modifier,
     /** The DJ's queue: the source is marked as the DJ's; see DjMark. */
     dj: Boolean = false,
@@ -2150,8 +2162,10 @@ private fun TopBar(
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GlassButton(backdrop, onClick = onCollapse) {
-            Icon(PhosphorIcons.Regular.CaretDown, contentDescription = stringResource(R.string.close))
+        if (showCollapse) {
+            GlassButton(backdrop, onClick = onCollapse) {
+                Icon(PhosphorIcons.Regular.CaretDown, contentDescription = stringResource(R.string.close))
+            }
         }
         // Names whatever the middle of the screen is currently showing, so the
         // switch below has a label without carrying one.

@@ -323,10 +323,14 @@ fun LiquidBottomTabs(
         // the page at their actual expanded bounds.
         val slotGrowth = Modifier.layout { measurable, constraints ->
             val velocity = dampedDragAnimation.velocity / 10f
-            val scaleX = dampedDragAnimation.scaleX /
-                (1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f))
-            val scaleY = dampedDragAnimation.scaleY *
-                (1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f))
+            val scaleX = (
+                dampedDragAnimation.scaleX /
+                    (1f - (velocity * 0.75f).fastCoerceIn(-0.2f, 0.2f))
+                ).takeIf { it.isFinite() } ?: 1f
+            val scaleY = (
+                dampedDragAnimation.scaleY *
+                    (1f - (velocity * 0.25f).fastCoerceIn(-0.2f, 0.2f))
+                ).takeIf { it.isFinite() } ?: 1f
             val width = constraints.maxWidth
             val height = constraints.maxHeight
             val expandedWidth = (width * scaleX).roundToInt().coerceAtLeast(1)

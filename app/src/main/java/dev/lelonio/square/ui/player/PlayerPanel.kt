@@ -114,6 +114,7 @@ fun PlayerPanelSection(
     modifier: Modifier = Modifier,
     /** False on a phone held sideways, where the cover is beside the views already. */
     showCover: Boolean = true,
+    allowedPanels: Set<PlayerPanel>? = null,
 ) {
     Column(
         modifier.fillMaxWidth(),
@@ -142,14 +143,14 @@ fun PlayerPanelSection(
             .collectAsStateWithLifecycle()
         val karaokeOn = karaoke > 0f && !sdkPlayback
 
-        val views = remember(sdkPlayback, showCover) {
+        val views = remember(sdkPlayback, showCover, allowedPanels) {
             listOfNotNull(
                 PlayerPanel.NONE.takeIf { showCover },
                 PlayerPanel.LYRICS,
                 PlayerPanel.QUEUE,
                 PlayerPanel.EFFECTS.takeUnless { sdkPlayback },
                 PlayerPanel.INFO,
-            )
+            ).filter { allowedPanels == null || it in allowedPanels }
         }
         val selected = views.indexOf(panel).coerceAtLeast(0)
         // Stable, or LiquidBottomTabs throws away the state it keys on this and

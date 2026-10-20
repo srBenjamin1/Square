@@ -675,6 +675,10 @@
     <string name="youtube_signing_in">Signing in…</string>
     <string name="youtube_sign_in_private">Your password goes only to Google. Square keeps the session Google gives back.</string>
     <string name="equalizer">Equalizer</string>
+    <string name="thor_mode">AYN Thor dual-screen mode</string>
+    <string name="thor_display_selection">Thor display assignment</string>
+    <string name="thor_player_display">Player display</string>
+    <string name="thor_panel_display">Panel display</string>
     <string name="page_equalizer_summary">A curve for each pair of headphones</string>
     <string name="eq_speaker">Phone speaker</string>
     <string name="eq_wired">Wired headphones</string>

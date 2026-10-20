@@ -17,7 +17,7 @@ plugins {
 val nativeAbis = listOf("arm64-v8a", "armeabi-v7a")
 
 /** NDK used for both AGP and the Cargo cross-build; keep the two in step. */
-val ndkVersionForCargo = "28.2.13676358"
+val ndkVersionForCargo = "30.0.16248370"
 
 /** Maps Android ABI names to Rust target triples. */
 val rustTargets = mapOf(
@@ -42,7 +42,7 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "dev.lelonio.square"
-    compileSdk = 37
+    compileSdk { version = release(37) { minorApiLevel = 0 } }
     ndkVersion = ndkVersionForCargo
 
     defaultConfig {

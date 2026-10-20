@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -21,6 +22,7 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import dev.lelonio.square.data.CatalogTrack
 import dev.lelonio.square.playback.PlaybackService
+import dev.lelonio.square.thor.ui.ThorActivity
 
 /**
  * Owns the connection to the playback service; everything visual lives in
@@ -33,10 +35,31 @@ import dev.lelonio.square.playback.PlaybackService
 @UnstableApi
 private const val ACTION_LISTEN = "dev.lelonio.square.LISTEN_ONLY"
 private const val ACTION_TOGGLE = "dev.lelonio.square.PIP_TOGGLE"
+const val EXTRA_THOR_BYPASS = "dev.lelonio.square.THOR_BYPASS"
+const val ACTION_THOR_MODE_CHANGED = "dev.lelonio.square.THOR_MODE_CHANGED"
 
 class MainActivity : ComponentActivity() {
 
     private var controller by mutableStateOf<MediaController?>(null)
+    private var thorPlayerMode by mutableStateOf(false)
+    private val thorModeReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+            if (intent.action != ACTION_THOR_MODE_CHANGED) return
+            val enabled = intent.getBooleanExtra("enabled", false)
+            val manager = dev.lelonio.square.thor.display.ThorDisplayManager(this@MainActivity)
+            try {
+                if (enabled) {
+                    thorPlayerMode = manager.launchPanel(this@MainActivity)
+                    if (!thorPlayerMode) appPreferences().setThorMode(false)
+                } else {
+                    manager.closePair(this@MainActivity)
+                    thorPlayerMode = false
+                }
+            } finally {
+                manager.close()
+            }
+        }
+    }
 
     /**
      * Below Android 13 nothing applies the chosen language for us, so every
@@ -46,6 +69,9 @@ class MainActivity : ComponentActivity() {
         val store = (base.applicationContext as dev.lelonio.square.SquareApplication).language
         super.attachBaseContext(store.wrap(base))
     }
+
+    private fun appPreferences() =
+        (application as dev.lelonio.square.SquareApplication).preferences
 
     /**
      * Bumped when something asks for the player to be open — the notification,
@@ -70,6 +96,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val app = application as dev.lelonio.square.SquareApplication
+        val thorDisplays = dev.lelonio.square.thor.display.ThorDisplayManager(this)
+        thorPlayerMode = !intent.getBooleanExtra(EXTRA_THOR_BYPASS, false) &&
+            app.preferences.thorMode.value &&
+            thorDisplays.launchPanel(this)
+        thorDisplays.close()
         // Transparent bars; SquareTheme sets the icon colour, because it is the
         // only place that knows whether the app is currently light or dark.
         enableEdgeToEdge(
@@ -102,14 +134,28 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             dev.lelonio.square.ui.theme.ChosenTheme {
-                SquareApp(
-                    player = controller,
-                    onPlay = ::play,
-                    onEnqueue = ::enqueue,
-                    onEnqueueAll = ::enqueueAll,
-                    openPlayer = openPlayer,
-                    link = link,
-                )
+                if (thorPlayerMode) {
+                    dev.lelonio.square.ui.theme.SquareTheme(darkTheme = true) {
+                        SquareApp(
+                            player = controller,
+                            onPlay = ::play,
+                            onEnqueue = ::enqueue,
+                            onEnqueueAll = ::enqueueAll,
+                            openPlayer = openPlayer,
+                            link = link,
+                            playerOnly = true,
+                        )
+                    }
+                } else {
+                    SquareApp(
+                        player = controller,
+                        onPlay = ::play,
+                        onEnqueue = ::enqueue,
+                        onEnqueueAll = ::enqueueAll,
+                        openPlayer = openPlayer,
+                        link = link,
+                    )
+                }
             }
         }
     }
@@ -281,6 +327,12 @@ class MainActivity : ComponentActivity() {
             android.content.IntentFilter(ACTION_LISTEN).apply { addAction(ACTION_TOGGLE) },
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        ContextCompat.registerReceiver(
+            this,
+            thorModeReceiver,
+            android.content.IntentFilter(ACTION_THOR_MODE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         super.onStart()
         val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
@@ -305,6 +357,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         touchRefreshRate.reset()
         runCatching { unregisterReceiver(listenRequest) }
+        runCatching { unregisterReceiver(thorModeReceiver) }
         controller?.release()
         controller = null
         super.onStop()

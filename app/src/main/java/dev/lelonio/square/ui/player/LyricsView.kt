@@ -117,6 +117,8 @@ fun LyricsView(
     modifier: Modifier = Modifier,
     /** Whether to read each line in the listener's language underneath it. */
     showTranslation: Boolean = false,
+    /** Scroll requested by a hardware controller; changes are pixel deltas. */
+    externalScroll: Float = 0f,
     onSeek: (Long) -> Unit,
 ) {
     val listState = remember(lyrics) { LazyListState() }
@@ -150,7 +152,12 @@ fun LyricsView(
                     ),
                 )
             }
+
         }
+    }
+
+    LaunchedEffect(externalScroll) {
+        if (externalScroll != 0f) listState.animateScrollBy(externalScroll)
     }
 
     LazyColumn(
