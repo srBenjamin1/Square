@@ -936,8 +936,13 @@ fun SquareApp(
 
     // How far the player is open, 0 to 1. A value rather than a destination:
     // see NowPlayingSheet for why the player stopped being a route.
-    val expand = remember {
-        Animatable(if (playerOnly || preferences.playerWasOpen()) 1f else 0f)
+    // The saved expansion belongs to the conventional single-screen player.
+    // Thor's lower display has no expanded player, so restoring it there
+    // would hide the tabs and mini player behind a sheet that is never drawn.
+    val expand = remember(showExpandedPlayer, playerOnly) {
+        Animatable(
+            if (showExpandedPlayer && (playerOnly || preferences.playerWasOpen())) 1f else 0f,
+        )
     }
     var toolsOpen by remember { mutableStateOf(false) }
     var toolsPanel by remember {
@@ -980,7 +985,10 @@ fun SquareApp(
 
     // Remembered for the next launch. Written when the animation settles rather
     // than on every frame of the drag.
-    LaunchedEffect(Unit) {
+    LaunchedEffect(showExpandedPlayer, playerOnly) {
+        // Neither Thor display owns the conventional player's saved state:
+        // the upper player is always open and the lower one is never drawn.
+        if (!showExpandedPlayer || playerOnly) return@LaunchedEffect
         snapshotFlow { expand.isRunning to expand.value }
             .collect { (running, value) ->
                 if (!running) preferences.setPlayerOpen(value > 0.5f)
