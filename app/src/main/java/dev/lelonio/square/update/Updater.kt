@@ -13,10 +13,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -28,16 +24,13 @@ import java.io.File
  * forbid it — so there is nothing to deliver an update but the app itself. The
  * releases page is already the distribution channel; this reads it.
  *
- * Nothing here has to verify what it downloads. Android refuses an update
- * signed with a different key than the installed copy, so an APK that is not
- * the one built with the project's keystore simply fails to install. A hash
- * check on top would look reassuring and add nothing the platform does not
- * already enforce.
+ * Assets must belong to SquareDS and match the device ABI. Before handing an
+ * APK to Android, check its package, increasing version code and certificate
+ * against the installed app. Android then verifies the APK during installation.
  */
 class Updater(context: Context) {
 
     private val app = context.applicationContext
-    private val json = Json { ignoreUnknownKeys = true }
     private val client = OkHttpClient()
 
     /** The last whole percent handed to the notification; see [download]. */
@@ -76,15 +69,13 @@ class Updater(context: Context) {
      * Asks GitHub what the latest release is.
      *
      * Unauthenticated, which allows sixty requests an hour per address — far
-     * more than a button can spend. It is still a request the user did not ask
-     * for, which is why nothing here runs on its own: it is called when the
-     * button is pressed and at no other time.
+     * more than the settings button and the six-hour UpdatePrompt check need.
      */
     suspend fun check() {
         _state.value = State.Checking
         val result = runCatching { withContext(Dispatchers.IO) { latestRelease() } }
             .getOrElse {
-                android.util.Log.w(TAG, "check failed: $it")
+                android.util.Log.w(TAG, "Update check failed (${it.javaClass.simpleName})")
                 _state.value = State.Failed(it.message ?: "network")
                 return
             }
@@ -119,42 +110,16 @@ class Updater(context: Context) {
         return null
     }
 
-    private data class Release(
-        val version: String,
-        val url: String,
-        val bytes: Long,
-        val notes: String,
-    )
-
-    private fun latestRelease(): Release? {
+    private fun latestRelease(): ReleasePolicy.Release? {
         val request = Request.Builder()
-            .url("https://api.github.com/repos/$REPO/releases/latest")
+            .url(ReleasePolicy.LATEST_URL)
             .header("Accept", "application/vnd.github+json")
             .build()
-
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("HTTP ${response.code}")
-            val body = json.parseToJsonElement(response.body?.string().orEmpty()) as? JsonObject
-                ?: return null
-            val tag = body["tag_name"]?.jsonPrimitive?.content?.removePrefix("v") ?: return null
-            val apks = (body["assets"] as? JsonArray)
-                ?.filterIsInstance<JsonObject>()
-                ?.filter { it["name"]?.jsonPrimitive?.content?.endsWith(".apk") == true }
-                .orEmpty()
-            // One APK per ABI and a universal one: the phone's own first, in
-            // the order it prefers them, then the universal, then whatever
-            // there is, for a release that ships a single APK.
-            fun named(part: String) = apks.firstOrNull {
-                it["name"]?.jsonPrimitive?.content?.contains(part) == true
-            }
-            val asset = android.os.Build.SUPPORTED_ABIS.firstNotNullOfOrNull(::named)
-                ?: named("universal")
-                ?: apks.firstOrNull()
-                ?: return null
-            val url = asset["browser_download_url"]?.jsonPrimitive?.content ?: return null
-            val size = asset["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
-            val notes = body["body"]?.jsonPrimitive?.content.orEmpty().trim()
-            return Release(tag, url, size, notes)
+        return client.newCall(request).execute().use { response ->
+            ReleasePolicy.parseResponse(
+                response.code, response.body?.string().orEmpty(),
+                Build.SUPPORTED_ABIS.toList(), BuildConfig.VERSION_NAME,
+            )
         }
     }
 
@@ -199,15 +164,15 @@ class Updater(context: Context) {
         val apk = runCatching {
             withContext(Dispatchers.IO) { download(update, onProgress) }
         }.getOrElse {
-            android.util.Log.w(TAG, "download failed: $it")
+            android.util.Log.w(TAG, "Update download failed (${it.javaClass.simpleName})")
             _state.value = State.Failed(it.message ?: "download")
             return
         }
 
-        runCatching { withContext(Dispatchers.IO) { commit(apk) } }
+        runCatching { withContext(Dispatchers.IO) { commit(apk, version) } }
             .onSuccess { _state.value = State.Installing }
             .onFailure {
-                android.util.Log.w(TAG, "install failed: $it")
+                android.util.Log.w(TAG, "Update installation failed (${it.javaClass.simpleName})")
                 apk.delete()
                 _state.value = State.Failed(it.message ?: "install")
             }
@@ -221,6 +186,7 @@ class Updater(context: Context) {
         target.delete()
         lastReported = -1
 
+        ReleasePolicy.requireAssetUrl(update.url)
         val request = Request.Builder().url(update.url).build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("HTTP ${response.code}")
@@ -253,10 +219,12 @@ class Updater(context: Context) {
                 }
             }
         }
+        check(target.length() > 0L && (update.bytes <= 0L || target.length() == update.bytes)) { "Incomplete APK" }
         return target
     }
 
-    private fun commit(apk: File) {
+    private fun commit(apk: File, expectedVersion: String) {
+        verifyArchive(apk, expectedVersion)
         val installer = app.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(
             PackageInstaller.SessionParams.MODE_FULL_INSTALL,
@@ -278,6 +246,32 @@ class Updater(context: Context) {
             )
         }
         apk.delete()
+    }
+
+    /** Fail before opening an installer session; Android still enforces its own signature check. */
+    @Suppress("DEPRECATION")
+    private fun verifyArchive(apk: File, expectedVersion: String) {
+        val pm = app.packageManager
+        val flags = if (Build.VERSION.SDK_INT >= 28) {
+            android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+        } else android.content.pm.PackageManager.GET_SIGNATURES
+        val archive = pm.getPackageArchiveInfo(apk.absolutePath, flags) ?: error("Invalid APK")
+        val installed = pm.getPackageInfo(app.packageName, flags)
+        require(archive.packageName == app.packageName) { "Wrong APK package" }
+        require(archive.versionName == expectedVersion) { "APK does not match advertised version" }
+        val nextCode = if (Build.VERSION.SDK_INT >= 28) archive.longVersionCode else archive.versionCode.toLong()
+        val currentCode = if (Build.VERSION.SDK_INT >= 28) installed.longVersionCode else installed.versionCode.toLong()
+        require(nextCode > currentCode && isNewer(archive.versionName.orEmpty(), BuildConfig.VERSION_NAME)) {
+            "APK version is not newer"
+        }
+        val currentSigners = if (Build.VERSION.SDK_INT >= 28) {
+            installed.signingInfo?.apkContentsSigners
+        } else installed.signatures
+        val nextSigners = if (Build.VERSION.SDK_INT >= 28) {
+            archive.signingInfo?.apkContentsSigners
+        } else archive.signatures
+        require(!currentSigners.isNullOrEmpty() && !nextSigners.isNullOrEmpty() &&
+            currentSigners.toSet() == nextSigners.toSet()) { "Incompatible APK signing certificate" }
     }
 
     /** Whether the user has allowed this app to install packages at all. */
@@ -302,27 +296,13 @@ class Updater(context: Context) {
     companion object {
         private const val TAG = "Updater"
 
-        const val REPO = "Lelonio/Square"
+        const val REPO = ReleasePolicy.REPO
+        const val RELEASES_URL = ReleasePolicy.RELEASES_URL
 
         /** Told apart from a network failure so the UI can offer the way out. */
         const val REASON_PERMISSION = "permission"
 
-        /**
-         * Compares two dotted versions numerically.
-         *
-         * String comparison would put 1.10.0 before 1.9.0, which is exactly the
-         * release where a self-updater stops offering updates and nobody
-         * notices for a month.
-         */
-        fun isNewer(candidate: String, installed: String): Boolean {
-            val a = candidate.split('.').map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
-            val b = installed.split('.').map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
-            for (i in 0 until maxOf(a.size, b.size)) {
-                val left = a.getOrElse(i) { 0 }
-                val right = b.getOrElse(i) { 0 }
-                if (left != right) return left > right
-            }
-            return false
-        }
+        fun isNewer(candidate: String, installed: String): Boolean =
+            ReleasePolicy.isNewer(candidate, installed)
     }
 }

@@ -149,6 +149,7 @@ import com.adamglin.phosphoricons.regular.YoutubeLogo
 import com.adamglin.phosphoricons.regular.Export
 import com.adamglin.phosphoricons.regular.Trash
 import com.adamglin.phosphoricons.regular.User
+import com.adamglin.phosphoricons.regular.VinylRecord
 import dev.lelonio.square.data.RemoteConnect
 import dev.lelonio.square.ui.player.asPlaybackState
 import dev.lelonio.square.ui.player.rememberRemotePositionMs
@@ -554,12 +555,21 @@ fun SquareApp(
     // letting go, and the slider draws its own value meanwhile.
     val effectsScope = rememberCoroutineScope()
     var effectsJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // What was last asked for and not yet sent. Speed and pitch travel as a
+    // pair, so the one not being moved is taken from here first: taken from
+    // the player, a pitch moved within the wait undid the speed still waiting.
+    var pendingParameters by remember { mutableStateOf<PlaybackParameters?>(null) }
     val setPlaybackParameters: (PlaybackParameters) -> Unit = { params ->
+        pendingParameters = params
         effectsJob?.cancel()
         effectsJob = effectsScope.launch {
             kotlinx.coroutines.delay(120)
             player?.playbackParameters = params
+            pendingParameters = null
         }
+    }
+    val currentParameters: () -> PlaybackParameters = {
+        pendingParameters ?: player?.playbackParameters ?: PlaybackParameters.DEFAULT
     }
     // What was last taken out of the queue, each with the place it had, kept
     // for a few seconds so it can be put back where it was.
@@ -1501,6 +1511,17 @@ fun SquareApp(
                 val openList: (CatalogPlaylist) -> Unit = { playlist ->
                     if (playlist.uri == dev.lelonio.square.data.Catalog.DJ_URI) startDj()
                     else navController.openPlaylist(viewModel, playlist)
+                }
+                if (!showExpandedPlayer) {
+                    LaunchedEffect(navController) {
+                        dev.lelonio.square.thor.ui.ThorAlbumNavigation.pending.collect { album ->
+                            if (album != null) {
+                                onToolsOpenChange(false)
+                                navController.openPlaylist(viewModel, album)
+                                dev.lelonio.square.thor.ui.ThorAlbumNavigation.consume(album)
+                            }
+                        }
+                    }
                 }
                 val currentEntry by navController.currentBackStackEntryAsState()
                 val visibleEntries by navController.visibleEntries.collectAsStateWithLifecycle()
@@ -3263,8 +3284,12 @@ fun SquareApp(
                                                     )
                                                 } ?: viewModel.albumOf(track)
                                                 if (album != null) {
-                                                    expand.animateTo(0f, expandSpec)
-                                                    navController.openPlaylist(viewModel, album)
+                                                    if (playerOnly) {
+                                                        dev.lelonio.square.thor.ui.ThorAlbumNavigation.request(album)
+                                                    } else {
+                                                        expand.animateTo(0f, expandSpec)
+                                                        navController.openPlaylist(viewModel, album)
+                                                    }
                                                 }
                                             }
                                             Unit
@@ -3357,17 +3382,21 @@ fun SquareApp(
                                 // has to carry the other through unchanged.
                                 onSpeed = {
                                     setPlaybackParameters(
-                                        PlaybackParameters(it, playback.pitch),
+                                        PlaybackParameters(it, currentParameters().pitch),
                                     )
                                 },
                                 onPitch = {
                                     setPlaybackParameters(
-                                        PlaybackParameters(playback.speed, it),
+                                        PlaybackParameters(currentParameters().speed, it),
                                     )
                                 },
                                 onReverb = AudioEffects::setReverb,
                                 presets = presets,
                                 onApplyPreset = { preset ->
+                                    // Over any slider write still waiting, or
+                                    // that lands after it and undoes it.
+                                    effectsJob?.cancel()
+                                    pendingParameters = null
                                     player?.playbackParameters =
                                         PlaybackParameters(preset.speed, preset.pitch)
                                     AudioEffects.setReverb(preset.reverbAmount)
@@ -3858,6 +3887,28 @@ fun SquareApp(
                                     viewModel.openContext(artist.uri, artist.title, artist.artworkUrl)
                                     if (navController.currentDestination?.route != Routes.PLAYLIST) {
                                         navController.navigate(Routes.PLAYLIST) { launchSingleTop = true }
+                                    }
+                                }
+                            }
+                        }
+                        // The record the song is on, as the player's own album
+                        // link finds it: the address the source gave, or a
+                        // lookup for a Spotify song that came without one.
+                        // YouTube has nothing to look up, so its songs offer
+                        // this only with the address in hand.
+                        if (canOpenAlbum(menu.track)) {
+                            TrackSheetAction(stringResource(R.string.go_to_album), PhosphorIcons.Regular.VinylRecord) {
+                                val track = menu.track
+                                trackMenu = null
+                                scope.launch {
+                                    val album = trackAlbum(track, viewModel::albumOf)
+                                    if (album != null) {
+                                        if (playerOnly) {
+                                            dev.lelonio.square.thor.ui.ThorAlbumNavigation.request(album)
+                                        } else {
+                                            if (expand.value > 0f) expand.animateTo(0f, expandSpec)
+                                            navController.openPlaylist(viewModel, album)
+                                        }
                                     }
                                 }
                             }

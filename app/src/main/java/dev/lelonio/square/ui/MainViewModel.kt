@@ -1334,6 +1334,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _inPlaylists.value = _inPlaylists.value + uris
                     invalidateContext(playlist.uri)
                     if (playlist.uri.endsWith(":collection")) uris.forEach(container.likedStore::add)
+                    if (_playlist.value.uri == playlist.uri) openPlaylist(playlist)
                 }
                 .onFailure {
                     android.util.Log.e(TAG, "adding a whole list failed: ${chain(it)}", it)
@@ -2438,6 +2439,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun launchRefresh() = viewModelScope.launch {
         val backend = container.activeBackend
         if (backend.id != BackendId.SPOTIFY) {
+            // Offline, the downloads are the library here as they are for
+            // Spotify. Asked for its playlists, this backend can only fail, and
+            // the page was left with the two shelves of the phone's own music
+            // and none of the playlists downloaded for exactly this (issue #88).
+            if (dev.lelonio.square.playback.OfflineMode.active.value) {
+                offlineLibrary()?.let {
+                    val known = (backend.authState.value as? BackendAuthState.LoggedIn)?.displayName
+                    _state.value = it.copy(displayName = known.orEmpty().ifEmpty { it.displayName })
+                    return@launch
+                }
+            }
             // No access point to wait for and no Premium account to check: this
             // backend is usable at once, and signing in only adds the library.
             _state.value = UiState.Loading
@@ -2457,9 +2469,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     android.util.Log.w(TAG, "youtube library unavailable: ${describe(it)}")
                     // Not a failure worth a whole error screen: the library is
                     // the one part that needs an account, and everything else
-                    // on this backend works without one.
-                    _state.value =
-                        UiState.Ready(displayName = name.orEmpty(), playlists = withLocalFiles(emptyList()))
+                    // on this backend works without one. What was downloaded is
+                    // still listed, since that much needs no connection.
+                    _state.value = offlineLibrary()
+                        ?.let { it.copy(displayName = name.orEmpty().ifEmpty { it.displayName }) }
+                        ?: UiState.Ready(displayName = name.orEmpty(), playlists = withLocalFiles(emptyList()))
                 }
             // The other two shelves of the same library. They read the active
             // backend and empty themselves for one that keeps neither, which is
@@ -2615,11 +2629,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun offlineLibrary(): UiState.Ready? {
         container.downloads.load()
         val owners = container.downloads.owners.value
-        val labelled = owners.keys.mapNotNull { uri ->
-            container.downloads.labelOf(uri)?.let {
-                CatalogPlaylist(uri = uri, name = it.name, artworkUrl = it.artworkUrl)
-            }
-        }
+        val labelled = dev.lelonio.square.data.OfflineLibrary.playlists(owners.keys, container.downloads::labelOf)
         // Everything on the phone, not only the songs downloaded on their own.
         //
         // It was the loose ones at first, which is what the store calls them —
@@ -2654,7 +2664,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * The phone's own music and downloaded music, at the head of whichever library is on screen.
      */
     private fun withLocalFiles(playlists: List<CatalogPlaylist>): List<CatalogPlaylist> =
-        listOf(
+        dev.lelonio.square.data.OfflineLibrary.withDeviceShelves(playlists, listOf(
             CatalogPlaylist(
                 uri = LocalLibrary.CONTEXT_URI,
                 name = string(R.string.local_files),
@@ -2665,8 +2675,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 name = string(R.string.downloaded_tracks),
                 artworkUrl = dev.lelonio.square.ui.components.DOWNLOADS_COVER,
             ),
-        ) + playlists.filterNot { it.uri == DownloadStore.SINGLES || it.uri == LocalLibrary.CONTEXT_URI }
-            .distinctBy { it.uri }
+        ))
 
     /** Covers already looked up, so a second visit to the home page is free. */
     private val coverCache = mutableMapOf<String, String>()
@@ -5204,7 +5213,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ?.takeIf { it.isNotEmpty() }
             ?: return
         followKept(uri, tracks)
-        val snapshotId = snapshotOf(uri)
+        // Unstamped while a song in it is still only a name, so the next open
+        // reads it again rather than trusting this copy until the version moves.
+        val snapshotId = if (tracks.any(::isSparse)) null else snapshotOf(uri)
         contextCache[uri] = ContextCacheStore.Entry(tracks, snapshotId)
         container.contextCache.write(uri, tracks, snapshotId)
     }
@@ -5262,7 +5273,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // one question instead of reading it all again. Without a stamp the
         // entry still saves — it just gets refreshed silently every time.
         followKept(uri, tracks)
-        val snapshotId = snapshotOf(uri)
+        // Unstamped while a song in it is still only a name, so the next open
+        // reads it again rather than trusting this copy until the version moves.
+        val snapshotId = if (tracks.any(::isSparse)) null else snapshotOf(uri)
         contextCache[uri] = ContextCacheStore.Entry(tracks, snapshotId)
         rememberMembership(uri, tracks)
         container.contextCache.write(uri, tracks, snapshotId)
@@ -5305,7 +5318,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (uri.endsWith(":collection")) {
             gatewayTracks(base, showProgress) { offset ->
                 container.gateway.savedTracks(offset)
-            }?.let { return it }
+            }?.let { return completeSparse(it) }
             // Nothing else knows this list: the access point refuses the
             // collection as a context, so without the gateway and without a
             // registered application there is no answer to give.
@@ -5316,9 +5329,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (!uri.startsWith("spotify:playlist:")) return null
         gatewayTracks(base, showProgress) { offset ->
             container.gateway.playlistTracks(uri, offset)
-        }?.let { return it }
+        }?.let { return completeSparse(it) }
         if (!container.webApi.isReady) return null
         return webApiPlaylistTracks(base, uri, showProgress)
+    }
+
+    /**
+     * A song the gateway named and nothing more: no artist, no length.
+     *
+     * What it answers for a song added to a playlist moments before, until
+     * its own copy of the list catches up, and it caught up in its own time:
+     * the rows stayed a letter and a dash for a while after every addition
+     * (issue #93).
+     */
+    private fun isSparse(track: CatalogTrack): Boolean =
+        dev.lelonio.square.data.PlaylistMetadata.isSparse(track)
+
+    /**
+     * [tracks] with the [isSparse] ones looked up again, through the access
+     * point rather than the gateway that answered short. Whatever it cannot
+     * answer either stays as it was.
+     */
+    private suspend fun completeSparse(tracks: List<CatalogTrack>): List<CatalogTrack> {
+        val sparse = tracks.filter(::isSparse).map { it.uri }.distinct()
+        if (sparse.isEmpty()) return tracks
+        val found = runCatching { Catalog.tracks(sparse) }
+            .onFailure { android.util.Log.w(TAG, "sparse tracks not completed: ${describe(it)}") }
+            .getOrDefault(emptyList())
+            .filterNot(::isSparse)
+            .associateBy { it.uri }
+        android.util.Log.i(TAG, "completed ${found.size} of ${sparse.size} sparse tracks")
+        return dev.lelonio.square.data.PlaylistMetadata.complete(tracks, found.values.toList())
     }
 
     /** The shared gateway reader, with each page published as it lands. */
