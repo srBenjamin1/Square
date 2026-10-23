@@ -1,0 +1,721 @@
+--------- beginning of system
+10-23 12:36:51.909 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+--------- beginning of main
+10-23 12:36:51.909 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:36:52.503 D/TrafficStats( 4973): tagSocket(84) with statsTag=0x1c6, statsUid=-1
+10-23 12:36:52.519 I/ViewRootImpl(25849): mFocusChange true onChange content://settings/system/focus_change
+10-23 12:36:53.035 D/pservice( 1308): cpu_init boot_completed cpugpumode=2
+10-23 12:36:53.031 I/pservice( 5181): type=1400 audit(0.0:834380): avc: denied { execute } for name="sh" dev="dm-7" ino=1587 scontext=u:r:pservice:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+10-23 12:36:53.031 I/pservice( 5181): type=1400 audit(0.0:834381): avc: denied { read open } for path="/system/bin/sh" dev="dm-7" ino=1587 scontext=u:r:pservice:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+10-23 12:36:53.031 I/pservice( 5181): type=1400 audit(0.0:834382): avc: denied { execute_no_trans } for path="/system/bin/sh" dev="dm-7" ino=1587 scontext=u:r:pservice:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+10-23 12:36:53.035 I/sh      ( 5181): type=1400 audit(0.0:834383): avc: denied { map } for path="/system/bin/sh" dev="dm-7" ino=1587 scontext=u:r:pservice:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+10-23 12:36:53.039 I/sh      ( 5181): type=1400 audit(0.0:834384): avc: denied { getattr } for path="/system/bin/sh" dev="dm-7" ino=1587 scontext=u:r:pservice:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+10-23 12:36:53.047 I/sh      ( 5181): type=1400 audit(0.0:834385): avc: denied { read } for path="/system/bin/sh" dev="dm-7" ino=1587 scontext=u:r:pservice:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+10-23 12:36:53.051 I/sh      ( 5181): type=1400 audit(0.0:834386): avc: denied { dac_override } for capability=1 scontext=u:r:pservice:s0 tcontext=u:r:pservice:s0 tclass=capability permissive=1
+10-23 12:36:53.051 I/sh      ( 5181): type=1400 audit(0.0:834387): avc: denied { write } for name="scaling_min_freq" dev="sysfs" ino=76382 scontext=u:r:pservice:s0 tcontext=u:object_r:sysfs_devices_system_cpu:s0 tclass=file permissive=1
+10-23 12:36:53.055 I/pservice( 5182): type=1400 audit(0.0:834388): avc: denied { execute } for name="sh" dev="dm-7" ino=1587 scontext=u:r:pservice:s0 tcontext=u:object_r:shell_exec:s0 tclass=file permissive=1
+10-23 12:36:53.426 I/ViewRootImpl(25849): mFocusChange true onChange content://settings/system/focus_change
+10-23 12:36:53.436 D/QCNEJ/NativeHalConnector( 2640): -> SND notifyDefaultNetworkChanged(1)
+10-23 12:36:53.436 D/SlaveWifiSignalController( 2512): WifiTrafficStateCallbacknull
+10-23 12:36:53.458 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.097/s)| Stream: 30.00fps 1.1Mbps
+10-23 12:36:53.458 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.129/s)| Stream: 30.00fps 170.0Kbps
+10-23 12:36:53.458 I/QC2Comp ( 1222): [avcD_457] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-741: 14 bufs 0.219 MB] [2D-742: 65 bufs 122.891 MB] | Total: 317.348 MB
+10-23 12:36:53.458 I/QC2Comp ( 1222): [avcD_456] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-739: 14 bufs 0.219 MB] [2D-740: 65 bufs 13.203 MB] | Total: 207.660 MB
+10-23 12:36:53.466 D/ConnectivityService( 2115): NetReassign [no changes]
+10-23 12:36:53.467 I/NearbyMediums(25446): Wifi changed new SSID: <unknown ssid>
+10-23 12:36:53.467 I/NearbyMediums(25446): WifiLanConnectivityInfo is not changed, skip notify.
+10-23 12:36:53.795 I/keystore2(  938): keystore2::watchdog: Watchdog thread idle -> terminating. Have a great day.
+10-23 12:36:53.967 I/NearbySharing(25446): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+10-23 12:36:53.968 I/NearbySharing(25446): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+10-23 12:36:54.636 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 51.52777862548828 speedPercentage = 53 smartSpeed = 26500
+10-23 12:36:54.631 I/pool-2-thread-2( 2744): type=1400 audit(0.0:834395): avc: denied { write } for name="duty" dev="sysfs" ino=95522 scontext=u:r:system_app:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+10-23 12:36:54.631 I/pool-2-thread-2( 2744): type=1400 audit(0.0:834396): avc: denied { read } for name="duty" dev="sysfs" ino=95522 scontext=u:r:system_app:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+10-23 12:36:54.631 I/pool-2-thread-2( 2744): type=1400 audit(0.0:834397): avc: denied { open } for path="/sys/class/gpio5_pwm2/duty" dev="sysfs" ino=95522 scontext=u:r:system_app:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+10-23 12:36:54.631 I/pool-2-thread-2( 2744): type=1400 audit(0.0:834398): avc: denied { getattr } for path="/sys/class/gpio5_pwm2/duty" dev="sysfs" ino=95522 scontext=u:r:system_app:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+10-23 12:36:55.356 I/NearbyMediums(25446): No BLE Fast/GATT advertisements found in the latest cycle.
+10-23 12:36:55.356 I/NearbyMediums(25446): Current Tracked Scanning Clients are : {NearbyConnections.EnvironmentMonitor, NearbySharing}
+10-23 12:36:55.914 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:36:55.915 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:36:57.191 D/TrafficStats(25446): tagSocket(80) with statsTag=0x9602, statsUid=10068
+10-23 12:36:57.192 D/TrafficStats(25446): tagSocket(184) with statsTag=0x9602, statsUid=10068
+10-23 12:36:57.717 D/TrafficStats( 4973): tagSocket(88) with statsTag=0x1e2, statsUid=-1
+10-23 12:36:57.867 I/ViewRootImpl(25849): mFocusChange true onChange content://settings/system/focus_change
+10-23 12:36:58.458 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.127/s)| Stream: 30.00fps 170.0Kbps
+10-23 12:36:58.458 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.096/s)| Stream: 30.00fps 1.1Mbps
+10-23 12:36:58.458 I/QC2Comp ( 1222): [avcD_456] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-739: 14 bufs 0.219 MB] [2D-740: 65 bufs 13.203 MB] | Total: 207.660 MB
+10-23 12:36:58.458 I/QC2Comp ( 1222): [avcD_457] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-741: 14 bufs 0.219 MB] [2D-742: 65 bufs 122.891 MB] | Total: 317.348 MB
+10-23 12:36:58.654 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 50.522220611572266 speedPercentage = 51 smartSpeed = 25500
+10-23 12:36:59.319 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:36:59.319 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:36:59.319 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:36:59.319 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:36:59.319 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:36:59.383 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:36:59.383 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:36:59.383 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:36:59.383 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:36:59.383 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:36:59.919 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:36:59.919 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:37:00.513 D/TrafficStats( 4973): tagSocket(84) with statsTag=0x1c6, statsUid=-1
+10-23 12:37:01.000 V/Avrcp_ext(31018): onMetadataChanged
+10-23 12:37:01.000 V/APM: MediaControlManager(31018): onMetadataChanged
+10-23 12:37:01.000 W/McpService(31018): updateMetaData data android.media.MediaMetadata@7fa5974e
+10-23 12:37:01.001 D/BroadcastService(31018): isBroadcastActive: Broadcast is turned to off
+10-23 12:37:01.002 V/Avrcp_ext(31018): updateCurrentMediaState: mMediaController: MediaController (dev.lelonio.square@fa866aa) Welcome to the Black Parade, My Chemical Romance, null
+10-23 12:37:01.002 W/Avrcp_ext(31018): isMusicActive: false getBluetoothPlayState: 2 A2dp State: 11 mAudioPlaybackIsActive: false
+10-23 12:37:01.003 D/Avrcp_ext(31018): isMusicActive = false mAudioPlaybackIsActive = false player state = PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}
+10-23 12:37:01.003 D/Avrcp_ext(31018): overwrite album_artist :if album is blank
+10-23 12:37:01.004 I/Avrcp_ext(31018): Skipping update due to invalid playback state
+10-23 12:37:01.004 W/Avrcp_ext(31018): updateCurrentMediaState: isInactivePlayer = true
+10-23 12:37:01.005 V/Avrcp_ext(31018): updatePlaybackState, state: PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null} device: null
+10-23 12:37:01.005 V/Avrcp_ext(31018): Device: no name: 
+10-23 12:37:01.005 V/Avrcp_ext(31018): Device: no name: 
+10-23 12:37:01.005 V/Avrcp_ext(31018): Device: no name: 
+10-23 12:37:01.005 V/Avrcp_ext(31018): Device: no name: 
+10-23 12:37:01.005 V/Avrcp_ext(31018): Device: no name: 
+10-23 12:37:01.005 V/Avrcp_ext(31018): updatePlayerStateAndPosition, old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}, state=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}
+10-23 12:37:01.005 V/Avrcp_ext(31018): old state = PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}, new state= PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}
+10-23 12:37:01.005 D/HeadsetService(31018): getHeadsetService(): returning com.android.bluetooth.hfp.HeadsetService@ead3a92
+10-23 12:37:01.005 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.005 D/HeadsetService(31018): isScoOrCallActive(): Call Active:falseCall is Ringing:falseSCO is Active:false
+10-23 12:37:01.005 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.005 I/Avrcp_ext(31018): updatePlayStatusForDevice: device: null
+10-23 12:37:01.005 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+10-23 12:37:01.005 I/Avrcp_ext(31018): Exit updatePlayStatusForDevice
+10-23 12:37:01.005 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.005 D/HeadsetService(31018): isScoOrCallActive(): Call Active:falseCall is Ringing:falseSCO is Active:false
+10-23 12:37:01.005 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.005 I/Avrcp_ext(31018): updatePlayStatusForDevice: device: null
+10-23 12:37:01.005 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+10-23 12:37:01.005 I/Avrcp_ext(31018): Exit updatePlayStatusForDevice
+10-23 12:37:01.005 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.006 D/HeadsetService(31018): isScoOrCallActive(): Call Active:falseCall is Ringing:falseSCO is Active:false
+10-23 12:37:01.006 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.006 I/Avrcp_ext(31018): updatePlayStatusForDevice: device: null
+10-23 12:37:01.006 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+10-23 12:37:01.006 I/Avrcp_ext(31018): Exit updatePlayStatusForDevice
+10-23 12:37:01.007 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.007 D/HeadsetService(31018): isScoOrCallActive(): Call Active:falseCall is Ringing:falseSCO is Active:false
+10-23 12:37:01.007 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.007 I/Avrcp_ext(31018): updatePlayStatusForDevice: device: null
+10-23 12:37:01.007 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+10-23 12:37:01.007 I/Avrcp_ext(31018): Exit updatePlayStatusForDevice
+10-23 12:37:01.007 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.007 D/HeadsetService(31018): isScoOrCallActive(): Call Active:falseCall is Ringing:falseSCO is Active:false
+10-23 12:37:01.007 D/HeadsetService(31018):  isAudioOn: The number of audio connected devices 0
+10-23 12:37:01.008 I/Avrcp_ext(31018): updatePlayStatusForDevice: device: null
+10-23 12:37:01.008 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+10-23 12:37:01.008 I/Avrcp_ext(31018): Exit updatePlayStatusForDevice
+10-23 12:37:01.008 D/Avrcp_ext(31018): Enter sendPlayPosNotificationRsp
+10-23 12:37:01.008 D/Avrcp_ext(31018): sendPlayPosNotificationRsp: Not registered or requesting.
+10-23 12:37:01.008 D/Avrcp_ext(31018): Enter sendPlayPosNotificationRsp
+10-23 12:37:01.008 D/Avrcp_ext(31018): sendPlayPosNotificationRsp: Not registered or requesting.
+10-23 12:37:01.008 D/Avrcp_ext(31018): Enter sendPlayPosNotificationRsp
+10-23 12:37:01.008 D/Avrcp_ext(31018): sendPlayPosNotificationRsp: Not registered or requesting.
+10-23 12:37:01.008 D/Avrcp_ext(31018): Enter sendPlayPosNotificationRsp
+10-23 12:37:01.008 D/Avrcp_ext(31018): sendPlayPosNotificationRsp: Not registered or requesting.
+10-23 12:37:01.009 D/Avrcp_ext(31018): Enter sendPlayPosNotificationRsp
+10-23 12:37:01.009 D/Avrcp_ext(31018): sendPlayPosNotificationRsp: Not registered or requesting.
+10-23 12:37:01.009 V/Avrcp_ext(31018): Exit updatePlayerStateAndPosition
+10-23 12:37:01.423 W/ConstraintSet( 2512): id unknown center_vertical_guideline
+10-23 12:37:01.424 W/ConstraintSet( 2512): id unknown action_button_guideline
+10-23 12:37:01.424 W/ConstraintSet( 2512): id unknown icon
+10-23 12:37:01.424 W/ConstraintSet( 2512): id unknown media_seamless
+10-23 12:37:01.424 W/ConstraintSet( 2512): id unknown media_action_barrier_end
+10-23 12:37:01.424 W/ConstraintSet( 2512): id unknown media_action_barrier_top
+10-23 12:37:01.424 W/ConstraintSet( 2512): id unknown remove_text
+10-23 12:37:01.425 W/ConstraintSet( 2512): id unknown settings
+10-23 12:37:01.425 W/ConstraintSet( 2512): id unknown dismiss
+10-23 12:37:01.425 W/ConstraintSet( 2512): id unknown cancel
+10-23 12:37:01.727 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:01.727 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:01.727 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:01.727 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:01.728 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:02.330 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:02.330 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:02.330 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:02.330 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:02.330 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:02.667 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 50.00555419921875 speedPercentage = 51 smartSpeed = 25500
+10-23 12:37:03.171 D/pservice( 1308): cpu_init boot_completed cpugpumode=2
+10-23 12:37:03.279 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:03.279 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:03.279 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:03.279 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:03.279 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:03.311 E/KeymasterUtils(  750): rsp_header->status: -28
+10-23 12:37:03.311 E/KeyMasterHalDevice(  750): abort_operation
+10-23 12:37:03.311 E/KeyMasterHalDevice(  750): ret: -28
+10-23 12:37:03.329 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:03.329 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:03.329 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:03.329 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:03.329 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:03.458 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.095/s)| Stream: 30.00fps 1.1Mbps
+10-23 12:37:03.458 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.125/s)| Stream: 30.00fps 170.0Kbps
+10-23 12:37:03.459 I/QC2Comp ( 1222): [avcD_456] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-739: 14 bufs 0.219 MB] [2D-740: 65 bufs 13.203 MB] | Total: 207.660 MB
+10-23 12:37:03.459 I/QC2Comp ( 1222): [avcD_457] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-741: 14 bufs 0.219 MB] [2D-742: 65 bufs 122.891 MB] | Total: 317.348 MB
+10-23 12:37:03.925 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:37:03.925 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:37:04.122 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:04.122 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:04.123 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:04.123 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:04.124 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:04.379 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:04.379 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:04.379 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:04.379 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:04.380 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:05.357 I/NearbyMediums(25446): No BLE Fast/GATT advertisements found in the latest cycle.
+10-23 12:37:05.357 I/NearbyMediums(25446): Current Tracked Scanning Clients are : {NearbyConnections.EnvironmentMonitor, NearbySharing}
+10-23 12:37:05.726 D/TrafficStats( 4973): tagSocket(88) with statsTag=0x1e2, statsUid=-1
+10-23 12:37:06.229 W/AudioCapabilities( 4973): Unsupported mime audio/alac
+10-23 12:37:06.229 W/AudioCapabilities( 4973): Unsupported mime audio/x-ape
+10-23 12:37:06.230 W/AudioCapabilities( 4973): Unsupported mime audio/dsd
+10-23 12:37:06.230 W/AudioCapabilities( 4973): Unsupported mime audio/amr-wb-plus
+10-23 12:37:06.230 W/AudioCapabilities( 4973): Unsupported mime audio/amr-wb+
+10-23 12:37:06.230 W/AudioCapabilities( 4973): Unsupported mime audio/x-ms-wma
+10-23 12:37:06.230 W/AudioCapabilities( 4973): Unsupported mime audio/alac
+10-23 12:37:06.230 W/AudioCapabilities( 4973): Unsupported mime audio/x-ape
+10-23 12:37:06.241 W/VideoCapabilities( 4973): Unsupported mime image/vnd.android.heic
+10-23 12:37:06.242 W/VideoCapabilities( 4973): Unsupported mime image/vnd.android.heic
+10-23 12:37:06.458 I/DMCodecAdapterFactory( 4973): Creating an asynchronous MediaCodec adapter for track type video
+10-23 12:37:06.460 D/MediaMetricsManagerService( 2115): failed to get player_metrics_app_blocklist from DeviceConfig
+10-23 12:37:06.460 V/MediaMetricsManagerService( 2115): Logging level blocked: Failed to get PLAYER_METRICS_APP_BLOCKLIST.
+10-23 12:37:06.461 D/CCodec  ( 4973): allocate(c2.qti.avc.decoder)
+10-23 12:37:06.463 I/Codec2Client( 4973): Available Codec2 services: "default" "default2" "software"
+10-23 12:37:06.464 I/CCodec  ( 4973): setting up 'default' as default (vendor) store
+10-23 12:37:06.465 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+10-23 12:37:06.466 I/QC2Comp ( 1222): [c2.qti.avc.decoder] PreProcessingPipelining 1
+10-23 12:37:06.466 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+10-23 12:37:06.466 I/QC2VppFilterDeviceQuery( 1222): failed to getUserConfigValue
+10-23 12:37:06.466 I/QC2VppFilterCaps( 1222): failed to get user config, try default config
+10-23 12:37:06.466 I/QC2VppFilterDeviceQuery( 1222): failed to getUserConfigValue
+10-23 12:37:06.466 I/QC2VppFilterCaps( 1222): failed to get preset
+10-23 12:37:06.467 I/QC2VppFilterDeviceQuery( 1222): failed to getUserConfigValue
+10-23 12:37:06.467 I/QC2VppFilterCaps( 1222): failed to get user config, try default config
+10-23 12:37:06.467 I/QC2VppFilterDeviceQuery( 1222): failed to getUserConfigValue
+10-23 12:37:06.467 I/QC2VppFilterCaps( 1222): failed to get preset
+10-23 12:37:06.467 I/QC2VppFilterCaps( 1222): preset size is zero
+10-23 12:37:06.468 E/QC2ImgTxrFilterCapsHelper( 1222): Missing dependency raw.pixel-format
+10-23 12:37:06.470 I/vendor.qti.media.c2@1.0-service( 1222): missing struct descriptor #Param::CoreIndex(--002) for field mastering of struct #Param::CoreIndex(--180a)
+10-23 12:37:06.470 I/vendor.qti.media.c2@1.0-service( 1222): missing struct descriptor #Param::CoreIndex(-V8002) for field portConfigs of struct #Param::CoreIndex(FV1a100)
+10-23 12:37:06.471 I/vendor.qti.media.c2@1.0-service( 1222): missing struct descriptor #Param::CoreIndex(-V8002) for field portConfigs of struct #Param::CoreIndex(FV1a100)
+10-23 12:37:06.471 I/vendor.qti.media.c2@1.0-service( 1222): get enum 0 from HQV_MODE_OFF
+10-23 12:37:06.471 I/QC2VppFilterCaps( 1222): Setting AIE is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.471 I/QC2VppFilterCaps( 1222): Seeting CNR is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.471 I/QC2VppFilterCaps( 1222): Setting EAR is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.471 I/QC2VppFilterCaps( 1222): Setting FRC is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.471 I/QC2VppFilterCaps( 1222): Setting AIS is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.471 I/vendor.qti.media.c2@1.0-service( 1222): get enum 0 from PROCESS_LEFT
+10-23 12:37:06.471 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+10-23 12:37:06.471 I/QC2Comp ( 1222): Create: Allocated component[484] for name c2.qti.avc.decoder : [64 bit]
+10-23 12:37:06.471 I/QC2Comp ( 1222): Create Latency:5.89 ms
+10-23 12:37:06.471 I/QC2CompStore( 1222): Created component(c2.qti.avc.decoder) id(484)
+10-23 12:37:06.473 I/CCodec  ( 4973): Created component [c2.qti.avc.decoder]
+10-23 12:37:06.473 D/CCodecConfig( 4973): read media type: video/avc
+10-23 12:37:06.474 D/ReflectedParamUpdater( 4973): ignored struct field vendor.input.configs.portConfigs
+10-23 12:37:06.478 D/ReflectedParamUpdater( 4973): extent() != 1 for single value type: vendor.qti-ext-transcode-info-stats.stats_info
+10-23 12:37:06.478 D/ReflectedParamUpdater( 4973): ignored struct field vendor.output.configs.portConfigs
+10-23 12:37:06.479 D/ReflectedParamUpdater( 4973): extent() != 1 for single value type: output.buffers.pool-ids.values
+10-23 12:37:06.479 D/ReflectedParamUpdater( 4973): extent() != 1 for single value type: output.subscribed-indices.values
+10-23 12:37:06.480 D/ReflectedParamUpdater( 4973): extent() != 1 for single value type: vendor.qti-ext-vpp-extradata.extradata-types
+10-23 12:37:06.480 D/CCodecConfig( 4973): ignoring local param raw.size (0xd2001800) as it is already supported
+10-23 12:37:06.480 D/CCodecConfig( 4973): ignoring local param default.color (0x5200180b) as it is already supported
+10-23 12:37:06.480 D/CCodecConfig( 4973): ignoring local param raw.hdr-static-info (0xd200180a) as it is already supported
+10-23 12:37:06.480 I/CCodecConfig( 4973): query failed after returning 17 values (BAD_INDEX)
+10-23 12:37:06.480 D/CCodecConfig( 4973): c2 config diff is Dict {
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::i32 algo.priority.value = -1
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::float algo.rate.value = 30
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 algo.secure-mode.value = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::float coded.frame-rate.value = 30
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 coded.pl.level = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 coded.pl.profile = 20484
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 coded.vui.color.matrix = 255
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 coded.vui.color.primaries = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 coded.vui.color.range = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 coded.vui.color.transfer = 255
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 default.color.matrix = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 default.color.primaries = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 default.color.range = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 default.color.transfer = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 input.buffers.max-size.value = 7077888
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 input.delay.value = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   string input.media-type.value = "video/avc"
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 output.delay.value = 12
+10-23 12:37:06.480 D/CCodecConfig( 4973):   string output.media-type.value = "video/raw"
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 raw.color.matrix = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 raw.color.primaries = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 raw.color.range = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 raw.color.transfer = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::float raw.hdr-static-info.mastering.blue.x = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::float raw.hdr-static-info.mastering.blue.y = 0
+10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::float raw.hdr-static-info.mastering.green
+10-23 12:37:06.481 W/ColorUtils( 4973): expected specified color aspects (0:0:0:0)
+10-23 12:37:06.483 I/MediaCodec( 4973): MediaCodec will operate in async mode
+10-23 12:37:06.484 D/MediaCodec( 4973): flushMediametrics
+10-23 12:37:06.484 D/SurfaceUtils( 4973): connecting to surface 0xb400007337125110, reason connectToSurface
+10-23 12:37:06.484 I/MediaCodec( 4973): [c2.qti.avc.decoder] setting surface generation to 5092353
+10-23 12:37:06.484 D/SurfaceUtils( 4973): disconnecting from surface 0xb400007337125110, reason connectToSurface(reconnect)
+10-23 12:37:06.484 D/SurfaceUtils( 4973): connecting to surface 0xb400007337125110, reason connectToSurface(reconnect)
+10-23 12:37:06.485 D/CCodec  ( 4973): [c2.qti.avc.decoder] buffers are bound to CCodec for this session
+10-23 12:37:06.485 D/CCodecConfig( 4973): no c2 equivalents for log-session-id
+10-23 12:37:06.485 D/CCodecConfig( 4973): no c2 equivalents for color-standard
+10-23 12:37:06.485 D/CCodecConfig( 4973): no c2 equivalents for csd-1
+10-23 12:37:06.485 D/CCodecConfig( 4973): no c2 equivalents for native-window
+10-23 12:37:06.485 D/CCodecConfig( 4973): no c2 equivalents for flags
+10-23 12:37:06.485 I/vendor.qti.media.c2@1.0-service( 1222): get enum 0 from HQV_MODE_OFF
+10-23 12:37:06.485 I/QC2VppFilterCaps( 1222): Setting AIE is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.485 I/QC2VppFilterCaps( 1222): Seeting CNR is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.485 I/QC2VppFilterCaps( 1222): Setting EAR is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.485 I/QC2VppFilterCaps( 1222): Setting FRC is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.485 I/QC2VppFilterCaps( 1222): Setting AIS is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.485 D/CCodecConfig( 4973): c2 config diff is   c2::i32 algo.priority.value = 0
+10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 default.color.matrix = 1
+10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 default.color.primaries = 1
+10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 default.color.range = 2
+10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 default.color.transfer = 3
+10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 input.buffers.max-size.value = 3133440
+10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 raw.max-size.height = 1080
+10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 raw.max-size.width = 1080
+10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 raw.size.height = 486
+10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 raw.size.width = 486
+10-23 12:37:06.486 W/Codec2Client( 4973): query -- param skipped: index = 1107298332.
+10-23 12:37:06.486 D/CCodec  ( 4973): client requested max input size 887808, which is smaller than what component recommended (3133440); overriding with component recommendation.
+10-23 12:37:06.486 W/CCodec  ( 4973): This behavior is subject to change. It is recommended that app developers double check whether the requested max input size is in reasonable range.
+10-23 12:37:06.486 D/CCodec  ( 4973): encoding statistics level = 0
+10-23 12:37:06.486 D/CCodec  ( 4973): setup formats input: AMessage(what = 0x00000000) = {
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t feature-secure-playback = 0
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t frame-rate = 30
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t height = 486
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t max-input-size = 3133440
+10-23 12:37:06.486 D/CCodec  ( 4973):   string mime = "video/avc"
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t priority = 0
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t profile = 8
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t width = 486
+10-23 12:37:06.486 D/CCodec  ( 4973):   Rect crop(0, 0, 485, 485)
+10-23 12:37:06.486 D/CCodec  ( 4973): }
+10-23 12:37:06.486 D/CCodec  ( 4973): setup formats output: AMessage(what = 0x00000000) = {
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t android._color-format = 0
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t android._video-scaling = 1
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t android._dataspace = 258
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t color-standard = 2
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t color-range = 2
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t color-transfer = 3
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t sar-height = 1
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t rotation-degrees = 0
+10-23 12:37:06.486 D/CCodec  ( 4973):   Buffer hdr-static-info = {
+10-23 12:37:06.486 D/CCodec  ( 4973):     00000000:  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  ................
+10-23 12:37:06.486 D/CCodec  ( 4973):     00000010:  00 00 00 00 00 00 00 00  00                       .........
+10-23 12:37:06.486 D/CCodec  ( 4973):   }
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t sar-width = 1
+10-23 12:37:06.486 D/CCodec  ( 4973):   Rect crop(0, 0, 485, 485)
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t width = 486
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t feature-secure-playback = 0
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t frame-rate = 30
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t height = 486
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t max-height = 1080
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t max-width = 1080
+10-23 12:37:06.486 D/CCodec  ( 4973):   string mime = "video/raw"
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t priority = 0
+10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t color-format = 2130708361
+10-23 12:37:06.486 D/CCodec  ( 4973): }
+10-23 12:37:06.486 I/CCodecConfig( 4973): query failed after returning 17 values (BAD_INDEX)
+10-23 12:37:06.486 D/MediaCodec( 4973): keep callback message for reclaim
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): Build pipelined codec for session
+10-23 12:37:06.487 I/QC2Registry( 1222): Getting stages for pipelined codec
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mFactories
+10-23 12:37:06.487 I/QC2Registry( 1222): Pipelining enabled
+10-23 12:37:06.487 I/QC2Registry( 1222): Requested codec is pipelined. Create codec list
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): GetEnabledFilters for c2.qti.avc.decoder
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder.low_latency] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder.secure] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.decoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.decoder.low_latency] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.decoder.secure] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vp9.decoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vp9.decoder.low_latency] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vp9.decoder.secure] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.av1.decoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.av1.decoder.low_latency] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.av1.decoder.secure] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.encoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.encoder.secure] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.encoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.encoder.secure] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.encoder.cq] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.encoder.hdr] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.heic.encoder] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vpp.filter] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vpp.filter.secure] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vpp.filter] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): Pipeline Index = a000a00c
+10-23 12:37:06.487 I/QC2Registry( 1222): Filter c2.qti.vpp.filter can't be pipelined
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vpp.filter.secure] in mEntries
+10-23 12:37:06.487 I/QC2Registry( 1222): Filter c2.qti.vpp.filter.secure can't be pipelined
+10-23 12:37:06.487 I/QC2Registry( 1222): Pipeline Index = a000a103
+10-23 12:37:06.487 I/QC2Registry( 1222): Filter c2.qti.filter.imagetransform can't be pipelined
+10-23 12:37:06.487 I/QC2Registry( 1222): Created 0 filters for pipelined codec c2.qti.avc.decoder
+10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+10-23 12:37:06.490 I/QC2V4l2Driver( 1222): [avcD_484] Device /dev/video32 opened with fd: 15
+10-23 12:37:06.491 E/QC2V4l2Codec( 1222): [avcD_484]  ? is not a supported pixel format!
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-internal-only index = 0x4200A000
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-internal-only index = 0x4200A001
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param default.color index = 0x5200180B
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param raw.max-size index = 0x52002003
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-internal-only index = 0x5200A000
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-internal-only index = 0x5200A001
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp index = 0x5200A002
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-cnr index = 0x5200A003
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-aie index = 0x5200A004
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-frc index = 0x5200A005
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-ear index = 0x5200A006
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-ais index = 0x5200A007
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-demo index = 0x5200A008
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-internal-only index = 0x5200A009
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-bypass index = 0x5200A00E
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-lazy-init index = 0x5200A011
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-extradata index = 0x5201A00F
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param input.pipelined index = 0x8000A101
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param input.configs index = 0x8001A100
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param output.pipelined index = 0x9000A101
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param imgtxr filter.forcelinear index = 0x9000A102
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param output.configs index = 0x9001A100
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-internal-only index = 0xA000A00C
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param imgtxr filter.enabled index = 0xA000A103
+10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param input.buffers.max-size index = 0xC200081E
+10-23 12:37:06.492 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-preset index = 0xD201A00D
+10-23 12:37:06.492 D/BufferPoolAccessor2.0( 1222): bufferpool2 0xb400006e3477c358 : 14(229376 size) total buffers - 14(229376 size) used buffers - 0/14 (recycle/alloc) - 0/0 (fetch/transfer)
+10-23 12:37:06.492 D/BufferPoolAccessor2.0( 1222): bufferpool2 0xb400006e34784bc8 : 14(229376 size) total buffers - 14(229376 size) used buffers - 0/14 (recycle/alloc) - 0/0 (fetch/transfer)
+10-23 12:37:06.495 W/Codec2Client( 4973): query -- param skipped: index = 1342179345.
+10-23 12:37:06.495 W/Codec2Client( 4973): query -- param skipped: index = 2415921170.
+10-23 12:37:06.495 W/Codec2Client( 4973): query -- param skipped: index = 1610614798.
+10-23 12:37:06.495 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] Query input allocators returned 0 params => BAD_INDEX (6)
+10-23 12:37:06.495 D/C2Store ( 4973): debug.c2.use_dmabufheaps set, forcing DMABUF Heaps
+10-23 12:37:06.495 D/C2Store ( 4973): Using DMABUF Heaps
+10-23 12:37:06.495 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] start: max output delay 23
+10-23 12:37:06.495 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] Query output allocators returned 0 params => BAD_INDEX (6)
+10-23 12:37:06.496 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] Query output surface allocator returned 0 params => BAD_INDEX (6)
+10-23 12:37:06.496 D/Codec2-OutputBufferQueue( 4973): remote graphic buffer migration 0/0
+10-23 12:37:06.496 E/QC2Interface( 1222): Few parameters failed to configure
+10-23 12:37:06.496 D/Codec2Client( 4973): setOutputSurface -- failed to set consumer usage (6/BAD_INDEX)
+10-23 12:37:06.496 D/Codec2Client( 4973): setOutputSurface -- generation=5092353 consumer usage=0x900
+10-23 12:37:06.496 D/qdgralloc( 1177): Falling back to default YUV format - no camera/video specific format defined, usage 0x100
+10-23 12:37:06.497 D/qdgralloc( 1222): Falling back to default YUV format - no camera/video specific format defined, usage 0x100
+10-23 12:37:06.497 D/C2BqBuffer( 1222): local generation change 5092353 , bqId: 21358872363010 migrated buffers # 0
+10-23 12:37:06.497 D/Codec2Client( 4973): Surface configure completed
+10-23 12:37:06.497 I/QC2CompStore( 1222): Setting heap usage to system
+10-23 12:37:06.498 W/ResourceManagerService( 1733): Ignoring request to add new resource entry with value <= 0
+10-23 12:37:06.499 I/QC2Buf  ( 1222): use shared ref tracker
+10-23 12:37:06.499 I/QC2Buf  ( 1222): Reconfig: clearing from 0 bufs. Peak mem=0 MB
+10-23 12:37:06.499 I/QC2Buf  ( 1222): Reconfig: clearing from 0 bufs. Peak mem=0 MB
+10-23 12:37:06.499 I/QC2CompStore( 1222): Setting heap usage to system
+10-23 12:37:06.501 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] Ignoring stale input buffer done callback: last flush index = 0, frameIndex = 0
+10-23 12:37:06.605 I/QC2Buf  ( 1222): Reconfig: clearing from 0 bufs. Peak mem=0 MB
+10-23 12:37:06.610 D/CCodecConfig( 4973): c2 config diff is   c2::u32 output.delay.value = 22
+10-23 12:37:06.610 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] onWorkDone: updating output delay 22
+10-23 12:37:06.610 I/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] onWorkDone: updating max output delay 29
+10-23 12:37:06.610 D/Codec2-OutputBufferQueue( 4973): set max dequeue count 29 from update
+10-23 12:37:06.613 I/QC2CompStore( 1222): Setting heap usage to system
+10-23 12:37:06.637 I/QC2Comp ( 1222): [avcD_484] Output Format at frame 2: VENUS_NV12_UBWC 496x496
+10-23 12:37:06.638 I/vendor.qti.media.c2@1.0-service( 1222): get enum 0 from HQV_MODE_OFF
+10-23 12:37:06.638 I/QC2VppFilterCaps( 1222): Setting AIE is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.638 I/QC2VppFilterCaps( 1222): Seeting CNR is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.638 I/QC2VppFilterCaps( 1222): Setting EAR is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.638 I/QC2VppFilterCaps( 1222): Setting FRC is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.638 I/QC2VppFilterCaps( 1222): Setting AIS is only allowed when mode is manual: mode=HQV_MODE_OFF
+10-23 12:37:06.638 W/QC2V4l2Codec( 1222): [avcD_484] Ignore resolution setting when o/p port is streaming
+10-23 12:37:06.638 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-internal-only index = 0x4200A001
+10-23 12:37:06.638 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param qti-ext-vpp-internal-only index = 0x5200A001
+10-23 12:37:06.638 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param output.configs index = 0x9001A100
+10-23 12:37:06.639 D/CCodecConfig( 4973): c2 config diff is   c2::u32 raw.color.matrix = 1
+10-23 12:37:06.639 D/CCodecConfig( 4973):   c2::u32 raw.color.primaries = 1
+10-23 12:37:06.639 D/CCodecConfig( 4973):   c2::u32 raw.color.range = 2
+10-23 12:37:06.639 D/CCodecConfig( 4973):   c2::u32 raw.color.transfer = 3
+10-23 12:37:06.639 D/CCodecConfig( 4973):   c2::u32 raw.crop.height = 486
+10-23 12:37:06.639 D/CCodecConfig( 4973):   c2::u32 raw.crop.left = 0
+10-23 12:37:06.639 D/CCodecConfig( 4973):   c2::u32 raw.crop.top = 0
+10-23 12:37:06.639 D/CCodecConfig( 4973):   c2::u32 raw.crop.width = 486
+10-23 12:37:06.639 D/CCodecConfig( 4973):   c2::u32 raw.size.height = 496
+10-23 12:37:06.639 D/CCodecConfig( 4973):   c2::u32 raw.size.width = 496
+10-23 12:37:06.639 D/CCodecBuffers( 4973): [c2.qti.avc.decoder#496:2D-Output] popFromStashAndRegister: at 1000000000000us, output format changed to AMessage(what = 0x00000000) = {
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t android._color-format = 0
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t android._video-scaling = 1
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t android._dataspace = 260
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t color-standard = 1
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t color-range = 2
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t color-transfer = 3
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t sar-height = 1
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t rotation-degrees = 0
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   Buffer hdr-static-info = {
+10-23 12:37:06.639 D/CCodecBuffers( 4973):     00000000:  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  ................
+10-23 12:37:06.639 D/CCodecBuffers( 4973):     00000010:  00 00 00 00 00 00 00 00  00                       .........
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   }
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t sar-width = 1
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   Rect crop(0, 0, 485, 485)
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t width = 496
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t feature-secure-playback = 0
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t frame-rate = 30
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t height = 496
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t max-height = 1080
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t max-width = 1080
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   string mime = "video/raw"
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t priority = 0
+10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t color-format = 2130708361
+10-23 12:37:06.639 D/CCodecBuffers( 4973): }
+10-23 12:37:06.662 D/MediaMetricsManagerService( 2115): failed to get player_metrics_app_blocklist from DeviceConfig
+10-23 12:37:06.662 V/MediaMetricsManagerService( 2115): Logging level blocked: Failed to get PLAYER_METRICS_APP_BLOCKLIST.
+10-23 12:37:06.679 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 51.088890075683594 speedPercentage = 52 smartSpeed = 26000
+10-23 12:37:06.995 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(68.8/s Avg=68.8/s) Done(32.478/s Avg=32.478/s)| Stream: 30.00fps 1.0Mbps
+10-23 12:37:06.995 I/QC2Comp ( 1222): [avcD_484] Mem-usage:  [In-1D: 5 bufs 14.941 MB] [1D-789: 26 bufs 0.406 MB] [2D-790: 30 bufs 11.719 MB] | Total: 27.066 MB
+10-23 12:37:07.679 I/binder:1813_6( 1813): type=1400 audit(0.0:834399): avc: denied { create } for name="globalAlert" scontext=u:r:netd:s0 tcontext=u:object_r:proc_net:s0 tclass=file permissive=1
+10-23 12:37:07.930 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:37:07.930 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:37:07.943 D/TrafficStats(25446): tagSocket(154) with statsTag=0x9605, statsUid=-1
+10-23 12:37:07.944 D/TrafficStats(25446): tagSocket(268) with statsTag=0x9605, statsUid=-1
+10-23 12:37:08.459 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.123/s)| Stream: 30.00fps 170.0Kbps
+10-23 12:37:08.459 I/QC2Comp ( 1222): [avcD_456] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-739: 14 bufs 0.219 MB] [2D-740: 65 bufs 13.203 MB] | Total: 207.660 MB
+10-23 12:37:08.459 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.094/s)| Stream: 30.00fps 1.1Mbps
+10-23 12:37:08.459 I/QC2Comp ( 1222): [avcD_457] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-741: 14 bufs 0.219 MB] [2D-742: 65 bufs 122.891 MB] | Total: 317.348 MB
+10-23 12:37:08.519 D/QCNEJ/NativeHalConnector( 2640): -> SND notifyDefaultNetworkChanged(1)
+10-23 12:37:08.521 D/ConnectivityService( 2115): NetReassign [no changes]
+10-23 12:37:08.523 D/SlaveWifiSignalController( 2512): WifiTrafficStateCallbacknull
+10-23 12:37:08.523 I/NearbyMediums(25446): Wifi changed new SSID: <unknown ssid>
+10-23 12:37:08.523 I/NearbyMediums(25446): WifiLanConnectivityInfo is not changed, skip notify.
+10-23 12:37:08.730 W/QC2V4l2Codec( 1222): [avcD_484] Allocating output buffer timedout, 2077ms elapsed since last input buffer queued (threshold 2000ms)
+10-23 12:37:09.020 I/NearbySharing(25446): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+10-23 12:37:09.021 I/NearbySharing(25446): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+10-23 12:37:10.693 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 50.11666488647461 speedPercentage = 51 smartSpeed = 25500
+10-23 12:37:11.493 D/BufferPoolAccessor2.0( 1222): bufferpool2 0xb400006e34788ed8 : 26(425984 size) total buffers - 26(425984 size) used buffers - 0/26 (recycle/alloc) - 0/0 (fetch/transfer)
+10-23 12:37:11.493 D/BufferPoolAccessor2.0( 1222): evictor expired: 1, evicted: 1
+10-23 12:37:11.496 D/BufferPoolAccessor2.0( 4973): evictor expired: 1, evicted: 1
+10-23 12:37:11.518 D/QCNEJ/NativeHalConnector( 2640): -> SND notifyDefaultNetworkChanged(1)
+10-23 12:37:11.524 D/SlaveWifiSignalController( 2512): WifiTrafficStateCallbacknull
+10-23 12:37:11.533 D/ConnectivityService( 2115): NetReassign [no changes]
+10-23 12:37:11.536 I/NearbyMediums(25446): Wifi changed new SSID: <unknown ssid>
+10-23 12:37:11.536 I/NearbyMediums(25446): WifiLanConnectivityInfo is not changed, skip notify.
+10-23 12:37:11.935 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:37:11.936 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:37:11.995 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=6.5/s) Done(0.000/s Avg=3.078/s)| Stream: 30.00fps 1.0Mbps
+10-23 12:37:11.995 I/QC2Comp ( 1222): [avcD_484] Mem-usage:  [In-1D: 5 bufs 14.941 MB] [1D-789: 26 bufs 0.406 MB] [2D-790: 30 bufs 11.719 MB] | Total: 27.066 MB
+10-23 12:37:12.037 I/NearbySharing(25446): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+10-23 12:37:12.038 I/NearbySharing(25446): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+10-23 12:37:13.300 D/pservice( 1308): cpu_init boot_completed cpugpumode=2
+10-23 12:37:13.311 I/sh      ( 5234): type=1400 audit(0.0:834400): avc: denied { dac_override } for capability=1 scontext=u:r:pservice:s0 tcontext=u:r:pservice:s0 tclass=capability permissive=1
+10-23 12:37:13.383 I/sh      ( 5240): type=1400 audit(0.0:834401): avc: denied { write } for name="min_pwrlevel" dev="sysfs" ino=124632 scontext=u:r:pservice:s0 tcontext=u:object_r:vendor_sysfs_kgsl:s0 tclass=file permissive=1 app=rip.moth.cocoonshell
+10-23 12:37:13.383 I/sh      ( 5240): type=1400 audit(0.0:834402): avc: denied { open } for path="/sys/devices/platform/soc/3d00000.qcom,kgsl-3d0/kgsl/kgsl-3d0/min_pwrlevel" dev="sysfs" ino=124632 scontext=u:r:pservice:s0 tcontext=u:object_r:vendor_sysfs_kgsl:s0 tclass=file permissive=1 app=rip.moth.cocoonshell
+10-23 12:37:13.459 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.120/s)| Stream: 30.00fps 170.0Kbps
+10-23 12:37:13.459 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.094/s)| Stream: 30.00fps 1.1Mbps
+10-23 12:37:13.459 I/QC2Comp ( 1222): [avcD_457] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-741: 14 bufs 0.219 MB] [2D-742: 65 bufs 122.891 MB] | Total: 317.348 MB
+10-23 12:37:13.459 I/QC2Comp ( 1222): [avcD_456] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-739: 14 bufs 0.219 MB] [2D-740: 65 bufs 13.203 MB] | Total: 207.660 MB
+10-23 12:37:13.810 I/keystore2(  938): keystore2::watchdog: Watchdog thread idle -> terminating. Have a great day.
+10-23 12:37:14.706 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 49.88888931274414 speedPercentage = 51 smartSpeed = 25500
+10-23 12:37:15.358 I/NearbyMediums(25446): No BLE Fast/GATT advertisements found in the latest cycle.
+10-23 12:37:15.358 I/NearbyMediums(25446): Current Tracked Scanning Clients are : {NearbyConnections.EnvironmentMonitor, NearbySharing}
+10-23 12:37:15.939 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:37:15.940 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:37:16.996 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=3.4/s) Done(0.000/s Avg=1.615/s)| Stream: 30.00fps 1.0Mbps
+10-23 12:37:16.996 I/QC2Comp ( 1222): [avcD_484] Mem-usage:  [In-1D: 5 bufs 14.941 MB] [1D-789: 26 bufs 0.406 MB] [2D-790: 30 bufs 11.719 MB] | Total: 27.066 MB
+10-23 12:37:18.434 E/squarecore( 4973): librespot_connect::spirc: starting dealer failed: Invalid state { Websocket couldn't be started because: Deadline expired before operation could complete { Connection timed out (os error 110) } }
+10-23 12:37:18.434 I/squarecore( 4973): squarecore::engine: connect device stopped
+10-23 12:37:18.434 I/squarecore( 4973): squarecore::remote: cluster watch ended
+10-23 12:37:18.460 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.093/s)| Stream: 30.00fps 1.1Mbps
+10-23 12:37:18.460 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.118/s)| Stream: 30.00fps 170.0Kbps
+10-23 12:37:18.460 I/QC2Comp ( 1222): [avcD_457] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-741: 14 bufs 0.219 MB] [2D-742: 65 bufs 122.891 MB] | Total: 317.348 MB
+10-23 12:37:18.460 I/QC2Comp ( 1222): [avcD_456] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-739: 14 bufs 0.219 MB] [2D-740: 65 bufs 13.203 MB] | Total: 207.660 MB
+10-23 12:37:18.719 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 49.655555725097656 speedPercentage = 50 smartSpeed = 25000
+10-23 12:37:19.544 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:19.544 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:19.544 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:19.544 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:19.544 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:19.591 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:19.591 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:19.591 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:19.591 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:19.591 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:19.943 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:37:19.943 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:37:20.244 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:20.244 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:20.244 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:20.244 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:20.244 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:20.505 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:20.505 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:20.505 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:20.505 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:20.505 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:21.422 I/squarecore( 4973): squarecore::engine: discarding the old session
+10-23 12:37:21.428 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:21.428 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:21.428 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:21.428 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:21.428 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:21.432 I/squarecore( 4973): squarecore::engine: logging in with the kept credential
+10-23 12:37:21.494 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:21.494 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:21.494 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:21.494 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:21.494 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:21.996 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=2.3/s) Done(0.000/s Avg=1.095/s)| Stream: 30.00fps 1.0Mbps
+10-23 12:37:21.996 I/QC2Comp ( 1222): [avcD_484] Mem-usage:  [In-1D: 5 bufs 14.941 MB] [1D-789: 26 bufs 0.406 MB] [2D-790: 30 bufs 11.719 MB] | Total: 27.066 MB
+10-23 12:37:22.730 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 52.13333511352539 speedPercentage = 53 smartSpeed = 26500
+10-23 12:37:22.927 I/squarecore( 4973): librespot_core::session: Connecting to AP "ap-guc3.spotify.com:4070"
+10-23 12:37:23.331 I/squarecore( 4973): librespot_core::session: Authenticated as '31dxzlris3rev26ogljnrqr7qh7u' !
+10-23 12:37:23.332 I/squarecore( 4973): librespot_core::session: Country: "GT"
+10-23 12:37:23.430 D/pservice( 1308): cpu_init boot_completed cpugpumode=2
+10-23 12:37:23.460 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.116/s)| Stream: 30.00fps 170.0Kbps
+10-23 12:37:23.460 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.092/s)| Stream: 30.00fps 1.1Mbps
+10-23 12:37:23.460 I/QC2Comp ( 1222): [avcD_456] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-739: 14 bufs 0.219 MB] [2D-740: 65 bufs 13.203 MB] | Total: 207.660 MB
+10-23 12:37:23.460 I/QC2Comp ( 1222): [avcD_457] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-741: 14 bufs 0.219 MB] [2D-742: 65 bufs 122.891 MB] | Total: 317.348 MB
+10-23 12:37:23.571 D/QCNEJ/NativeHalConnector( 2640): -> SND notifyDefaultNetworkChanged(1)
+10-23 12:37:23.583 D/ConnectivityService( 2115): NetReassign [no changes]
+10-23 12:37:23.585 I/NearbyMediums(25446): Wifi changed new SSID: <unknown ssid>
+10-23 12:37:23.585 I/NearbyMediums(25446): WifiLanConnectivityInfo is not changed, skip notify.
+10-23 12:37:23.586 D/SlaveWifiSignalController( 2512): WifiTrafficStateCallbacknull
+10-23 12:37:23.947 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:37:23.947 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:37:24.003 I/squarecore( 4973): squarecore::engine: reconnected
+10-23 12:37:24.083 I/NearbySharing(25446): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+10-23 12:37:24.083 I/NearbySharing(25446): Network state changed: NetworkState(isRestricted=false, isOnline=true, isCongested=false, isMetered=false, isWifiConnected=true)
+10-23 12:37:24.883 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:24.883 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:24.883 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:24.883 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:24.883 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:25.051 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:25.051 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:25.051 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:25.051 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:25.051 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:25.359 I/NearbyMediums(25446): No BLE Fast/GATT advertisements found in the latest cycle.
+10-23 12:37:25.360 I/NearbyMediums(25446): Current Tracked Scanning Clients are : {NearbyConnections.EnvironmentMonitor, NearbySharing}
+10-23 12:37:25.543 I/android.hardwar( 1146): type=1400 audit(0.0:834403): avc: denied { read } for name="online" dev="sysfs" ino=129896 scontext=u:r:hal_health_default:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+10-23 12:37:25.543 I/android.hardwar( 1146): type=1400 audit(0.0:834404): avc: denied { open } for path="/sys/devices/platform/soc/soc:qcom,pmic_glink/soc:qcom,pmic_glink:qcom,ucsi/power_supply/ucsi-source-psy-soc:qcom,pmic_glink:qcom,ucsi1/online" dev="sysfs" ino=129896 scontext=u:r:hal_health_default:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+10-23 12:37:25.543 I/android.hardwar( 1146): type=1400 audit(0.0:834405): avc: denied { getattr } for path="/sys/devices/platform/soc/soc:qcom,pmic_glink/soc:qcom,pmic_glink:qcom,ucsi/power_supply/ucsi-source-psy-soc:qcom,pmic_glink:qcom,ucsi1/online" dev="sysfs" ino=129896 scontext=u:r:hal_health_default:s0 tcontext=u:object_r:sysfs:s0 tclass=file permissive=1
+10-23 12:37:25.559 D/PowerUI ( 2512): can't show warning due to - plugged: true status unknown: false
+10-23 12:37:25.562 D/vendor.qti.bluetooth@1.1-ibs_handler( 1141): SerialClockVote: vote for UART CLK ON
+10-23 12:37:25.563 D/vendor.qti.bluetooth@1.1-wake_lock( 1141): Acquire wakelock is acquired 
+10-23 12:37:25.563 I/vendor.qti.bluetooth@1.1-ibs_handler( 1141): DeviceWakeUp: Writing IBS_WAKE_IND
+10-23 12:37:25.567 I/vendor.qti.bluetooth@1.1-ibs_handler( 1141): ProcessIbsCmd: Received IBS_WAKE_ACK: 0xFC
+10-23 12:37:25.567 I/vendor.qti.bluetooth@1.1-ibs_handler( 1141): ProcessIbsCmd: Signal wack_cond_
+10-23 12:37:25.568 D/vendor.qti.bluetooth@1.1-ibs_handler( 1141): DeviceWakeUp: Unblocked from waiting for FC, pthread_cond_timedwait ret = 0
+10-23 12:37:25.568 I/vendor.qti.bluetooth@1.1-ibs_handler( 1141): ProcessIbsCmd: Received IBS_WAKE_IND: 0xFD
+10-23 12:37:25.568 I/vendor.qti.bluetooth@1.1-ibs_handler( 1141): ProcessIbsCmd: Writing IBS_WAKE_ACK
+10-23 12:37:25.599 D/BoundBrokerSvc(25446): onUnbind: Intent { act=com.google.android.gms.common.BIND_SHARED_PREFS pkg=com.google.android.gms }
+10-23 12:37:25.608 I/vendor.qti.bluetooth@1.1-ibs_handler( 1141): ProcessIbsCmd: Received IBS_SLEEP_IND: 0xFE
+10-23 12:37:25.683 E/SemanticLocation(25446): [GellerSyncMgr] Exception syncing personalized places from the Geller service.. [CONTEXT service_id=173 ]
+10-23 12:37:25.683 E/SemanticLocation(25446): kfjp: DEADLINE_EXCEEDED: CallOptions deadline exceeded after 59.972225208s. Name resolution delay 0.027535000 seconds. [closed=[], open=[[connecting_and_lb_delay=59972641904ns, was_still_waiting]]]
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at kgho.a(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):41)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at kfrr.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):24)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at kfrt.h(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):14)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at kfrt.a(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):6)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at kfql.h(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at kfqi.a(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):28)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at kfrd.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):7)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at kgaz.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):12)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1137)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:637)
+10-23 12:37:25.683 E/SemanticLocation(25446): 	at java.lang.Thread.run(Thread.java:1012)
+10-23 12:37:25.735 I/NetworkScheduler.Stats(25446): (REDACTED) Task %s/%s finished executing. cause:%s result: %s elapsed_millis: %s uptime_millis: %s exec_start_elapsed_seconds: %s
+10-23 12:37:25.735 D/BoundBrokerSvc(25446): onUnbind: Intent { act=com.google.android.gms.semanticlocationhistory.deidentifieddata.storevisits.StoreVisitsProcessingService.ACTION_TASK_READY dat=chimera-action:/... cmp=com.google.android.gms/.chimera.GmsInternalBoundBrokerService }
+10-23 12:37:25.770 I/NetworkScheduler.Stats(25446): (REDACTED) Task %s/%s started execution. cause:%s exec_start_elapsed_seconds: %s
+10-23 12:37:25.806 I/PeopleChimeraService(25446): onService. callbacks = dlct@831c1bd, request = com.google.android.gms.common.internal.GetServiceRequest@b6543b2
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): Failed to mark incremental upload successful [CONTEXT service_id=135 ]
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): java.util.concurrent.ExecutionException: hbdb: sync policy is not enabled
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.k(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):21)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtv.u(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):73)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at com.google.android.gms.romanesco.service.ContactsLoggerUploadService.a(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):207)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at dmwp.call(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):37)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at brkq.d(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):50)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at brkq.c(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):5)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at brkq.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):81)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1137)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:637)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at brqr.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):8)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at java.lang.Thread.run(Thread.java:1012)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): Caused by: hbdb: sync policy is not enabled
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at hbam.a(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):148)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at hbaj.a(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):17)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at hyay.a(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):17)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtx.d(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):3)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtz.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):45)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igvn.execute(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.f(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.n(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):95)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.q(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):15)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igty.e(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtz.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):51)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igvn.execute(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.f(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.n(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):95)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.q(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):15)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtf.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):125)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igvn.execute(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.f(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.n(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):95)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.q(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):15)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igty.e(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtz.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):51)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igvn.execute(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.f(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.n(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):95)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.q(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):15)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igty.e(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtz.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):51)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igvn.execute(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.f(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.n(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):95)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.t(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):28)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igwj.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):5)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igvn.execute(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.f(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.n(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):95)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.t(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):28)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igwj.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):5)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igvn.execute(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.f(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):1)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.n(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):95)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igtn.t(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):28)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igxy.e(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):5)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igwz.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):71)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igya.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):5)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	at igvw.run(:com.google.android.gms@264230029@26.42.30 (190400-1002046826):17)
+10-23 12:37:25.826 I/DCU_ContactsLogService(25446): 	... 7 more
+10-23 12:37:25.829 I/NetworkScheduler.Stats(25446): (REDACTED) Task %s/%s finished executing. cause:%s result: %s elapsed_millis: %s uptime_millis: %s exec_start_elapsed_seconds: %s
+10-23 12:37:26.568 I/vendor.qti.bluetooth@1.1-ibs_handler( 1141): DeviceSleep: TX Awake, Sending SLEEP_IND
+10-23 12:37:26.568 D/vendor.qti.bluetooth@1.1-ibs_handler( 1141): SerialClockVote: vote for UART CLK OFF
+10-23 12:37:26.718 D/vendor.qti.bluetooth@1.1-wake_lock( 1141): Release wakelock is released 
+10-23 12:37:26.743 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 49.411109924316406 speedPercentage = 50 smartSpeed = 25000
+10-23 12:37:26.996 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=1.8/s) Done(0.000/s Avg=0.828/s)| Stream: 30.00fps 1.0Mbps
+10-23 12:37:26.996 I/QC2Comp ( 1222): [avcD_484] Mem-usage:  [In-1D: 5 bufs 14.941 MB] [1D-789: 26 bufs 0.406 MB] [2D-790: 30 bufs 11.719 MB] | Total: 27.066 MB
+10-23 12:37:27.953 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:37:27.954 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:37:28.460 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.114/s)| Stream: 30.00fps 170.0Kbps
+10-23 12:37:28.460 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.091/s)| Stream: 30.00fps 1.1Mbps
+10-23 12:37:28.460 I/QC2Comp ( 1222): [avcD_456] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-739: 14 bufs 0.219 MB] [2D-740: 65 bufs 13.203 MB] | Total: 207.660 MB
+10-23 12:37:28.460 I/QC2Comp ( 1222): [avcD_457] Mem-usage:  [In-1D: 65 bufs 194.238 MB] [1D-741: 14 bufs 0.219 MB] [2D-742: 65 bufs 122.891 MB] | Total: 317.348 MB
+10-23 12:37:28.762 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:28.762 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:28.762 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:28.762 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:28.762 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:28.826 I/cnss-daemon( 1859): nl80211 response handler invoked
+10-23 12:37:28.826 I/cnss-daemon( 1859): nl80211_response_handler: cmd 103, vendorID 4980, subcmd 182  received
+10-23 12:37:28.826 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] wait_event:Wait done with Cmd 103
+10-23 12:37:28.826 D/LOWI-9.0.1.68( 1949): [LOWI-Scan] do_listen_events: Rcvd valid Netlink Cmd 0 Err 0
+10-23 12:37:28.826 I/WifiHAL ( 1161): event received NL80211_CMD_VENDOR, vendor_id = 0x1374, subcmd = 0xb6
+10-23 12:37:30.756 D/FanBase ( 2744): mSmartAction temp control curve; result /sys/devices/virtual/thermal/   null result.temperature = 49.122222900390625 speedPercentage = 50 smartSpeed = 25000
+10-23 12:37:31.960 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+10-23 12:37:31.960 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+10-23 12:37:31.996 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=1.4/s) Done(0.000/s Avg=0.666/s)| Stream: 30.00fps 1.0Mbps
+10-23 12:37:31.997 I/QC2Comp ( 1222): [avcD_484] Mem-usage:  [In-1D: 5 bufs 14.941 MB] [1D-789: 26 bufs 0.406 MB] [2D-790: 30 bufs 11.719 MB] | Total: 27.066 MB

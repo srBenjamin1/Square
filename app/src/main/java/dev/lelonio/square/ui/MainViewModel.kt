@@ -3069,6 +3069,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** A link's own title, from whichever side of Spotify will say. */
     private suspend fun nameOf(uri: String): String? {
+        // Other catalogs load their own names in the existing detail loader.
+        if (!uri.startsWith("spotify:")) return null
         val kind = kindOf(uri)
         val id = uri.substringAfterLast(':')
 
@@ -4673,6 +4675,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * good page, so every failure here is silent.
      */
     private suspend fun artworkFor(uri: String, kind: DetailKind): String? {
+        if (!uri.startsWith("spotify:")) return contextCache[uri]?.tracks?.firstNotNullOfOrNull { it.artworkUrl }
         (_state.value as? UiState.Ready)?.playlists
             ?.firstOrNull { it.uri == uri }
             ?.artworkUrl
@@ -5546,28 +5549,48 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /**
-     * The record a track is on, asked for when nothing already knew it.
-     *
-     * The address travels with the queue where the source gave one, but a
-     * playlist resolved before this app kept it — the copies on disk outlive a
-     * version — has only the album's name. Rather than leave the title inert on
-     * those, it is looked up once, on the tap.
-     */
-    suspend fun albumOf(trackUri: String): CatalogPlaylist? {
-        if (!trackUri.startsWith("spotify:track:") || !container.webApi.isReady) return null
-        val id = trackUri.substringAfterLast(':')
-        val dto = runCatching { container.api.track(id) }
-            .onFailure { android.util.Log.w(TAG, "no album for $trackUri: ${describe(it)}") }
-            .getOrNull() ?: return null
-        val album = dto.album ?: return null
-        val uri = album.uri ?: return null
-        return CatalogPlaylist(
-            uri = uri,
-            name = album.name,
-            artworkUrl = album.images.firstOrNull()?.url,
-        )
+    /** Catalog identity for the current song, independent of sparse MediaSession metadata. */
+    suspend fun metadataOf(trackUri: String): CatalogTrack? {
+        if (dev.lelonio.square.data.MetadataDestination.serviceOfTrack(trackUri) == BackendId.YOUTUBE_MUSIC) {
+            return container.youtubeBackend.metadataOf(trackUri)
+        }
+        if (!trackUri.startsWith("spotify:track:")) return null
+        val native = try { Catalog.tracks(listOf(trackUri)).firstOrNull { it.uri == trackUri } }
+        catch (failure: Exception) {
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
+            null
+        }
+        if (native != null && native.album.isNotBlank() && native.albumUri != null &&
+            native.artists.isNotEmpty() && native.artists.all { !it.uri.isNullOrBlank() }) return native
+        if (!container.webApi.isReady) return native
+        return try {
+            val track = container.api.track(trackUri.substringAfterLast(':'))
+            if (track.uri != trackUri) return native
+            CatalogTrack(uri = track.uri, name = track.name,
+                artist = track.artists.joinToString(", ") { it.name },
+                artists = track.artists.map { dev.lelonio.square.data.CatalogArtist(it.name, it.uri) },
+                artistUri = track.artists.firstOrNull()?.uri,
+                album = track.album?.name.orEmpty(), albumUri = track.album?.uri)
+        } catch (failure: Exception) {
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
+            native
+        }
     }
+
+    /** Exact-track album fallback, also used while preparing metadata before a tap. */
+    suspend fun albumOf(trackUri: String): CatalogPlaylist? = resolveSpotifyAlbum(
+        trackUri,
+        nativeTracks = Catalog::tracks,
+        webAlbum = { uri ->
+            MetadataNavigationDebug.event("album.web", "ready=${container.webApi.isReady}")
+            if (!container.webApi.isReady) null else {
+                val album = container.api.track(uri.substringAfterLast(':')).album
+                album?.uri?.let { CatalogPlaylist(uri = it, name = album.name,
+                    artworkUrl = album.images.firstOrNull()?.url) }
+            }
+        },
+        trace = MetadataNavigationDebug::event,
+    )
 
     /**
      * Resolves the artist for a track.
@@ -6513,7 +6536,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // is the one with the follow button, whichever catalogue they are from.
         uri.startsWith(dev.lelonio.square.backend.youtube.YouTubeBackend.ARTIST_PREFIX) ->
             DetailKind.ARTIST
-        uri.startsWith("spotify:album:") -> DetailKind.ALBUM
+        uri.startsWith("spotify:album:") || uri.startsWith(dev.lelonio.square.backend.youtube.YouTubeBackend.ALBUM_PREFIX) -> DetailKind.ALBUM
         dev.lelonio.square.data.SpotifyPodcasts.isShow(uri) -> DetailKind.SHOW
         else -> DetailKind.PLAYLIST
     }

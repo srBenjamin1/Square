@@ -192,6 +192,8 @@ object AppleCatalog {
          * showing a still.
          */
         val motionUrl: String? = null,
+        /** Square editorial video kept separately from the portrait page artwork. */
+        val motionSquareUrl: String? = null,
     )
 
     /** What one artist's page can use. Either field may be absent on its own. */
@@ -265,9 +267,9 @@ object AppleCatalog {
         storefront: String = storefront(),
     ): Album? {
         if (name.isBlank()) return null
-        // "album2": answers filed before a moving cover counted as a picture
-        // chose the edition without one and kept it for a month.
-        val key = "album2 $storefront/${artist.lowercase()}/${name.lowercase()}"
+        // New cache schema: older answers retained only the portrait video,
+        // even when Apple also supplied a square variant.
+        val key = "album3 $storefront/${artist.lowercase()}/${name.lowercase()}"
         synchronized(cache) { if (cache.containsKey(key)) return cache[key] as Album? }
 
         remembered(key)?.let { row ->
@@ -613,6 +615,7 @@ object AppleCatalog {
         return Album(
             heroUrl = (tall ?: motionStill)?.let { size(it, DETAIL_W, DETAIL_H) },
             motionUrl = motionUrl,
+            motionSquareUrl = squareMotionUrl(attributes),
             bgColor = pageArt?.get("bgColor")?.jsonPrimitive?.content,
             textHex = pageArt?.get("textColor1")?.jsonPrimitive?.content,
             inkPalette = inkPaletteOf(pageArt),
@@ -641,6 +644,18 @@ object AppleCatalog {
     private fun kotlinx.serialization.json.JsonObject.motion(): kotlinx.serialization.json.JsonObject? =
         listOf("motionDetailTall", "motionTallVideo3x4", "motionDetailSquare")
             .firstNotNullOfOrNull { get("editorialVideo")?.jsonObject?.get(it)?.jsonObject }
+
+    internal fun squareMotionUrl(attributes: JsonObject): String? {
+        val square = (attributes["editorialVideo"] as? JsonObject)
+            ?.get("motionDetailSquare") as? JsonObject ?: return null
+        val preview = square["previewFrame"] as? JsonObject
+        val width = preview?.get("width")?.jsonPrimitive?.content?.toFloatOrNull()
+        val height = preview?.get("height")?.jsonPrimitive?.content?.toFloatOrNull()
+        if (width != null && height != null &&
+            (!width.isFinite() || !height.isFinite() || width <= 0 || height <= 0 ||
+                kotlin.math.abs(width / height - 1f) > 0.02f)) return null
+        return square["video"]?.jsonPrimitive?.content?.takeIf { it.startsWith("https://") }
+    }
 
     /**
      * The full-height picture a record's page opens with, where it has one.

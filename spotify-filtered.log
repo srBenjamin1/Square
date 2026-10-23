@@ -1,0 +1,156 @@
+2:10-23 12:36:51.909 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+4:10-23 12:36:51.909 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+20:10-23 12:36:53.458 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.097/s)| Stream: 30.00fps 1.1Mbps
+21:10-23 12:36:53.458 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.129/s)| Stream: 30.00fps 170.0Kbps
+37:10-23 12:36:55.914 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+38:10-23 12:36:55.915 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+43:10-23 12:36:58.458 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.127/s)| Stream: 30.00fps 170.0Kbps
+44:10-23 12:36:58.458 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.096/s)| Stream: 30.00fps 1.1Mbps
+58:10-23 12:36:59.919 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+59:10-23 12:36:59.919 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+66:10-23 12:37:01.002 W/Avrcp_ext(31018): isMusicActive: false getBluetoothPlayState: 2 A2dp State: 11 mAudioPlaybackIsActive: false
+67:10-23 12:37:01.003 D/Avrcp_ext(31018): isMusicActive = false mAudioPlaybackIsActive = false player state = PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}
+69:10-23 12:37:01.004 I/Avrcp_ext(31018): Skipping update due to invalid playback state
+71:10-23 12:37:01.005 V/Avrcp_ext(31018): updatePlaybackState, state: PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null} device: null
+77:10-23 12:37:01.005 V/Avrcp_ext(31018): updatePlayerStateAndPosition, old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}, state=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}
+78:10-23 12:37:01.005 V/Avrcp_ext(31018): old state = PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}, new state= PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}
+84:10-23 12:37:01.005 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+90:10-23 12:37:01.005 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+96:10-23 12:37:01.006 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+102:10-23 12:37:01.007 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+108:10-23 12:37:01.008 V/Avrcp_ext(31018): updatePlaybackState (1): old=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2), new=PlaybackState {state=6, position=0, buffered position=0, speed=0.0, updated=1035429200, actions=7339955, custom actions=[Action:mName='Aleatorio, mIcon=2131034257, mExtras=Bundle[mParcelledData.dataSize=140], Action:mName='Quitar de tus canciones que te gustan, mIcon=2131034202, mExtras=Bundle[EMPTY_PARCEL], Action:mName='Radio, mIcon=2131034250, mExtras=Bundle[mParcelledData.dataSize=140]], active item id=0, error=null}(2)
+156:10-23 12:37:03.458 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.095/s)| Stream: 30.00fps 1.1Mbps
+157:10-23 12:37:03.458 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.125/s)| Stream: 30.00fps 170.0Kbps
+160:10-23 12:37:03.925 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+161:10-23 12:37:03.925 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+186:10-23 12:37:06.460 D/MediaMetricsManagerService( 2115): failed to get player_metrics_app_blocklist from DeviceConfig
+187:10-23 12:37:06.460 V/MediaMetricsManagerService( 2115): Logging level blocked: Failed to get PLAYER_METRICS_APP_BLOCKLIST.
+188:10-23 12:37:06.461 D/CCodec  ( 4973): allocate(c2.qti.avc.decoder)
+191:10-23 12:37:06.465 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+192:10-23 12:37:06.466 I/QC2Comp ( 1222): [c2.qti.avc.decoder] PreProcessingPipelining 1
+193:10-23 12:37:06.466 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+194:10-23 12:37:06.466 I/QC2VppFilterDeviceQuery( 1222): failed to getUserConfigValue
+195:10-23 12:37:06.466 I/QC2VppFilterCaps( 1222): failed to get user config, try default config
+196:10-23 12:37:06.466 I/QC2VppFilterDeviceQuery( 1222): failed to getUserConfigValue
+197:10-23 12:37:06.466 I/QC2VppFilterCaps( 1222): failed to get preset
+198:10-23 12:37:06.467 I/QC2VppFilterDeviceQuery( 1222): failed to getUserConfigValue
+199:10-23 12:37:06.467 I/QC2VppFilterCaps( 1222): failed to get user config, try default config
+200:10-23 12:37:06.467 I/QC2VppFilterDeviceQuery( 1222): failed to getUserConfigValue
+201:10-23 12:37:06.467 I/QC2VppFilterCaps( 1222): failed to get preset
+214:10-23 12:37:06.471 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+215:10-23 12:37:06.471 I/QC2Comp ( 1222): Create: Allocated component[484] for name c2.qti.avc.decoder : [64 bit]
+217:10-23 12:37:06.471 I/QC2CompStore( 1222): Created component(c2.qti.avc.decoder) id(484)
+218:10-23 12:37:06.473 I/CCodec  ( 4973): Created component [c2.qti.avc.decoder]
+223:10-23 12:37:06.479 D/ReflectedParamUpdater( 4973): extent() != 1 for single value type: output.buffers.pool-ids.values
+229:10-23 12:37:06.480 I/CCodecConfig( 4973): query failed after returning 17 values (BAD_INDEX)
+245:10-23 12:37:06.480 D/CCodecConfig( 4973):   c2::u32 input.buffers.max-size.value = 7077888
+261:10-23 12:37:06.484 I/MediaCodec( 4973): [c2.qti.avc.decoder] setting surface generation to 5092353
+264:10-23 12:37:06.485 D/CCodec  ( 4973): [c2.qti.avc.decoder] buffers are bound to CCodec for this session
+281:10-23 12:37:06.485 D/CCodecConfig( 4973):   c2::u32 input.buffers.max-size.value = 3133440
+291:10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t feature-secure-playback = 0
+310:10-23 12:37:06.486 D/CCodec  ( 4973):   Buffer hdr-static-info = {
+317:10-23 12:37:06.486 D/CCodec  ( 4973):   int32_t feature-secure-playback = 0
+326:10-23 12:37:06.486 I/CCodecConfig( 4973): query failed after returning 17 values (BAD_INDEX)
+328:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+331:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+332:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mFactories
+335:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+336:10-23 12:37:06.487 I/QC2Registry( 1222): GetEnabledFilters for c2.qti.avc.decoder
+337:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+338:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder.low_latency] in mEntries
+339:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder.secure] in mEntries
+340:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.decoder] in mEntries
+341:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.decoder.low_latency] in mEntries
+342:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.hevc.decoder.secure] in mEntries
+343:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vp9.decoder] in mEntries
+344:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vp9.decoder.low_latency] in mEntries
+345:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.vp9.decoder.secure] in mEntries
+346:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.av1.decoder] in mEntries
+347:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.av1.decoder.low_latency] in mEntries
+348:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.av1.decoder.secure] in mEntries
+365:10-23 12:37:06.487 I/QC2Registry( 1222): Created 0 filters for pipelined codec c2.qti.avc.decoder
+366:10-23 12:37:06.487 I/QC2Registry( 1222): search [c2.qti.avc.decoder] in mEntries
+393:10-23 12:37:06.491 W/QC2V4l2Codec( 1222): [avcD_484] unknown/unsupported param input.buffers.max-size index = 0xC200081E
+395:10-23 12:37:06.492 D/BufferPoolAccessor2.0( 1222): bufferpool2 0xb400006e3477c358 : 14(229376 size) total buffers - 14(229376 size) used buffers - 0/14 (recycle/alloc) - 0/0 (fetch/transfer)
+396:10-23 12:37:06.492 D/BufferPoolAccessor2.0( 1222): bufferpool2 0xb400006e34784bc8 : 14(229376 size) total buffers - 14(229376 size) used buffers - 0/14 (recycle/alloc) - 0/0 (fetch/transfer)
+400:10-23 12:37:06.495 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] Query input allocators returned 0 params => BAD_INDEX (6)
+403:10-23 12:37:06.495 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] start: max output delay 23
+404:10-23 12:37:06.495 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] Query output allocators returned 0 params => BAD_INDEX (6)
+405:10-23 12:37:06.496 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] Query output surface allocator returned 0 params => BAD_INDEX (6)
+406:10-23 12:37:06.496 D/Codec2-OutputBufferQueue( 4973): remote graphic buffer migration 0/0
+407:10-23 12:37:06.496 E/QC2Interface( 1222): Few parameters failed to configure
+408:10-23 12:37:06.496 D/Codec2Client( 4973): setOutputSurface -- failed to set consumer usage (6/BAD_INDEX)
+412:10-23 12:37:06.497 D/C2BqBuffer( 1222): local generation change 5092353 , bqId: 21358872363010 migrated buffers # 0
+420:10-23 12:37:06.501 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] Ignoring stale input buffer done callback: last flush index = 0, frameIndex = 0
+423:10-23 12:37:06.610 D/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] onWorkDone: updating output delay 22
+424:10-23 12:37:06.610 I/CCodecBufferChannel( 4973): [c2.qti.avc.decoder#496] onWorkDone: updating max output delay 29
+425:10-23 12:37:06.610 D/Codec2-OutputBufferQueue( 4973): set max dequeue count 29 from update
+434:10-23 12:37:06.638 W/QC2V4l2Codec( 1222): [avcD_484] Ignore resolution setting when o/p port is streaming
+448:10-23 12:37:06.639 D/CCodecBuffers( 4973): [c2.qti.avc.decoder#496:2D-Output] popFromStashAndRegister: at 1000000000000us, output format changed to AMessage(what = 0x00000000) = {
+449:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t android._color-format = 0
+450:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t android._video-scaling = 1
+451:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t android._dataspace = 260
+452:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t color-standard = 1
+453:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t color-range = 2
+454:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t color-transfer = 3
+455:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t sar-height = 1
+456:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t rotation-degrees = 0
+457:10-23 12:37:06.639 D/CCodecBuffers( 4973):   Buffer hdr-static-info = {
+458:10-23 12:37:06.639 D/CCodecBuffers( 4973):     00000000:  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  ................
+459:10-23 12:37:06.639 D/CCodecBuffers( 4973):     00000010:  00 00 00 00 00 00 00 00  00                       .........
+460:10-23 12:37:06.639 D/CCodecBuffers( 4973):   }
+461:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t sar-width = 1
+462:10-23 12:37:06.639 D/CCodecBuffers( 4973):   Rect crop(0, 0, 485, 485)
+463:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t width = 496
+464:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t feature-secure-playback = 0
+465:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t frame-rate = 30
+466:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t height = 496
+467:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t max-height = 1080
+468:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t max-width = 1080
+469:10-23 12:37:06.639 D/CCodecBuffers( 4973):   string mime = "video/raw"
+470:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t priority = 0
+471:10-23 12:37:06.639 D/CCodecBuffers( 4973):   int32_t color-format = 2130708361
+472:10-23 12:37:06.639 D/CCodecBuffers( 4973): }
+473:10-23 12:37:06.662 D/MediaMetricsManagerService( 2115): failed to get player_metrics_app_blocklist from DeviceConfig
+474:10-23 12:37:06.662 V/MediaMetricsManagerService( 2115): Logging level blocked: Failed to get PLAYER_METRICS_APP_BLOCKLIST.
+476:10-23 12:37:06.995 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(68.8/s Avg=68.8/s) Done(32.478/s Avg=32.478/s)| Stream: 30.00fps 1.0Mbps
+479:10-23 12:37:07.930 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+480:10-23 12:37:07.930 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+483:10-23 12:37:08.459 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.123/s)| Stream: 30.00fps 170.0Kbps
+485:10-23 12:37:08.459 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.094/s)| Stream: 30.00fps 1.1Mbps
+492:10-23 12:37:08.730 W/QC2V4l2Codec( 1222): [avcD_484] Allocating output buffer timedout, 2077ms elapsed since last input buffer queued (threshold 2000ms)
+496:10-23 12:37:11.493 D/BufferPoolAccessor2.0( 1222): bufferpool2 0xb400006e34788ed8 : 26(425984 size) total buffers - 26(425984 size) used buffers - 0/26 (recycle/alloc) - 0/0 (fetch/transfer)
+497:10-23 12:37:11.493 D/BufferPoolAccessor2.0( 1222): evictor expired: 1, evicted: 1
+498:10-23 12:37:11.496 D/BufferPoolAccessor2.0( 4973): evictor expired: 1, evicted: 1
+504:10-23 12:37:11.935 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+505:10-23 12:37:11.936 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+506:10-23 12:37:11.995 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=6.5/s) Done(0.000/s Avg=3.078/s)| Stream: 30.00fps 1.0Mbps
+514:10-23 12:37:13.459 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.120/s)| Stream: 30.00fps 170.0Kbps
+515:10-23 12:37:13.459 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.094/s)| Stream: 30.00fps 1.1Mbps
+522:10-23 12:37:15.939 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+523:10-23 12:37:15.940 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+524:10-23 12:37:16.996 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=3.4/s) Done(0.000/s Avg=1.615/s)| Stream: 30.00fps 1.0Mbps
+526:10-23 12:37:18.434 E/squarecore( 4973): librespot_connect::spirc: starting dealer failed: Invalid state { Websocket couldn't be started because: Deadline expired before operation could complete { Connection timed out (os error 110) } }
+529:10-23 12:37:18.460 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.093/s)| Stream: 30.00fps 1.1Mbps
+530:10-23 12:37:18.460 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.118/s)| Stream: 30.00fps 170.0Kbps
+544:10-23 12:37:19.943 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+545:10-23 12:37:19.943 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+568:10-23 12:37:21.996 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=2.3/s) Done(0.000/s Avg=1.095/s)| Stream: 30.00fps 1.0Mbps
+571:10-23 12:37:22.927 I/squarecore( 4973): librespot_core::session: Connecting to AP "ap-guc3.spotify.com:4070"
+572:10-23 12:37:23.331 I/squarecore( 4973): librespot_core::session: Authenticated as '31dxzlris3rev26ogljnrqr7qh7u' !
+573:10-23 12:37:23.332 I/squarecore( 4973): librespot_core::session: Country: "GT"
+575:10-23 12:37:23.460 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.116/s)| Stream: 30.00fps 170.0Kbps
+576:10-23 12:37:23.460 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.092/s)| Stream: 30.00fps 1.1Mbps
+584:10-23 12:37:23.947 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+585:10-23 12:37:23.947 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+615:10-23 12:37:25.683 E/SemanticLocation(25446): [GellerSyncMgr] Exception syncing personalized places from the Geller service.. [CONTEXT service_id=173 ]
+632:10-23 12:37:25.826 I/DCU_ContactsLogService(25446): Failed to mark incremental upload successful [CONTEXT service_id=135 ]
+633:10-23 12:37:25.826 I/DCU_ContactsLogService(25446): java.util.concurrent.ExecutionException: hbdb: sync policy is not enabled
+699:10-23 12:37:26.996 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=1.8/s) Done(0.000/s Avg=0.828/s)| Stream: 30.00fps 1.0Mbps
+701:10-23 12:37:27.953 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+702:10-23 12:37:27.954 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+703:10-23 12:37:28.460 I/QC2Comp ( 1222): [avcD_456] Stats: Pending(0) i/p-done(0) Works: Q: 22169/Done 22170|Work-Rate: Q(0.0/s Avg=3.1/s) Done(0.000/s Avg=3.114/s)| Stream: 30.00fps 170.0Kbps
+704:10-23 12:37:28.460 I/QC2Comp ( 1222): [avcD_457] Stats: Pending(0) i/p-done(0) Works: Q: 7664/Done 7665|Work-Rate: Q(0.0/s Avg=1.1/s) Done(0.000/s Avg=1.091/s)| Stream: 30.00fps 1.1Mbps
+718:10-23 12:37:31.960 E/ActivityThread(31018): Failed to find provider info for com.android.contacts
+719:10-23 12:37:31.960 D/BluetoothPbapUtils(31018): Failed to fetch contacts data from database..
+720:10-23 12:37:31.996 I/QC2Comp ( 1222): [avcD_484] Stats: Pending(20) i/p-done(16) Works: Q: 36/Done 17|Work-Rate: Q(0.0/s Avg=1.4/s) Done(0.000/s Avg=0.666/s)| Stream: 30.00fps 1.0Mbps

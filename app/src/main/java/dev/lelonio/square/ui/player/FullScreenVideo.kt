@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.height
 import dev.lelonio.square.ui.glass.backdrop.backdrops.layerBackdrop
 import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberLayerBackdrop
 import androidx.media3.common.Player
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Fill
 import com.adamglin.phosphoricons.fill.Pause
@@ -78,17 +79,35 @@ fun FullScreenVideo(
      */
     onSwitchToSong: (() -> Unit)? = null,
 ) {
+    androidx.activity.compose.BackHandler(enabled = onSwitchToSong != null) { onSwitchToSong?.invoke() }
     // The video's own shape, so it is fitted rather than stretched; see
     // rememberVideoRatio.
     val ratio = rememberVideoRatio(player, attachKey)
 
     var showControls by remember { mutableStateOf(true) }
+    val inputMode by dev.lelonio.square.thor.input.ThorInteraction.mode
+        .collectAsStateWithLifecycle()
+    var videoFailed by remember(player, attachKey) { mutableStateOf(player.playerError != null) }
+    DisposableEffect(player, attachKey) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) videoFailed = false
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                videoFailed = true
+                showControls = true
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
 
     // Out of the way on their own, the way every video player does it. Only
     // while something is playing: paused, the controls are what the listener
     // is looking for.
-    androidx.compose.runtime.LaunchedEffect(showControls, state.isPlaying, positionMs.value / 4000) {
-        if (showControls && state.isPlaying) {
+    androidx.compose.runtime.LaunchedEffect(showControls, state.isPlaying, positionMs.value / 4000, inputMode) {
+        if (inputMode == dev.lelonio.square.thor.input.InputMode.GAMEPAD) showControls = true
+        else if (showControls && state.isPlaying) {
             kotlinx.coroutines.delay(CONTROLS_LINGER_MS)
             showControls = false
         }
@@ -140,6 +159,13 @@ fun FullScreenVideo(
         )
 
         VideoSurface(player, attachKey, Modifier.aspectRatio(ratio))
+        if (state.isBuffering) {
+            androidx.compose.material3.CircularProgressIndicator(color = Color.White)
+        }
+        if (videoFailed) {
+            Text(stringResource(R.string.music_video_failed), color = Color.White,
+                modifier = Modifier.padding(32.dp))
+        }
 
         // A wash over the picture while the controls are up, so white text and
         // white glass have something to sit on. It goes with them.
@@ -191,7 +217,7 @@ fun FullScreenVideo(
                         )
                     }
                 }
-                Box(
+                if (!dev.lelonio.square.thor.input.LocalThorEnabled.current) Box(
                     Modifier
                         .size(40.dp)
                         .clip(androidx.compose.foundation.shape.CircleShape)

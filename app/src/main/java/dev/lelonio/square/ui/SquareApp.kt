@@ -48,6 +48,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import dev.lelonio.square.ui.player.metadataTrack
+import dev.lelonio.square.ui.player.metadataState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -95,6 +97,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -748,6 +751,8 @@ fun SquareApp(
     val videoFileId by viewModel.videoFileId.collectAsStateWithLifecycle()
     val spotifyVideoOn by dev.lelonio.square.backend.spotify.SpotifyVideoMode.enabled
         .collectAsStateWithLifecycle()
+    val spotifyVideoLoading by dev.lelonio.square.backend.spotify.SpotifyVideoMode.loading.collectAsStateWithLifecycle()
+    val spotifyVideoFailed by dev.lelonio.square.backend.spotify.SpotifyVideoMode.failed.collectAsStateWithLifecycle()
     val spotifyVideoGeneration by dev.lelonio.square.backend.spotify.SpotifyVideoMode.generation
         .collectAsStateWithLifecycle()
 
@@ -942,6 +947,19 @@ fun SquareApp(
     /** False only until the source has been picked once; see BackendChoiceScreen. */
     val backendChosen by preferences.backendChosen.collectAsStateWithLifecycle()
     val backend by preferences.backend.collectAsStateWithLifecycle()
+    val metadataInput = playback.metadataTrack()
+    var resolvedMetadata by remember(metadataInput) {
+        mutableStateOf(dev.lelonio.square.ui.player.ResolvedPlayerMetadata(metadataInput.metadataState(),
+            dev.lelonio.square.data.MetadataDestination.serviceOfTrack(metadataInput.uri) != null))
+    }
+    LaunchedEffect(metadataInput, viewModel) {
+        val state = kotlinx.coroutines.withTimeoutOrNull(15_000L) {
+            dev.lelonio.square.ui.player.resolvePlayerMetadata(metadataInput, viewModel::metadataOf, viewModel::albumOf)
+        } ?: metadataInput.metadataState()
+        resolvedMetadata = dev.lelonio.square.ui.player.ResolvedPlayerMetadata(state)
+        MetadataNavigationDebug.event("METADATA_RESOLVED", "service=${dev.lelonio.square.data.MetadataDestination.serviceOfTrack(state.mediaId)} artists=${dev.lelonio.square.ui.player.PlayerMetadata.artists(state).count { it.destination != null }} album=${dev.lelonio.square.ui.player.PlayerMetadata.album(state) != null}")
+    }
+
     val youtubeHome by viewModel.youtubeHome.collectAsStateWithLifecycle()
     val sourceNew by viewModel.sourceNew.collectAsStateWithLifecycle()
     val sourceRadio by viewModel.sourceRadio.collectAsStateWithLifecycle()
@@ -1132,6 +1150,8 @@ fun SquareApp(
         )
     }
 
+    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var canvas by remember { mutableStateOf<CanvasClip?>(null) }
 
     // Fetched per track, like the lyrics. Most tracks have none, so a null is an
@@ -1143,7 +1163,7 @@ fun SquareApp(
     val canvasEnabled by preferences.canvasEnabled.collectAsStateWithLifecycle()
     val coverSource by preferences.animatedCoverSource.collectAsStateWithLifecycle()
 
-    LaunchedEffect(playback.mediaId, backend, canvasEnabled, coverSource, offlineNow) {
+    LaunchedEffect(playback.mediaId, backend, canvasEnabled, coverSource, offlineNow, landscape, videoOn, spotifyVideoOn) {
         val uri = playback.mediaId
         canvas = null
         // Offline means offline, including for the things that are only
@@ -1151,6 +1171,7 @@ fun SquareApp(
         // listener set it or the signal went — and what shows then is the copy
         // that came down with the download.
         if (uri != null &&
+            dev.lelonio.square.ui.player.PlayerVisualPolicy.canvasAllowed(landscape, videoOn || spotifyVideoOn) &&
             canvasEnabled &&
             coverSource == dev.lelonio.square.data.PreferencesStore.CoverSource.SPOTIFY &&
             backend == dev.lelonio.square.backend.BackendId.SPOTIFY
@@ -1297,7 +1318,7 @@ fun SquareApp(
     // Drawing the whole interface into a window that size would put a home page,
     // a tab bar and a player's worth of controls into a thumbnail, none of it
     // legible and none of it reachable — the system owns the gestures there.
-    if (inPip) {
+    if (inPip && showExpandedPlayer) {
         SquareTheme(seed = glassAccent) {
             Box(
                 Modifier
@@ -1334,8 +1355,7 @@ fun SquareApp(
     // whole display and nothing else, the way every video app does — and
     // turning back brings the player exactly as it was, since none of this
     // touches what is playing.
-    val landscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
-        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
     // The rotation the video buttons asked for is let go of once there is no
     // video: the app turns with the phone again.
     val rotationContext = androidx.compose.ui.platform.LocalContext.current
@@ -1344,7 +1364,31 @@ fun SquareApp(
             dev.lelonio.square.ui.player.lockVideoOrientation(rotationContext, null)
         }
     }
-    if (landscape && (videoOn || spotifyVideoOn) && player != null) {
+    val watchYouTubeVideo = player?.takeIf {
+        (!offlineNow || videoOn) && playback.mediaId?.let { id ->
+            id.startsWith("ytmusic:track:") ||
+                id.startsWith(dev.lelonio.square.backend.youtube.YouTubeBackend.VIDEO_PREFIX)
+        } == true
+    }?.let { current -> { YouTubeVideoMode.toggle(current) } }
+    val switchToSong: () -> Unit = {
+        player?.let { current ->
+            if (spotifyVideoOn) dev.lelonio.square.backend.spotify.SpotifyVideoMode.listen(current.currentPosition)
+            else YouTubeVideoMode.toggle(current)
+        }
+    }
+    dev.lelonio.square.thor.ui.UpperPlayerControls(
+        enabled = playerOnly,
+        spatial = thorSpatial,
+        onBack = switchToSong.takeIf { videoOn || spotifyVideoOn },
+    )
+    if (dev.lelonio.square.ui.player.PlayerVisualPolicy.fullScreenVideo(
+            landscape, videoOn || spotifyVideoOn, showExpandedPlayer) && player != null) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalThorEnabled provides playerOnly,
+            LocalThorFocusRegistry provides thorFocusRegistry,
+            LocalThorHintBackdrop provides artBackdrop,
+        ) {
+        ThorFocusScene(sceneKey = "player:video") {
         SquareTheme(seed = glassAccent) {
             dev.lelonio.square.ui.player.FullScreenVideo(
                 player = player,
@@ -1376,13 +1420,7 @@ fun SquareApp(
                 onSeek = { player.seekTo(it) },
                 // Back to the song on its side: the app follows the phone
                 // again once the video is off; see the effect above.
-                onSwitchToSong = {
-                    if (spotifyVideoOn) {
-                        dev.lelonio.square.backend.spotify.SpotifyVideoMode.listen(player.currentPosition)
-                    } else {
-                        YouTubeVideoMode.toggle(player)
-                    }
-                },
+                onSwitchToSong = switchToSong,
                 onToggleShuffle = { player.shuffleModeEnabled = !player.shuffleModeEnabled },
                 onCycleRepeat = {
                     player.repeatMode = when (player.repeatMode) {
@@ -1392,6 +1430,8 @@ fun SquareApp(
                     }
                 },
             )
+        }
+        }
         }
         return
     }
@@ -1512,17 +1552,52 @@ fun SquareApp(
                     if (playlist.uri == dev.lelonio.square.data.Catalog.DJ_URI) startDj()
                     else navController.openPlaylist(viewModel, playlist)
                 }
+                val metadataService = rememberUpdatedState(backend)
+                val currentToolsOpen = rememberUpdatedState(toolsOpen)
+                val metadataHandler = MetadataNavigationHandler(
+                    activeService = { metadataService.value },
+                    closeTools = {
+                        if (!showExpandedPlayer) {
+                            closeMetadataTools(
+                                close = { onToolsOpenChange(false) },
+                                closed = snapshotFlow { !currentToolsOpen.value && toolsExpand.value <= 0.001f },
+                            )
+                        } else if (!playerOnly && expand.value > 0f) expand.animateTo(0f, expandSpec)
+                    },
+                    openPage = { destination -> navController.openPlaylist(viewModel, destination.asPlaylist()) },
+                    trace = MetadataNavigationDebug::event,
+                )
+                val currentMetadataHandler = rememberUpdatedState(metadataHandler)
+                val openMetadata: (dev.lelonio.square.data.MetadataDestination) -> Unit = { destination ->
+                    MetadataNavigationDebug.event("METADATA_CLICK", "type=${destination.type} service=${destination.service}")
+                    if (playerOnly || !showExpandedPlayer) {
+                        val request = dev.lelonio.square.thor.ui.ThorMetadataNavigation.request(destination)
+                        MetadataNavigationDebug.event("METADATA_REQUEST", "id=${request.id} type=${destination.type} service=${destination.service}")
+                    } else scope.launch { currentMetadataHandler.value.open(destination) }
+                }
                 if (!showExpandedPlayer) {
-                    LaunchedEffect(navController) {
-                        dev.lelonio.square.thor.ui.ThorAlbumNavigation.pending.collect { album ->
-                            if (album != null) {
-                                onToolsOpenChange(false)
-                                navController.openPlaylist(viewModel, album)
-                                dev.lelonio.square.thor.ui.ThorAlbumNavigation.consume(album)
+                    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+                    LaunchedEffect(navController, backend, lifecycle) {
+                        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                            navController.currentBackStackEntryFlow.first()
+                            dev.lelonio.square.thor.ui.ThorMetadataNavigation.pending.collect { requests ->
+                                val request = requests.firstOrNull() ?: return@collect
+                                MetadataNavigationDebug.event("METADATA_RECEIVED", "id=${request.id}")
+                                try {
+                                    dev.lelonio.square.thor.ui.ThorMetadataNavigation.deliver(request) {
+                                        currentMetadataHandler.value.open(it)
+                                    }
+                                } catch (failure: Exception) {
+                                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                                    MetadataNavigationDebug.event("METADATA_ERROR", "id=${request.id} navigation_failed")
+                                    dev.lelonio.square.thor.ui.ThorMetadataNavigation.consume(request.id)
+                                }
                             }
                         }
                     }
                 }
+                val playerAlbumAction: (() -> Unit)? = dev.lelonio.square.ui.player.PlayerMetadata
+                    .album(resolvedMetadata.state)?.let { destination -> { openMetadata(destination) } }
                 val currentEntry by navController.currentBackStackEntryAsState()
                 val visibleEntries by navController.visibleEntries.collectAsStateWithLifecycle()
                 val route = currentEntry?.destination?.route
@@ -3232,6 +3307,7 @@ fun SquareApp(
                                       else it.copy(surfaceTintColor = playerFilm)
                                   },
                           ) {
+                            dev.lelonio.square.thor.ui.UpperPlayerFocusScene(enabled = playerOnly) {
                             PlayerScreen(
                                 role = when {
                                     !showExpandedPlayer -> dev.lelonio.square.ui.player.PlayerVisualRole.THOR_BOTTOM_TOOLS
@@ -3264,40 +3340,16 @@ fun SquareApp(
                                 // address travels with the queue where the
                                 // source gave one; where it did not — a list
                                 // resolved before the app kept it — it is
-                                // looked up on the tap rather than left inert.
-                                onOpenAlbum = playback.mediaId
-                                    ?.takeIf {
-                                        it.startsWith("spotify:track:") ||
-                                            // YouTube has no lookup to fall back
-                                            // on: the record's address or nothing.
-                                            (it.startsWith(dev.lelonio.square.backend.youtube.YouTubeBackend.TRACK_PREFIX) &&
-                                                playback.albumUri != null)
-                                    }
-                                    ?.let { track ->
-                                        {
-                                            scope.launch {
-                                                val album = playback.albumUri?.let { uri ->
-                                                    CatalogPlaylist(
-                                                        uri = uri,
-                                                        name = playback.album,
-                                                        artworkUrl = playback.artworkUrl,
-                                                    )
-                                                } ?: viewModel.albumOf(track)
-                                                if (album != null) {
-                                                    if (playerOnly) {
-                                                        dev.lelonio.square.thor.ui.ThorAlbumNavigation.request(album)
-                                                    } else {
-                                                        expand.animateTo(0f, expandSpec)
-                                                        navController.openPlaylist(viewModel, album)
-                                                    }
-                                                }
-                                            }
-                                            Unit
-                                        }
-                                    },
+                                // resolved before presentation, shared with Information below.
+                                onOpenAlbum = playerAlbumAction,
+                                onOpenMetadata = openMetadata,
+                                metadataState = resolvedMetadata.state,
+                                metadataResolving = resolvedMetadata.resolving,
                                 positionMs = positionMs,
-                                videoFileId = videoFileId,
+                                videoFileId = videoFileId.takeIf { player != null && remote == null && (!offlineNow || spotifyVideoOn) },
                                 videoMode = spotifyVideoOn,
+                                videoLoading = spotifyVideoLoading || ((videoOn || spotifyVideoOn) && playback.isBuffering),
+                                videoError = if (spotifyVideoFailed) stringResource(R.string.music_video_failed) else null,
                                 onToggleVideo = {
                                     // Handed to the service, which swaps what
                                     // the session is playing: the video carries
@@ -3426,7 +3478,7 @@ fun SquareApp(
                                     dev.lelonio.square.ui.player.PlayerPanel.NONE
                                 },
                                 backdrop = playerBackdrop,
-                                canvas = canvas,
+                                canvas = canvas.takeIf { showExpandedPlayer },
                                 // The record's own artwork from the other
                                 // catalogue, where it has any: the tall picture
                                 // and the moving cover a song inherits from its
@@ -3439,10 +3491,14 @@ fun SquareApp(
                                 coverHeroUrl = nowPlayingArt?.heroUrl,
                                 // Apple's moving cover only when that is the
                                 // source chosen, and moving covers are on.
-                                coverMotionUrl = nowPlayingArt?.motionUrl.takeIf {
-                                    canvasEnabled &&
-                                        coverSource == dev.lelonio.square.data.PreferencesStore.CoverSource.APPLE_MUSIC
-                                },
+                                coverMotionUrl = dev.lelonio.square.ui.player.PlayerVisualPolicy.motionUrl(
+                                    nowPlayingArt, landscape = false, enabled = canvasEnabled, source = coverSource,
+                                    visible = showExpandedPlayer, musicVideo = videoOn || spotifyVideoOn || spotifyVideoLoading,
+                                ),
+                                coverLandscapeMotionUrl = dev.lelonio.square.ui.player.PlayerVisualPolicy.motionUrl(
+                                    nowPlayingArt, landscape = true, enabled = canvasEnabled, source = coverSource,
+                                    visible = showExpandedPlayer, musicVideo = videoOn || spotifyVideoOn || spotifyVideoLoading,
+                                ),
                                 coverSquareUrl = nowPlayingArt?.coverUrl,
                                 // Spotify's cover is the fallback, not the
                                 // first draft: while the catalogue is still
@@ -3564,17 +3620,7 @@ fun SquareApp(
                                     backend == dev.lelonio.square.backend.BackendId.SPOTIFY ||
                                         (viewModel.canEditPlaylists && !offlineNow &&
                                             playback.mediaId?.startsWith("ytmusic:track:") == true),
-                                onWatchVideo = player
-                                    ?.takeIf {
-                                        // A video is streamed, so there is
-                                        // nothing to offer offline.
-                                        !offlineNow &&
-                                            playback.mediaId?.let { id ->
-                                                id.startsWith("ytmusic:track:") ||
-                                                    id.startsWith(dev.lelonio.square.backend.youtube.YouTubeBackend.VIDEO_PREFIX)
-                                            } == true
-                                    }
-                                    ?.let { { YouTubeVideoMode.toggle(it) } },
+                                onWatchVideo = watchYouTubeVideo,
                                 videoOn = videoOn || spotifyVideoOn,
                                 videoNotice = playback.mediaId
                                     ?.takeIf { it.startsWith(dev.lelonio.square.backend.youtube.YouTubeBackend.TRACK_PREFIX) }
@@ -3588,9 +3634,10 @@ fun SquareApp(
                                             },
                                         )
                                     },
-                                videoPlayer = player,
+                                videoPlayer = player.takeIf { showExpandedPlayer },
                                 videoAttachKey = spotifyVideoGeneration,
                             )
+                            }
                           }
                         },
                     )
@@ -3904,7 +3951,10 @@ fun SquareApp(
                                     val album = trackAlbum(track, viewModel::albumOf)
                                     if (album != null) {
                                         if (playerOnly) {
-                                            dev.lelonio.square.thor.ui.ThorAlbumNavigation.request(album)
+                                            dev.lelonio.square.data.MetadataDestination.create(
+                                                dev.lelonio.square.data.MetadataDestination.Type.ALBUM, album.uri, album.name,
+                                                dev.lelonio.square.data.MetadataDestination.serviceOfTrack(track.uri), album.artworkUrl,
+                                            )?.let(openMetadata)
                                         } else {
                                             if (expand.value > 0f) expand.animateTo(0f, expandSpec)
                                             navController.openPlaylist(viewModel, album)

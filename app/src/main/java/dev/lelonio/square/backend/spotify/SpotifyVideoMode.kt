@@ -62,12 +62,30 @@ object SpotifyVideoMode {
     /** True while the video is what the session is playing. */
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 
+    private val _loading = MutableStateFlow(false)
+    val loading = _loading.asStateFlow()
+    private val _failed = MutableStateFlow(false)
+    val failed = _failed.asStateFlow()
+
+    /** UI status for the existing service request; does not change the playback path. */
+    fun completeRequest(success: Boolean) {
+        _loading.value = false
+        _failed.value = !success
+    }
+
+    private fun request(request: Request) {
+        if (_loading.value) return
+        _failed.value = false
+        _loading.value = true
+        if (!_requests.tryEmit(request)) completeRequest(false)
+    }
+
     fun watch(fileId: String, positionMs: Long) {
-        _requests.tryEmit(Request.Watch(fileId, positionMs))
+        request(Request.Watch(fileId, positionMs))
     }
 
     fun listen(positionMs: Long) {
-        _requests.tryEmit(Request.Listen(positionMs))
+        request(Request.Listen(positionMs))
     }
 
     fun skip(forward: Boolean) {
@@ -96,5 +114,7 @@ object SpotifyVideoMode {
     /** Back to sound alone, for when the track or the source changes under it. */
     fun reset() {
         _enabled.value = false
+        _loading.value = false
+        _failed.value = false
     }
 }

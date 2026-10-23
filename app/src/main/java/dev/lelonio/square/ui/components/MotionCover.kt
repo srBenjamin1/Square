@@ -55,8 +55,11 @@ fun MotionCover(
      * appearing at once over the still, with nothing in between.
      */
     playing: Boolean = true,
+    /** Song cards contain the whole video; page headers retain their original crop. */
+    fit: Boolean = false,
 ) {
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     // The surface the frames are read from, once the view exists.
     val surface = remember { arrayOfNulls<android.view.TextureView>(1) }
 
@@ -67,7 +70,7 @@ fun MotionCover(
             volume = 0f
             repeatMode = Player.REPEAT_MODE_ALL
             setMediaItem(MediaItem.fromUri(url))
-            playWhenReady = true
+            playWhenReady = playing && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
             prepare()
         }
     }
@@ -75,28 +78,34 @@ fun MotionCover(
     // Stopped while the app is away. A loop nobody is looking at is a radio
     // that costs battery and data for a picture on a screen that is off.
     val wanted = rememberUpdatedState(playing)
-    LaunchedEffect(player, playing) { player.playWhenReady = playing }
+    LaunchedEffect(player, playing) {
+        player.playWhenReady = playing && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+    }
 
     // Faded in on its first frame rather than appearing in one: until then the
     // still underneath is what shows, and the change from one to the other is
     // the cover beginning to move, not a second picture arriving on top.
     var firstFrame by remember(url) { mutableStateOf(false) }
+    var failed by remember(url) { mutableStateOf(false) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 firstFrame = true
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                failed = true
+                player.pause()
             }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
     }
     val appear by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (firstFrame) 1f else 0f,
+        targetValue = if (firstFrame && !failed) 1f else 0f,
         animationSpec = androidx.compose.animation.core.tween(APPEAR_MS),
         label = "motionAppear",
     )
 
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle, player) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -167,14 +176,17 @@ fun MotionCover(
                 // Filling the frame, cropping what does not fit: the header is
                 // whatever shape the phone is, and letterboxing a cover leaves
                 // two bars of black across the top of the page.
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                resizeMode = if (fit) AspectRatioFrameLayout.RESIZE_MODE_FIT else AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                 setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 this.player = player
                 surface[0] = videoSurfaceView as? android.view.TextureView
             }
         },
-        update = { it.player = player },
+        update = {
+            it.player = player
+            it.resizeMode = if (fit) AspectRatioFrameLayout.RESIZE_MODE_FIT else AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        },
         // Released with the composition rather than left to the view pool: the
         // surface has to go when the page does.
         onRelease = {
