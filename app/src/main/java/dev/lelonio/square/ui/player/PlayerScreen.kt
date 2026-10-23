@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import dev.lelonio.square.thor.input.thorVerticalScroll as verticalScroll
@@ -58,6 +57,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.DisposableEffect
@@ -93,7 +93,6 @@ import androidx.compose.ui.layout.onPlaced
 import kotlin.math.roundToInt
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -382,6 +381,10 @@ fun PlayerScreen(
     coverHeroUrl: String? = null,
     /** And the moving version of it, for the records that have one. */
     coverMotionUrl: String? = null,
+    /** Apple editorial video for the landscape song card; independent of portrait preferences. */
+    coverLandscapeMotionUrl: String? = null,
+    videoLoading: Boolean = false,
+    videoError: String? = null,
     /**
      * The catalogue's own square scan, for the records with no tall picture.
      *
@@ -422,6 +425,9 @@ fun PlayerScreen(
     onOpenUri: (String, String) -> Unit = { _, _ -> },
     /** Opens the record the playing track is on; null when there is none. */
     onOpenAlbum: (() -> Unit)? = null,
+    onOpenMetadata: ((dev.lelonio.square.data.MetadataDestination) -> Unit)? = null,
+    metadataState: PlaybackState = state,
+    metadataResolving: Boolean = false,
     /**
      * Whether this track is already in one of the account's playlists.
      *
@@ -497,6 +503,10 @@ fun PlayerScreen(
             queueActions = queueActions,
             credits = credits,
             creditsLoading = creditsLoading,
+            onOpenMetadata = onOpenMetadata,
+            metadataState = metadataState,
+            metadataResolving = metadataResolving,
+            onOpenAlbum = onOpenAlbum,
             onWantCredits = onWantCredits,
             reverb = reverb,
             onSpeed = onSpeed,
@@ -815,7 +825,7 @@ fun PlayerScreen(
                     // left on screen — see LocalPlayerSettled. The still
                     // picture underneath is what the travel shows instead, and
                     // at that size and speed the swap is invisible.
-                    motionUrl = coverMotionUrl.takeIf { LocalPlayerSettled.current },
+                    motionUrl = coverMotionUrl.takeIf { LocalPlayerSettled.current && !sideways && !videoOn },
                     // And still behind a panel, as a Canvas is, where it stands
                     // rather than taken away; see MotionCover's playing.
                     motionPlaying = !panelOpen,
@@ -937,6 +947,7 @@ fun PlayerScreen(
                 label = "clipAlpha",
             )
 
+            if (PlayerVisualPolicy.canvasAllowed(sideways, videoOn)) {
             // The clip takes the cover's place rather than the screen's.
             //
             // Full-bleed, a Canvas ran under the title, the transport and the
@@ -1064,6 +1075,8 @@ fun PlayerScreen(
             }
             }
 
+            } // Canvas is portrait-only and never coexists with a music video.
+
             // The panel's own shade over the picture, inside the recorded layer
             // so the glass above refracts what the reader sees rather than the
             // bright original. Not over a Canvas: that one is darkened by the
@@ -1141,8 +1154,10 @@ fun PlayerScreen(
                         },
                         connectAvailable = connectAvailable,
                         onAnotherDevice = onAnotherDevice,
-                        onWatchVideo = onWatchVideo,
+                        onWatchVideo = if (sideways && (videoFileId != null || videoMode)) onToggleVideo else onWatchVideo,
                         videoOn = videoOn,
+                        videoLoading = videoLoading,
+                        spotifyVideo = sideways && (videoFileId != null || videoMode),
                         showCollapse = showPanelTabs,
                         favorite = if (role == PlayerVisualRole.THOR_TOP) {
                             {
@@ -1477,9 +1492,13 @@ fun PlayerScreen(
                                 // controls. A panel that pushed the transport
                                 // around every time it opened was the reason
                                 // this screen never sat still.
-                                Stage.INFO -> CreditsView(
+                                Stage.INFO -> TrackInformationView(
                                     credits = credits,
                                     loading = creditsLoading,
+                                    state = metadataState,
+                                    metadataResolving = metadataResolving,
+                                    onOpenMetadata = onOpenMetadata,
+                                    onOpenAlbum = onOpenAlbum,
                                     modifier = Modifier.fillMaxSize(),
                                 )
 
@@ -1714,11 +1733,14 @@ fun PlayerScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 TitleBlock(
-                                    state,
+                                    state.copy(artist = metadataState.artist, artists = metadataState.artists,
+                                        artistUri = metadataState.artistUri, album = metadataState.album, albumUri = metadataState.albumUri),
                                     Modifier.weight(1f),
                                     onOpenArtist = { uri, name ->
-                                        onCollapse()
-                                        onOpenUri(uri, name)
+                                        dev.lelonio.square.data.MetadataDestination.create(
+                                            dev.lelonio.square.data.MetadataDestination.Type.ARTIST, uri, name,
+                                            dev.lelonio.square.data.MetadataDestination.serviceOfTrack(state.mediaId),
+                                        )?.let { destination -> onOpenMetadata?.invoke(destination) }
                                     },
                                     onOpenAlbum = onOpenAlbum,
                                 )
@@ -1846,6 +1868,11 @@ fun PlayerScreen(
                                 topBar(Modifier)
                                 SongCard(
                                     state = state,
+                                    metadataState = metadataState,
+                                    onOpenMetadata = onOpenMetadata,
+                                    onOpenAlbum = onOpenAlbum,
+                                    motionUrl = coverLandscapeMotionUrl.takeIf { LocalPlayerSettled.current && !videoOn },
+                                    videoNotice = videoError ?: videoNotice,
                                     showGamepadHints = role == PlayerVisualRole.THOR_TOP,
                                     positionMs = positionMs,
                                     onSeek = onSeek,
@@ -2193,6 +2220,8 @@ private fun TopBar(
     /** Null when the track has no video to watch. */
     onWatchVideo: (() -> Unit)?,
     videoOn: Boolean,
+    videoLoading: Boolean = false,
+    spotifyVideo: Boolean = false,
     showCollapse: Boolean = true,
     modifier: Modifier = Modifier,
     /** The DJ's queue: the source is marked as the DJ's; see DjMark. */
@@ -2281,10 +2310,13 @@ private fun TopBar(
         // is the thing this app cannot do itself — so it hands the track over
         // at the position it had reached rather than pretending otherwise.
         if (onWatchVideo != null) {
-            GlassButton(backdrop, onClick = onWatchVideo) {
-                Icon(
-                    PhosphorIcons.Regular.YoutubeLogo,
-                    contentDescription = stringResource(R.string.watch_video),
+            RoundGlassButton(backdrop, size = 44.dp, enabled = !videoLoading, onClick = onWatchVideo) {
+                if (videoLoading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                else Icon(
+                    if (spotifyVideo) {
+                        if (videoOn) PhosphorIcons.Regular.MusicNotes else PhosphorIcons.Regular.MonitorPlay
+                    } else PhosphorIcons.Regular.YoutubeLogo,
+                    contentDescription = stringResource(if (videoOn) R.string.switch_to_audio else R.string.watch_video),
                     // Lit while the video is on, like every other button here
                     // that opens something: it is a switch, not a one-way trip.
                     tint = panelTint(videoOn),
@@ -2456,61 +2488,16 @@ private fun TitleBlock(
     }
 }
 
-/**
- * The line under the title: who made this, and a way to each of them.
- *
- * "Pyrex, Sfera Ebbasta" is two artists and two pages, so the whole line
- * cannot lead to one of them. Where the finger landed is turned into a
- * character offset and matched against the span each name occupies, which is
- * what makes the second name reach the second artist.
- *
- * Plain text when there is nowhere to go: a queue built from search results, or
- * a track another device is playing, names an artist this app has no page for,
- * and a line that looks like a link and does nothing is worse than a caption.
- */
+/** Separate artist identities share the original typography, with independent touch and focus targets. */
 @Composable
 private fun ArtistLine(
     state: PlaybackState,
     artist: String,
     onOpenArtist: (uri: String, name: String) -> Unit,
 ) {
-    val credits = state.artists
-    // The names as written, so the spans below line up with what is drawn.
-    val label = if (credits.isEmpty()) artist else credits.joinToString(", ") { it.name }
-
-    var layout by remember(label) { mutableStateOf<TextLayoutResult?>(null) }
-    val openable = credits.any { it.uri != null } || state.artistUri != null
-
-    Text(
-        text = label,
-        style = MaterialTheme.typography.bodyMedium,
-        color = GlassInkDim,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        onTextLayout = { layout = it },
-        modifier = if (!openable) {
-            Modifier
-        } else {
-            Modifier.pointerInput(credits, label) {
-                detectTapGestures { position ->
-                    val offset = layout?.getOffsetForPosition(position)
-                    val hit = offset?.let { at ->
-                        var start = 0
-                        credits.firstOrNull { credit ->
-                            val end = start + credit.name.length
-                            val contains = at in start..end
-                            start = end + 2
-                            contains
-                        }
-                    }
-                    // Anywhere else on the line, and any track that named only
-                    // one artist, goes to the first.
-                    val uri = hit?.uri ?: state.artistUri ?: return@detectTapGestures
-                    onOpenArtist(uri, hit?.name ?: artist)
-                }
-            }
-        },
-    )
+    ArtistMetadataLinks(state.copy(artist = artist), onOpen = { destination ->
+        onOpenArtist(destination.uri, destination.name)
+    })
 }
 
 /**
@@ -2932,6 +2919,13 @@ private fun LyricsStage(
         }
     }
 
+    // The song's own direction for the words, the app's for everything around
+    // them; see lyricsDirection.
+    val appDirection = LocalLayoutDirection.current
+    val songDirection = remember(lyrics, appDirection) {
+        lyricsDirection(lyrics?.lines.orEmpty(), appDirection)
+    }
+
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         when {
             optionsOpen && query != null -> LyricsOptionsPanel(
@@ -2955,18 +2949,23 @@ private fun LyricsStage(
                 color = GlassInkDim,
             )
 
-            style == dev.lelonio.square.data.PreferencesStore.LyricsStyle.CLASSIC -> ClassicLyricsView(
-                lyrics = shown ?: lyrics,
-                positionMs = positionMs,
-                showTranslation = translated,
-                onSeek = onSeek,
-                modifier = Modifier.fillMaxSize(),
-            )
+            style == dev.lelonio.square.data.PreferencesStore.LyricsStyle.CLASSIC -> CompositionLocalProvider(
+                LocalLayoutDirection provides songDirection,
+            ) {
+                ClassicLyricsView(
+                    lyrics = shown ?: lyrics,
+                    positionMs = positionMs,
+                    showTranslation = translated,
+                    onSeek = onSeek,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
 
             else -> CompositionLocalProvider(
                 LocalLyricVisualSettings provides LocalLyricVisualSettings.current.let {
                     if (alone) it.copy(inactiveBlur = 0f) else it
                 },
+                LocalLayoutDirection provides songDirection,
             ) {
                 LyricsView(
                     lyrics = shown ?: lyrics,
@@ -3107,6 +3106,11 @@ private fun SongCard(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onCover: () -> Unit,
+    onOpenMetadata: ((dev.lelonio.square.data.MetadataDestination) -> Unit)? = null,
+    metadataState: PlaybackState = state,
+    onOpenAlbum: (() -> Unit)? = null,
+    motionUrl: String? = null,
+    videoNotice: String? = null,
     showGamepadHints: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -3132,6 +3136,24 @@ private fun SongCard(
                     modifier = Modifier.fillMaxSize(),
                     corner = 18.dp,
                 )
+                if (motionUrl != null) {
+                    androidx.compose.runtime.key(state.mediaId, motionUrl) {
+                        dev.lelonio.square.ui.components.MotionCover(
+                            url = motionUrl,
+                            playing = state.isPlaying,
+                            fit = true,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+                videoNotice?.let { notice ->
+                    Text(
+                        notice, style = MaterialTheme.typography.bodySmall, color = Color.White,
+                        modifier = Modifier.align(Alignment.TopCenter).padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(8.dp)).padding(8.dp),
+                        maxLines = 3,
+                    )
+                }
                 // A shade at the foot, so the transport reads over any sleeve.
                 Box(
                     Modifier
@@ -3183,14 +3205,10 @@ private fun SongCard(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 6.dp),
         )
-        Text(
-            state.artist,
-            style = MaterialTheme.typography.bodyMedium,
-            color = GlassInkDim,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-        )
+        ArtistMetadataLinks(metadataState, onOpenMetadata, centered = true)
+        if (metadataState.album.isNotBlank()) {
+            MetadataLink(metadataState.album, onOpenAlbum)
+        }
     }
 }
 

@@ -24,7 +24,7 @@ runs:
         (yes || true) | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
           "platforms;android-37.0" \
           "build-tools;36.0.0" \
-          "ndk;28.2.13676358" \
+          "ndk;30.0.16248370" \
           "cmake;3.22.1" > /dev/null
 
     # rustup is preinstalled at ~/.cargo/bin, which is the cargo the Gradle

@@ -675,7 +675,10 @@ private fun EffectSlider(
                 color = GlassInk,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .thorFocus().clickable(onClick = onReset)
+                    .thorFocus().clickable {
+                        dragged = null
+                        onReset()
+                    }
                     .padding(horizontal = 10.dp, vertical = 4.dp),
             )
         }

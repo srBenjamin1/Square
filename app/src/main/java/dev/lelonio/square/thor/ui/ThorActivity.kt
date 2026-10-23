@@ -100,6 +100,7 @@ class ThorActivity : ComponentActivity() {
                         .setTitle(track.name)
                         .setArtist(track.artist)
                         .setAlbumTitle(track.album)
+                        .setExtras(dev.lelonio.square.ui.catalogIdentityExtras(track).toBundle())
                         .setDurationMs(track.durationMs.takeIf { it > 0 })
                         .setArtworkUri(track.artworkUrl?.let(android.net.Uri::parse))
                         .build(),
@@ -123,6 +124,7 @@ class ThorActivity : ComponentActivity() {
                         .setTitle(track.name)
                         .setArtist(track.artist)
                         .setAlbumTitle(track.album)
+                        .setExtras(dev.lelonio.square.ui.catalogIdentityExtras(track).toBundle())
                         .setDurationMs(track.durationMs.takeIf { it > 0 })
                         .setArtworkUri(track.artworkUrl?.let(android.net.Uri::parse))
                         .build(),

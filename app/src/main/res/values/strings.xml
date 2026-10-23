@@ -42,6 +42,10 @@
     <string name="title">Title</string>
     <string name="artist">Artist</string>
     <string name="album">Album</string>
+    <string name="information">Information</string>
+    <string name="metadata_resolving">Resolving album…</string>
+    <string name="metadata_unavailable">Album unavailable</string>
+    <string name="artist_and_album">Artists and album</string>
     <string name="single">Single</string>
     <string name="compilation">Compilation</string>
     <string name="playlist">Playlist</string>
@@ -68,6 +72,7 @@
     <string name="home">Home</string>
     <string name="library">Library</string>
     <string name="switch_to_video">Switch to video</string>
+    <string name="music_video_failed">The music video could not be loaded. You can try again.</string>
     <string name="switch_to_audio">Switch to audio</string>
     <string name="library_all">Everything</string>
     <string name="search">Search</string>
@@ -125,6 +130,8 @@
     <string name="add_to_queue">Add to queue</string>
     <string name="add_to_playlist">Add to a playlist</string>
     <string name="go_to_artist">Go to artist</string>
+    <string name="go_to_album">Go to album</string>
+    <string name="squareds_releases">SquareDS releases</string>
     <string name="copy_link">Copy link</string>
     <string name="remove_from_playlist">Remove from playlist</string>
     <string name="queued">Queued</string>

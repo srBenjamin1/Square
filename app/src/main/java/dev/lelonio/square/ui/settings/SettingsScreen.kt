@@ -911,8 +911,13 @@ fun SettingsScreen(
         // The update on its own, never folded away: the one thing on this
         // page somebody comes to do rather than to read.
         if (shown == SettingsPage.About) item("update") {
+            val uriHandler = LocalUriHandler.current
             Section(null) {
                 UpdateRow(askToInstall)
+                RowDivider()
+                ActionRow(stringResource(R.string.squareds_releases), destructive = false) {
+                    uriHandler.openUri(Updater.RELEASES_URL)
+                }
             }
         }
 

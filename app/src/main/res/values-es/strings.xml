@@ -31,6 +31,10 @@
     <string name="title">Título</string>
     <string name="artist">Artista</string>
     <string name="album">Álbum</string>
+    <string name="information">Información</string>
+    <string name="metadata_resolving">Resolviendo álbum…</string>
+    <string name="metadata_unavailable">Álbum no disponible</string>
+    <string name="artist_and_album">Artistas y álbum</string>
     <string name="single">Sencillo</string>
     <string name="compilation">Recopilación</string>
     <string name="playlist">Playlist</string>
@@ -57,6 +61,7 @@
     <string name="home">Inicio</string>
     <string name="library">Biblioteca</string>
     <string name="switch_to_video">Cambiar a vídeo</string>
+    <string name="music_video_failed">No se pudo cargar el videoclip. Puedes volver a intentarlo.</string>
     <string name="switch_to_audio">Cambiar a solo audio</string>
     <string name="library_all">Todo</string>
     <string name="search">Buscar</string>
@@ -110,6 +115,8 @@
     <string name="add_to_queue">Añadir a la cola</string>
     <string name="add_to_playlist">Añadir a una playlist</string>
     <string name="go_to_artist">Ir al artista</string>
+    <string name="go_to_album">Ir al álbum</string>
+    <string name="squareds_releases">Versiones de SquareDS</string>
     <string name="copy_link">Copiar enlace</string>
     <string name="remove_from_playlist">Quitar de la playlist</string>
     <string name="queued">En cola</string>

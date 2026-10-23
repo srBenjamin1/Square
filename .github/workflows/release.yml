@@ -1,6 +1,6 @@
 name: Release
 
-# A tag like v2.2.4 builds the signed APKs and leaves them on a draft release:
+# A tag like v2.6.1-squareds.1 builds the signed APKs and leaves them on a draft release:
 # one per ABI and a universal one.
 # The notes are still written by hand, and publishing the draft is still a
 # person's decision. Run by hand, it builds and signs the same way but only
@@ -8,7 +8,7 @@ name: Release
 # a release.
 on:
   push:
-    tags: ['v*']
+    tags: ['v*-squareds.*']
   workflow_dispatch:
 
 permissions:
@@ -28,7 +28,15 @@ jobs:
       - name: Version
         id: version
         run: |
+          if [ "$GITHUB_REPOSITORY" != "srBenjamin1/SquareDS" ]; then
+            echo "::error::this workflow publishes only SquareDS"
+            exit 1
+          fi
           version=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts)
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-squareds\.[1-9][0-9]*$ ]]; then
+            echo "::error::versionName must follow the SquareDS version convention"
+            exit 1
+          fi
           echo "name=$version" >> "$GITHUB_OUTPUT"
           # A tag that says one version over a build that says another would
           # publish an update the app then offers again forever.
@@ -66,7 +74,7 @@ jobs:
       # Without the right key an update does not install over the app people
       # already have, and the build would not say so: a missing keystore falls
       # back to the debug key. So the certificate is checked against the one
-      # every release so far has carried.
+      # the installed SquareDS builds carry (repository variable).
       #
       # The apksigner is the one from the build-tools the setup installs, not
       # whichever is newest on the runner, and what it prints is shown: a
@@ -76,18 +84,24 @@ jobs:
       # Every split is checked, and copied under the name the app's updater
       # looks for: it picks the one naming the phone's ABI, then "universal".
       - name: Check the signature
+        env:
+          EXPECTED_CERT: ${{ vars.SQUAREDS_SIGNING_CERT_SHA256 }}
         run: |
           set -o pipefail
+          if [[ ! "$EXPECTED_CERT" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::set SQUAREDS_SIGNING_CERT_SHA256 to the certificate of the installed SquareDS APK"
+            exit 1
+          fi
           for abi in arm64-v8a armeabi-v7a universal; do
             apk=app/build/outputs/apk/release/app-$abi-release.apk
             certs=$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk")
             echo "$certs"
             digest=$(echo "$certs" | sed -n 's/^Signer.*certificate SHA-256 digest: //p' | head -n 1)
-            if [ "$digest" != "9f3469d5049fa93e6b63effd1ad10a1913c9a65b0f7c9a5f2f770cd8ea27cf0c" ]; then
+            if [ "$digest" != "$EXPECTED_CERT" ]; then
               echo "::error::$abi signed with ${digest:-nothing}, not the release key"
               exit 1
             fi
-            cp "$apk" "square-${{ steps.version.outputs.name }}-$abi.apk"
+            cp "$apk" "squareds-${{ steps.version.outputs.name }}-$abi.apk"
           done
 
       - name: Draft release
@@ -98,7 +112,7 @@ jobs:
         # the first APK it finds, every phone that has one of those is 64-bit,
         # and gh uploads several files at once in no fixed order.
         run: |
-          name="square-${{ steps.version.outputs.name }}"
+          name="squareds-${{ steps.version.outputs.name }}"
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$name-arm64-v8a.apk" --clobber
           else
@@ -110,7 +124,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: github.ref_type != 'tag'
         with:
-          name: square-${{ steps.version.outputs.name }}-signed
-          path: square-${{ steps.version.outputs.name }}-*.apk
+          name: squareds-${{ steps.version.outputs.name }}-signed
+          path: squareds-${{ steps.version.outputs.name }}-*.apk
           retention-days: 7
           if-no-files-found: error

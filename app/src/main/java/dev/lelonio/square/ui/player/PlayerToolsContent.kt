@@ -56,7 +56,7 @@ enum class PlayerTool(val title: Int, val icon: ImageVector) {
     QUEUE(R.string.queue, PhosphorIcons.Regular.Queue),
     EQUALIZER(R.string.equalizer, PhosphorIcons.Regular.Equalizer),
     EFFECTS(R.string.effects, PhosphorIcons.Regular.SlidersHorizontal),
-    INFO(R.string.credits, PhosphorIcons.Regular.Info),
+    INFO(R.string.information, PhosphorIcons.Regular.Info),
     SETTINGS(R.string.settings, PhosphorIcons.Regular.GearSix),
 }
 
@@ -73,6 +73,10 @@ internal fun PlayerToolsContent(
     credits: SpotifyCredits.Credits?,
     creditsLoading: Boolean,
     onWantCredits: (String?) -> Unit,
+    onOpenMetadata: ((dev.lelonio.square.data.MetadataDestination) -> Unit)? = null,
+    onOpenAlbum: (() -> Unit)? = null,
+    metadataState: PlaybackState = state,
+    metadataResolving: Boolean = false,
     reverb: Float,
     onSpeed: (Float) -> Unit,
     onPitch: (Float) -> Unit,
@@ -151,7 +155,8 @@ internal fun PlayerToolsContent(
                                 onDeletePreset = onDeletePreset,
                                 backdrop = backdrop,
                             )
-                            PlayerTool.INFO -> CreditsView(credits, creditsLoading)
+                            PlayerTool.INFO -> TrackInformationView(credits, creditsLoading, state = metadataState, metadataResolving = metadataResolving,
+                                onOpenMetadata = onOpenMetadata, onOpenAlbum = onOpenAlbum)
                             PlayerTool.SETTINGS -> settings()
                         }
                     }

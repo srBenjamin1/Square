@@ -514,6 +514,12 @@ class YouTubeBackend(private val account: YouTubeAccount) : MusicBackend {
         )
     }
 
+    suspend fun metadataOf(trackUri: String): CatalogTrack? = withContext(Dispatchers.IO) {
+        val id = videoIdOfUri(trackUri)
+        YouTube.queue(videoIds = listOf(id)).getOrThrow()
+            .firstOrNull { it.id == id }?.let(::toCatalogTrack)?.copy(uri = trackUri)
+    }
+
     override suspend fun tracksOf(uri: String): List<CatalogTrack> = withContext(Dispatchers.IO) {
         val id = uri.substringAfterLast(':')
         when {

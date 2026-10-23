@@ -551,6 +551,8 @@ class PlaybackService : MediaLibraryService() {
         scope.launch {
             dev.lelonio.square.backend.spotify.SpotifyVideoMode.requests.collect { request ->
                 runCatching { playVideoRequest(request) }
+                    .onSuccess { dev.lelonio.square.backend.spotify.SpotifyVideoMode.completeRequest(true) }
+                    .onFailure { dev.lelonio.square.backend.spotify.SpotifyVideoMode.completeRequest(false) }
                     .onFailure { android.util.Log.w(TAG, "video: $it") }
             }
         }
