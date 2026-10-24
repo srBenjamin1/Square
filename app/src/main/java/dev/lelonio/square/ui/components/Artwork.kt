@@ -246,7 +246,8 @@ private fun offlineOnly(): Boolean =
  * unavailable and drew a generated tile over a picture sitting on the disk.
  */
 private fun isOnThisPhone(url: String): Boolean =
-    url.startsWith("file:") ||
+    url.startsWith("squarelocalart:") ||
+        url.startsWith("file:") ||
         url.startsWith("/") ||
         url.startsWith("content:") ||
         dev.lelonio.square.download.DownloadExtras.fileOf(url, "art") != null

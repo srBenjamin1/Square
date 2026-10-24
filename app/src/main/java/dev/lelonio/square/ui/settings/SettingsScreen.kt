@@ -160,6 +160,7 @@ fun SettingsScreen(
     onYouTubeChannelChange: () -> Unit = {},
     /** Embed the original playback settings without opening the settings index. */
     playbackOnly: Boolean = false,
+    localPlayback: Boolean = false,
 ) {
     val ready = state as? MainViewModel.UiState.Ready
     val context = LocalContext.current
@@ -174,11 +175,12 @@ fun SettingsScreen(
      * service the app is not currently using, and leaving them on screen makes
      * the two sources look like one confused one.
      */
-    val spotifyActive by app.preferences.backend.collectAsStateWithLifecycle()
-    val showSpotify = spotifyActive == BackendId.SPOTIFY
+    val selectedSource by app.preferences.source.collectAsStateWithLifecycle()
+    val showSpotify = selectedSource == dev.lelonio.square.data.MusicSource.SPOTIFY
     // Spotify through the official SDK, which mixes its own audio: none of the
     // engine's crossfade, bitrate, effects or downloads reach it.
-    val sdkPlayback by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse.collectAsStateWithLifecycle()
+    val sdkConfigured by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse.collectAsStateWithLifecycle()
+    val sdkPlayback = sdkConfigured && !localPlayback
 
     /**
      * Which page is open, or null for the list of them.
@@ -332,16 +334,17 @@ fun SettingsScreen(
             // showing a name, a picture and a count of playlists for an account
             // the app was no longer signed in to.
             val youtubeName by app.youtubeAccount.accountName.collectAsStateWithLifecycle()
-            val activeBackend by app.preferences.backend.collectAsStateWithLifecycle()
-            val signedOutOfYouTube = activeBackend == BackendId.YOUTUBE_MUSIC && youtubeName == null
+            val localCollection by app.localMusic.state.collectAsStateWithLifecycle()
+            val signedOutOfYouTube = selectedSource == dev.lelonio.square.data.MusicSource.YOUTUBE_MUSIC && youtubeName == null
             SettingsIndex(
-                name = ready?.displayName?.takeUnless { signedOutOfYouTube },
+                name = if (selectedSource == dev.lelonio.square.data.MusicSource.LOCAL) stringResource(R.string.backend_local) else ready?.displayName?.takeUnless { signedOutOfYouTube },
                 note = when {
+                    selectedSource == dev.lelonio.square.data.MusicSource.LOCAL -> stringResource(R.string.local_track_count, localCollection.catalog.tracks.size)
                     signedOutOfYouTube -> stringResource(R.string.youtube_sign_in)
                     ready != null -> stringResource(R.string.playlist_count, ready.playlists.size)
                     else -> stringResource(R.string.log_in_to_resume)
                 },
-                avatarUrl = ready?.avatarUrl?.takeUnless { signedOutOfYouTube },
+                avatarUrl = ready?.avatarUrl?.takeUnless { signedOutOfYouTube || selectedSource == dev.lelonio.square.data.MusicSource.LOCAL },
             ) { goTo(it) }
         }
 
@@ -442,12 +445,22 @@ fun SettingsScreen(
         if (shown == SettingsPage.Playback && "sound" in openGroups) groupItem("backend", Group.SOUND) {
             BackendSection()
         }
+        if (shown == SettingsPage.Playback && "sound" in openGroups) groupItem("local-folders", Group.SOUND) {
+            LocalMusicFoldersSection()
+        }
 
-        if (shown == SettingsPage.Account) item("youtube-account") {
+        if (shown == SettingsPage.Account && selectedSource != dev.lelonio.square.data.MusicSource.LOCAL) item("youtube-account") {
             YouTubeAccountSection(
                 onSignIn = onYouTubeSignIn,
                 onChannelChange = onYouTubeChannelChange,
             )
+        }
+
+        if (shown == SettingsPage.Account && selectedSource == dev.lelonio.square.data.MusicSource.LOCAL) item("local-account") {
+            Section(stringResource(R.string.backend_local)) {
+                Text(stringResource(R.string.local_source_permission_note), color = InkDim,
+                    modifier = Modifier.padding(18.dp))
+            }
         }
 
         // What is kept on the phone. Under Playback rather than Account: it is
@@ -1357,20 +1370,21 @@ private fun BackendSection() {
     val store = remember(context) {
         (context.applicationContext as dev.lelonio.square.SquareApplication).preferences
     }
-    val chosen by store.backend.collectAsStateWithLifecycle()
+    val chosen by store.source.collectAsStateWithLifecycle()
 
     Section(stringResource(R.string.backend)) {
-        BackendId.entries.forEachIndexed { index, backend ->
+        dev.lelonio.square.data.MusicSource.entries.forEachIndexed { index, backend ->
             if (index > 0) RowDivider()
             ChoiceRow(
                 label = stringResource(
                     when (backend) {
-                        BackendId.SPOTIFY -> R.string.backend_spotify
-                        BackendId.YOUTUBE_MUSIC -> R.string.backend_youtube
+                        dev.lelonio.square.data.MusicSource.SPOTIFY -> R.string.backend_spotify
+                        dev.lelonio.square.data.MusicSource.YOUTUBE_MUSIC -> R.string.backend_youtube
+                        dev.lelonio.square.data.MusicSource.LOCAL -> R.string.backend_local
                     },
                 ),
                 selected = backend == chosen,
-            ) { store.setBackend(backend) }
+            ) { store.setSource(backend) }
         }
     }
 }

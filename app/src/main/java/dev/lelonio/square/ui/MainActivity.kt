@@ -466,6 +466,10 @@ class MainActivity : ComponentActivity() {
      */
     private fun enqueue(track: CatalogTrack) {
         val player = controller ?: return
+        if (!dev.lelonio.square.data.local.LocalQueuePolicy.canAppend(player.currentMediaItem?.mediaId, track.uri)) {
+            android.widget.Toast.makeText(this, getString(dev.lelonio.square.R.string.local_no_mixed_queue), android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         val wasEmpty = player.mediaItemCount == 0
         // The index is a formality: the item asks to play next and the queue in
         // the service picks the place, because only it knows where the run of

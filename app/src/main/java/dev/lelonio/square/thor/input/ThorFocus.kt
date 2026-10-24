@@ -135,6 +135,9 @@ class ThorFocusRegistry {
     }
 }
 
+/** Extra reveal space for content underneath floating controls; no input mapping changes. */
+val LocalThorObscuredBottom = staticCompositionLocalOf { 0.dp }
+
 val LocalThorFocusRegistry = staticCompositionLocalOf<ThorFocusRegistry?> { null }
 val LocalThorScrollPriority = staticCompositionLocalOf { 0 }
 val LocalThorFocusScene = staticCompositionLocalOf<String?> { null }
@@ -191,11 +194,15 @@ fun Modifier.thorFocus(shape: Shape? = null, enabled: Boolean = true, localArrow
         onDispose { registry?.candidate(identity, view, scope, null) }
     }
     val requester = remember { BringIntoViewRequester() }
+    val obscuredBottom = with(androidx.compose.ui.platform.LocalDensity.current) { LocalThorObscuredBottom.current.toPx() }
     val accent = MaterialTheme.colorScheme.primary
     val reveal by animateFloatAsState(if (focused && mode == InputMode.GAMEPAD) 1f else 0f,
         tween(if (mode == InputMode.TOUCH) 0 else 110), label = "thorFocus")
-    LaunchedEffect(focused, mode) {
-        if (focused && mode == InputMode.GAMEPAD) requester.bringIntoView()
+    LaunchedEffect(focused, mode, obscuredBottom) {
+        if (focused && mode == InputMode.GAMEPAD) {
+            if (obscuredBottom > 0) requester.bringIntoView(Rect(0f, 0f, bounds[0].width, bounds[0].height + obscuredBottom))
+            else requester.bringIntoView()
+        }
     }
     DisposableEffect(registry) { onDispose { registry?.focus(identity, null) } }
     this

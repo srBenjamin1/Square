@@ -571,17 +571,7 @@ private fun Header(
                 .padding(start = 24.dp, end = 20.dp, top = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.library), style = MaterialTheme.typography.displayLarge)
-                // Counting whatever the chips are showing, and saying so: the
-                // same number labelled "playlists" under the albums chip is a
-                // line that contradicts the screen it sits on.
-                Text(
-                    stringResource(filter.count, count),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkDim,
-                )
-            }
+            LibraryTitle(stringResource(filter.count, count), Modifier.weight(1f))
 
             if (onOpenRecap != null) {
                 LiquidButton(
@@ -701,7 +691,7 @@ private fun Header(
 }
 
 @Composable
-private fun GridTile(
+internal fun GridTile(
     playlist: CatalogPlaylist,
     pinned: Boolean,
     onClick: () -> Unit,
@@ -881,3 +871,12 @@ private fun Modifier.bleed(horizontal: androidx.compose.ui.unit.Dp): Modifier =
         )
         layout(constraints.maxWidth, placeable.height) { placeable.place(-extra, 0) }
     }
+
+/** Shared library identity; the source supplies its real collection count and controls. */
+@Composable
+internal fun LibraryTitle(countLabel: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(stringResource(R.string.library), style = MaterialTheme.typography.displayLarge)
+        Text(countLabel, style = MaterialTheme.typography.bodySmall, color = InkDim)
+    }
+}

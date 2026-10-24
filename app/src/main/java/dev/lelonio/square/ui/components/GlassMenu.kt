@@ -284,6 +284,7 @@ fun BoxScope.GlassChoiceMenu(
     anchor: IntOffset,
     backdrop: Backdrop,
     onDismiss: () -> Unit,
+    menuWidth: androidx.compose.ui.unit.Dp = CHOICE_MENU_WIDTH,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     AnimatedVisibility(
@@ -318,7 +319,7 @@ fun BoxScope.GlassChoiceMenu(
         val config = dev.lelonio.square.ui.glass.LocalGlassEffectConfig.current
         Box(
             Modifier
-                .width(CHOICE_MENU_WIDTH)
+                .width(menuWidth)
                 .softShadow(shape, elevation = 22.dp, spot = 0.35f)
                 .liquidGlass(
                     config = config,

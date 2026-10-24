@@ -352,13 +352,24 @@ class PreferencesStore(context: Context) {
     /** Which [dev.lelonio.square.backend.MusicBackend] the app plays through. */
     val backend: StateFlow<dev.lelonio.square.backend.BackendId> = _backend.asStateFlow()
 
+    private val _source = MutableStateFlow(MusicSource.restore(prefs.getString(KEY_MUSIC_SOURCE, null), _backend.value))
+    val source: StateFlow<MusicSource> = _source.asStateFlow()
+
     fun setBackend(value: dev.lelonio.square.backend.BackendId) {
         _backend.value = value
+        _source.value = MusicSource.of(value)
         _backendChosen.value = true
-        prefs.edit().putString(KEY_BACKEND, value.name).apply()
+        prefs.edit().putString(KEY_BACKEND, value.name).putString(KEY_MUSIC_SOURCE, _source.value.name).apply()
     }
 
-    private val _backendChosen = MutableStateFlow(prefs.contains(KEY_BACKEND))
+    fun setSource(value: MusicSource) {
+        value.backend?.let { setBackend(it); return }
+        _source.value = value
+        _backendChosen.value = true
+        prefs.edit().putString(KEY_MUSIC_SOURCE, value.name).apply()
+    }
+
+    private val _backendChosen = MutableStateFlow(prefs.contains(KEY_BACKEND) || prefs.contains(KEY_MUSIC_SOURCE))
 
     /**
      * Whether the user has ever picked a source.
@@ -445,6 +456,7 @@ class PreferencesStore(context: Context) {
         const val KEY_SKIP_FADE = "skip_fade"
         const val KEY_PLAYER_OPEN = "player_open"
         const val KEY_BACKEND = "backend"
+        const val KEY_MUSIC_SOURCE = "music_source"
         const val KEY_PROFILE_NAME = "profile_name"
         const val KEY_PROFILE_ART = "profile_art"
         const val KEY_LAST_UPDATE_CHECK = "last_update_check"

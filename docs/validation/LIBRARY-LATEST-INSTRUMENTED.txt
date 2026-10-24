@@ -1,0 +1,40 @@
+=== local-empty.txt ===
+PASS conventional LOCAL opens Library
+PASS conventional LOCAL empty library stays usable
+PASS conventional LOCAL Library reopens after Search
+PASS Library LOCAL populated=false
+
+
+=== local-populated.txt ===
+PASS conventional LOCAL opens Library
+PASS conventional LOCAL opens and returns from indexed album
+PASS conventional LOCAL Library reopens after Search
+PASS Library LOCAL populated=true
+
+
+=== spotify-empty.txt ===
+PASS conventional SPOTIFY opens Library
+PASS conventional SPOTIFY fixture filters and grid/list remain usable
+PASS conventional SPOTIFY Library reopens after Search
+PASS Library SPOTIFY populated=false
+
+
+=== spotify-populated.txt ===
+PASS conventional SPOTIFY opens Library
+PASS conventional SPOTIFY fixture filters and grid/list remain usable
+PASS conventional SPOTIFY Library reopens after Search
+PASS Library SPOTIFY populated=true
+
+
+=== youtube_music-empty.txt ===
+PASS conventional YOUTUBE_MUSIC opens Library
+PASS conventional YOUTUBE_MUSIC fixture filters and grid/list remain usable
+PASS conventional YOUTUBE_MUSIC Library reopens after Search
+PASS Library YOUTUBE_MUSIC populated=false
+
+
+=== youtube_music-populated.txt ===
+PASS conventional YOUTUBE_MUSIC opens Library
+PASS conventional YOUTUBE_MUSIC fixture filters and grid/list remain usable
+PASS conventional YOUTUBE_MUSIC Library reopens after Search
+PASS Library YOUTUBE_MUSIC populated=true

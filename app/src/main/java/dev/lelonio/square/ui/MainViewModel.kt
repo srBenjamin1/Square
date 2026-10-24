@@ -27,6 +27,8 @@ import dev.lelonio.square.data.SpotifyHome
 import dev.lelonio.square.data.CatalogTrack
 import dev.lelonio.square.data.ContextCacheStore
 import dev.lelonio.square.data.GatewayPage
+import dev.lelonio.square.data.MusicSource
+import dev.lelonio.square.data.local.*
 import dev.lelonio.square.data.LocalLibrary
 import dev.lelonio.square.data.SearchItem
 import dev.lelonio.square.data.TransferRequestDto
@@ -49,6 +51,7 @@ import retrofit2.HttpException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -131,6 +134,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     data class PlaylistState(
         val uri: String? = null,
         val name: String = "",
+        val localArtistControls: LocalArtistControls? = null,
         val artworkUrl: String? = null,
         val tracks: List<CatalogTrack> = emptyList(),
         val loading: Boolean = false,
@@ -270,6 +274,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     private val container get() = getApplication<SquareApplication>()
+    val localMusic get() = container.localMusic.state
+    private val browsingLocal get() = container.preferences.source.value == MusicSource.LOCAL
+    fun startLocalMusic() { container.localMusic.start(); container.localVisuals.start() }
+    fun rescanLocalMusic() = container.localMusic.rescan()
+
 
     /** The app's own text, which lives in resources so it can be translated. */
     private fun string(@StringRes id: Int, vararg args: Any): String =
@@ -284,6 +293,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // the first refresh replaced it, or for good when that refresh never came.
     private val _state = MutableStateFlow<UiState>(
         when {
+            browsingLocal -> UiState.Ready("", emptyList())
             container.activeBackend.id != BackendId.SPOTIFY -> UiState.Loading
             container.spotifySignedIn -> UiState.Connecting
             else -> UiState.LoggedOut
@@ -528,6 +538,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * is the same page for anyone in the country and moves once a week.
      */
     fun loadSourceNew() {
+        if (browsingLocal) return
         if (container.activeBackend.id == BackendId.SPOTIFY) return
         if (sourceNewJob?.isActive == true || _sourceNew.value.rows.isNotEmpty()) return
         _sourceNew.value = _sourceNew.value.copy(loading = true)
@@ -539,6 +550,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** And the Radio tab; see [loadSourceNew]. */
     fun loadSourceRadio() {
+        if (browsingLocal) return
         if (container.activeBackend.id == BackendId.SPOTIFY) return
         if (sourceRadioJob?.isActive == true || _sourceRadio.value.rows.isNotEmpty()) return
         _sourceRadio.value = _sourceRadio.value.copy(loading = true)
@@ -556,6 +568,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * signed-out one up would make the login look like it did nothing.
      */
     fun loadYouTubeHome(force: Boolean = false) {
+        if (browsingLocal) return
         val backend = container.activeBackend
         if (backend.id != BackendId.YOUTUBE_MUSIC) return
         if (youtubeHomeJob?.isActive == true) return
@@ -651,6 +664,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * everything else still works. One combined call would lose the lot.
      */
     fun loadFeed() {
+        if (browsingLocal) return
         if (!container.webApi.isReady || feedJob?.isActive == true) return
         if (_feed.value.newReleases.isNotEmpty()) return
 
@@ -862,6 +876,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         // nothing here runs: collectLatest drops it.
                         kotlinx.coroutines.delay(OFFLINE_SETTLE_MS)
                     }
+                    if (browsingLocal) return@collectLatest
                     android.util.Log.i(TAG, "offline changed to $offline: rebuilding")
                     if (offline) {
                         // What needed a connection goes now rather than staying
@@ -1223,6 +1238,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         /** What the track is playing from, when it is; see [AddToPlaylistState.containing]. */
         contextUri: String? = null,
     ) {
+        if (browsingLocal && trackUri?.startsWith("local:track:") == true) {
+            _addToPlaylist.value = AddToPlaylistState(open = asSheet, trackUri = trackUri, trackTitle = trackTitle,
+                playlists = container.localMusic.state.value.catalog.playlists.map { it.catalog() })
+            return
+        }
         // The other source writes through its own account, to the lists it
         // says can be written to; they are asked for as the sheet opens.
         val backend = container.activeBackend
@@ -1280,6 +1300,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * second tap undoing a first by surprise.
      */
     fun openAddAllToPlaylist(tracks: List<CatalogTrack>, title: String) {
+        if (browsingLocal && tracks.all { LocalLibrary.isLocal(it.uri) }) {
+            val uris = tracks.map { it.uri }.distinct()
+            _addToPlaylist.value = AddToPlaylistState(open = true, trackUri = uris.firstOrNull(), batch = uris,
+                trackTitle = title, playlists = container.localMusic.state.value.catalog.playlists.map { it.catalog() })
+            return
+        }
         val backend = container.activeBackend
         val uris = tracks.map { it.uri }.filter {
             if (backend.id == BackendId.SPOTIFY) it.startsWith("spotify:track:") || it.startsWith("spotify:episode:")
@@ -1405,6 +1431,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val current = _addToPlaylist.value
         val trackUri = current.trackUri ?: return
         if (current.busy != null) return
+        if (playlist.uri.startsWith("local:playlist:")) {
+            val uris = current.batch.ifEmpty { listOf(trackUri) }
+            viewModelScope.launch {
+                try {
+                    container.localMusic.add(playlist.uri, uris)
+                    _inPlaylists.value = _inPlaylists.value + uris
+                    _addToPlaylist.value = _addToPlaylist.value.copy(done = playlist.name, busy = null)
+                } catch (failure: Exception) {
+                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                    _addToPlaylist.value = _addToPlaylist.value.copy(busy = null, error = string(R.string.local_operation_failed))
+                }
+            }
+            return
+        }
         val id = playlist.uri.substringAfterLast(':')
 
         if (current.batch.isNotEmpty()) {
@@ -1575,6 +1615,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * word, mostly on prefixes nobody wanted results for.
      */
     fun onSearchQuery(query: String) {
+        if (browsingLocal) {
+            searchJob?.cancel(); searchMoreJob?.cancel()
+            _search.value = SearchState(query = query, loading = query.isNotBlank(), exhausted = true)
+            if (query.isNotBlank()) searchJob = viewModelScope.launch {
+                delay(SEARCH_DEBOUNCE_MS)
+                container.localMusic.state.filter { !it.loading }.map { it.catalog }.distinctUntilChanged().collectLatest { catalog ->
+                    val results = withContext(Dispatchers.Default) { catalog.search(query) }
+                    _search.value = SearchState(query = query, results = results, exhausted = true)
+                }
+            }
+            return
+        }
         val backend = container.activeBackend
         _search.value = _search.value.copy(query = query)
         searchJob?.cancel()
@@ -1723,6 +1775,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * changed under it can hand back a row that is already on the screen.
      */
     fun loadMoreSearch() {
+        if (browsingLocal) return
         val state = _search.value
         if (state.query.isBlank() || state.loading || state.loadingMore) return
         if (state.exhausted) return
@@ -1946,6 +1999,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * is worth an error on the home page.
      */
     fun loadFriends() = viewModelScope.launch {
+        if (browsingLocal) return@launch
         if (container.activeBackend.id != BackendId.SPOTIFY) {
             _friends.value = emptyList()
             return@launch
@@ -2075,15 +2129,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val listeningEvents = container.listeningStore.events
+    val localListeningEvents = container.listeningStore.localEvents
 
     init {
         // The month in music is the one of the source in use.
         viewModelScope.launch {
-            container.preferences.backend.collect { backend ->
+            container.preferences.source.collect { source ->
                 container.listeningStore.show(
-                    when (backend) {
-                        BackendId.SPOTIFY -> dev.lelonio.square.data.ListeningStore.Source.SPOTIFY
-                        BackendId.YOUTUBE_MUSIC -> dev.lelonio.square.data.ListeningStore.Source.YOUTUBE_MUSIC
+                    when (source) {
+                        MusicSource.LOCAL -> dev.lelonio.square.data.ListeningStore.Source.LOCAL
+                        MusicSource.SPOTIFY -> dev.lelonio.square.data.ListeningStore.Source.SPOTIFY
+                        MusicSource.YOUTUBE_MUSIC -> dev.lelonio.square.data.ListeningStore.Source.YOUTUBE_MUSIC
                     },
                 )
             }
@@ -2093,6 +2149,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var lastListeningSync = 0L
 
     fun syncListeningHistory() {
+        if (browsingLocal) return
         if (listeningSync?.isActive == true || System.currentTimeMillis() - lastListeningSync < 60_000) return
         if (container.preferences.backend.value == dev.lelonio.square.backend.BackendId.YOUTUBE_MUSIC) {
             syncYouTubeListening()
@@ -2172,6 +2229,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Called when a track starts, to keep the home page's history current. */
     fun recordPlayed(track: CatalogTrack) = viewModelScope.launch {
+        // Local recents are qualified audible events from the existing service recorder.
+        if (LocalLibrary.isLocal(track.uri)) return@launch
         container.recentStore.record(track)
     }
 
@@ -2278,10 +2337,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // feed, the search results, the open detail page and the recent list all
         // describe a catalogue that is no longer the one being used.
         viewModelScope.launch {
-            container.preferences.backend.drop(1).collect { reload() }
+            container.preferences.source.drop(1).collect { source ->
+                if (source == MusicSource.LOCAL) {
+                    inFlight?.cancel(); feedJob?.cancel(); searchJob?.cancel(); playlistJob?.cancel()
+                    sourceNewJob?.cancel(); sourceRadioJob?.cancel(); browseJob?.cancel()
+                    _search.value = SearchState()
+                    container.localMusic.start()
+                } else reload()
+            }
         }
 
-        if (container.activeBackend.id != BackendId.SPOTIFY) {
+        if (browsingLocal) {
+            container.localMusic.start()
+        } else if (container.activeBackend.id != BackendId.SPOTIFY) {
             // No engine to authenticate, so nothing to send the service.
             //
             // Once this object is whole, not from inside its construction.
@@ -2365,6 +2433,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Starts over on the newly chosen source; see the note in `init`. */
     private fun reload() {
+        playlistJob?.cancel()
         resetFollowedReleases()
         inFlight?.cancel()
         feedJob?.cancel()
@@ -2437,6 +2506,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun launchRefresh() = viewModelScope.launch {
+        if (browsingLocal) return@launch
         val backend = container.activeBackend
         if (backend.id != BackendId.SPOTIFY) {
             // Offline, the downloads are the library here as they are for
@@ -3272,6 +3342,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * them to New.
      */
     fun loadBrowse() {
+        if (browsingLocal) return
         if (browseJob?.isActive == true) return
         if (_releasesPage.value.isNotEmpty() && _madeForYouPage.value.isNotEmpty()) return
 
@@ -4095,6 +4166,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
 
+        if (LocalMusicCatalog.isContext(playlist.uri)) {
+            openOrganizedLocal(playlist)
+            return
+        }
+
         // Reopening one counts as opening it, and that is exactly the playlist
         // the home page should keep at the front.
         container.playlistOrder.record(playlist.uri)
@@ -4623,6 +4699,78 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    private fun openOrganizedLocal(playlist: CatalogPlaylist) {
+        playlistJob?.cancel()
+        playlistJob = viewModelScope.launch {
+            combine(container.localMusic.state.map { it.catalog }.distinctUntilChanged(),
+                dev.lelonio.square.playback.OfflineMode.active) { catalog, offline -> catalog to offline }.collect { (catalog, offline) ->
+                val songs = catalog.tracksOf(playlist.uri)
+                val album = catalog.albumByUri[playlist.uri]
+                val artist = catalog.artists.firstOrNull { it.uri == playlist.uri }
+                val association = catalog.snapshot.visuals.firstOrNull { it.artistUri == playlist.uri }
+                val visual = association?.takeUnless { it.needsReview }
+                if (visual != null) container.localVisuals.ensureArtwork(visual.artistUri)
+                fun picture(file: String?, remote: String?): String? = localArtistPicture(file, remote, offline)
+                val localList = catalog.playlists.firstOrNull { it.uri == playlist.uri }
+                publishPlaylist(PlaylistState(uri = playlist.uri,
+                    localArtistControls = artist?.let { LocalArtistControls(it.uri,
+                        catalog.snapshot.resolutions.firstOrNull { r -> r.artistUri == it.uri }?.status ?: LocalResolutionStatus.PENDING, association) },
+                    name = localList?.name ?: artist?.name ?: album?.name?.ifBlank { string(R.string.local_unknown_album) } ?: playlist.name,
+                    artworkUrl = if (artist != null) picture(visual?.heroFile, visual?.heroUrl)
+                        else album?.artwork ?: songs.firstOrNull()?.artwork,
+                    kind = if (artist != null) DetailKind.ARTIST else if (album != null) DetailKind.ALBUM else DetailKind.PLAYLIST,
+                    tracks = songs.map(LocalTrack::catalog), byline = album?.artist.orEmpty(),
+                    heroUrl = picture(visual?.heroFile, visual?.heroUrl),
+                    logoUrl = picture(visual?.logoFile, visual?.logoUrl), heroAspect = visual?.heroAspect,
+                    albums = artist?.albums.orEmpty().map { dev.lelonio.square.data.SearchItem(it.uri, it.name, it.artist, it.artwork) },
+                    verified = false, mine = false, saved = null, loading = false,
+                    needsPermission = container.localMusic.state.value.needsPermission,
+                    notes = localList?.let { if (catalog.missing(it) > 0) string(R.string.local_missing_count, catalog.missing(it)) else null },
+                ))
+            }
+        }
+    }
+
+    /** User explicitly selects a catalog profile; no local name is sent as a search. */
+    suspend fun associateLocalArtist(localUri: String, input: String): Boolean {
+        return try {
+            val remote = LocalArtistAssociation.profile(input) ?: return false
+            // Reuse only an identity the user already selected, never a local name match.
+            val existing = container.localMusic.awaitCatalog().snapshot.visuals.firstOrNull { it.remoteUri == remote }
+            if (existing != null) {
+                container.localMusic.associate(existing.copy(artistUri = localUri))
+                return true
+            }
+            val facts = if (remote.startsWith("spotify:artist:")) {
+                val id = remote.substringAfterLast(':')
+                val fromApi = fetchArtistMetadata(id)
+                if (fromApi != null) fromApi.name to fromApi.artworkUrl else return false
+            } else {
+                val page = container.youtubeBackend.artistPage(remote) ?: return false
+                page.name to page.artworkUrl
+            }
+            if (facts.first.isBlank()) return false
+            val artwork = dev.lelonio.square.data.AppleCatalog.artist(facts.first)
+            val visual = LocalArtistVisual(localUri, remote, facts.first,
+                heroUrl = facts.second ?: artwork?.heroUrl, logoUrl = artwork?.logoUrl,
+                heroAspect = if (facts.second == null) artwork?.heroAspect else null)
+            container.localMusic.associate(visual)
+            viewModelScope.launch {
+                try {
+                    val cached = container.localArtwork.cacheVisual(visual, container.sharedHttpClient)
+                    container.localMusic.cacheAssociation(cached)
+                } catch (failure: Exception) {
+                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                    container.localMusic.reportError()
+                }
+            }
+            true
+        } catch (failure: Exception) {
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
+            false
+        }
+    }
+
     private fun openLocalFiles(playlist: CatalogPlaylist) {
         playlistJob?.cancel()
         val base = PlaylistState(
@@ -4763,6 +4911,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun removeFromPlaylist(track: CatalogTrack) {
         val uri = _playlist.value.uri ?: return
+        if (uri.startsWith("local:playlist:")) {
+            viewModelScope.launch {
+                try { container.localMusic.remove(uri, track.uri) }
+                catch (failure: Exception) {
+                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                    container.localMusic.reportError()
+                }
+            }
+            return
+        }
         // The other source removes through its own account; the same
         // optimistic row going and coming back if it refuses.
         if (!uri.startsWith("spotify:") && container.activeBackend.owns(uri)) {
@@ -4812,11 +4970,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Whether the active source lets the account make and change playlists. */
-    val canEditPlaylists: Boolean get() = container.activeBackend.canEditPlaylists
+    val canEditPlaylists: Boolean get() = browsingLocal || container.activeBackend.canEditPlaylists
 
     /** Whether a track can be taken out of this particular list. */
     fun canRemoveFrom(playlistUri: String?): Boolean {
         val uri = playlistUri ?: return false
+        if (uri.startsWith("local:playlist:")) return true
         return if (uri.startsWith("spotify:")) {
             container.activeBackend.id == BackendId.SPOTIFY
         } else {
@@ -4854,7 +5013,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Whether the active source takes a description, a visibility and a cover. */
-    val describesPlaylists: Boolean get() = container.activeBackend.describesPlaylists
+    val describesPlaylists: Boolean get() = !browsingLocal && container.activeBackend.describesPlaylists
 
     /**
      * Makes a playlist, puts it at the top of the library and hands it to
@@ -4873,6 +5032,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         cover: android.net.Uri?,
         onCreated: (CatalogPlaylist) -> Unit,
     ) {
+        if (browsingLocal) {
+            viewModelScope.launch {
+                try {
+                    val created = container.localMusic.createPlaylist(name).catalog()
+                    _addToPlaylist.value = _addToPlaylist.value.copy(playlists = container.localMusic.state.value.catalog.playlists.map { it.catalog() })
+                    _creatingPlaylist.value = CreatePlaylistState()
+                    onCreated(created)
+                }
+                catch (failure: Exception) {
+                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                    _creatingPlaylist.value = CreatePlaylistState(error = string(R.string.create_playlist_failed))
+                }
+            }
+            return
+        }
         if (_creatingPlaylist.value.busy) return
         _creatingPlaylist.value = CreatePlaylistState(busy = true)
         viewModelScope.launch {
@@ -5599,6 +5773,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * a Spotify track, looks it up via Web API.
      */
     suspend fun artistOf(track: CatalogTrack): SearchItem? {
+        if (LocalLibrary.isLocal(track.uri)) {
+            val catalog = container.localMusic.awaitCatalog()
+            val local = catalog.byUri[track.uri] ?: return null
+            return local.artist.takeIf { it.isNotBlank() }?.let { SearchItem(local.artistUri, it, "",
+                catalog.artistArtwork(local.artistUri, dev.lelonio.square.playback.OfflineMode.active.value)) }
+        }
         val directUri = track.artistUri ?: track.artists.firstOrNull()?.uri
         val name = track.artists.firstOrNull()?.name ?: track.artist
         if (directUri != null) {
@@ -5641,9 +5821,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Called when the track changes; cached and cheap on a repeat. */
-    fun loadNowPlayingArt(uri: String?, title: String, album: String, artist: String) {
+    fun loadNowPlayingArt(uri: String?, title: String, album: String, artist: String, durationMs: Long = 0, landscape: Boolean = false) {
         nowPlayingArtJob?.cancel()
         _nowPlayingArt.value = null
+        if (LocalLibrary.isLocal(uri.orEmpty())) {
+            _nowPlayingArtPending.value = false
+            val reason = when {
+                !container.preferences.canvasEnabled.value -> LocalVisualDiagnostics.Stage.ANIMATION_DISABLED
+                dev.lelonio.square.playback.OfflineMode.active.value -> LocalVisualDiagnostics.Stage.OFFLINE
+                !landscape && container.preferences.animatedCoverSource.value != dev.lelonio.square.data.PreferencesStore.CoverSource.APPLE_MUSIC -> LocalVisualDiagnostics.Stage.BLOCKED_VISUAL_MODE
+                else -> null
+            }
+            if (reason != null) { LocalVisualDiagnostics.record(reason, uri.orEmpty()); return }
+            nowPlayingArtJob = viewModelScope.launch {
+                try {
+                    val local = container.localMusic.awaitCatalog().allByUri[uri]
+                        ?: LocalTrack(uri?.substringAfterLast(':')?.toLongOrNull() ?: return@launch,
+                            "", title, artist, album, durationMs = durationMs)
+                    val found = container.localVisuals.motion(local)
+                    if (nowPlayingArtJob?.isActive == true) _nowPlayingArt.value = found
+                } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+            }
+            return
+        }
         if (artist.isBlank()) {
             _nowPlayingArtPending.value = false
             return

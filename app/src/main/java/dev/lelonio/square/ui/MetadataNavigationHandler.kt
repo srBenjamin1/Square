@@ -12,14 +12,14 @@ internal class MetadataNavigationHandler(
     private val trace: (String, String) -> Unit = { _, _ -> },
 ) {
     suspend fun open(destination: MetadataDestination): Boolean {
-        val matches = destination.service == activeService()
+        val matches = destination.service == null || destination.service == activeService()
         trace("METADATA_RECEIVED", "type=${destination.type} service=${destination.service} matches=$matches")
         if (!matches) { trace("METADATA_ERROR", "service_mismatch"); return false }
         trace("tools.close", "begin")
         closeTools()
         trace("tools.close", "complete")
         // A backend change during an animation must not send the URI to another catalogue.
-        if (destination.service != activeService()) { trace("METADATA_ERROR", "service_changed"); return false }
+        if (destination.service != null && destination.service != activeService()) { trace("METADATA_ERROR", "service_changed"); return false }
         trace("METADATA_NAVIGATE", "type=${destination.type}")
         openPage(destination)
         trace("METADATA_COMPLETE", "type=${destination.type} complete")

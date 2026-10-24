@@ -1,0 +1,2 @@
+Comprobación: adb logcat -d -s AndroidRuntime:E
+Sin entradas AndroidRuntime:E durante las pruebas posteriores a la corrección.

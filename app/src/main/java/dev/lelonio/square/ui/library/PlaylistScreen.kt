@@ -91,6 +91,7 @@ import dev.lelonio.square.ui.components.MENU_WIDTH
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.graphicsLayer
@@ -109,6 +110,12 @@ import dev.lelonio.square.ui.glass.backdrop.backdrops.rememberBackdropFreeze
 import dev.lelonio.square.ui.components.Artwork
 import dev.lelonio.square.ui.components.CHOICE_MENU_WIDTH
 import dev.lelonio.square.ui.components.GlassChoiceItem
+import dev.lelonio.square.data.local.LocalArtistControls
+import dev.lelonio.square.data.local.LocalResolutionStatus
+import dev.lelonio.square.thor.input.LocalThorScrollPriority
+import dev.lelonio.square.thor.input.ThorFocusScene
+import dev.lelonio.square.thor.input.thorVerticalScroll
+import androidx.compose.foundation.rememberScrollState
 import dev.lelonio.square.ui.components.GlassChoiceMenu
 import dev.lelonio.square.ui.components.LazyScrollBar
 import dev.lelonio.square.ui.components.SwipeToQueue
@@ -188,6 +195,9 @@ fun PlaylistScreen(
     state: MainViewModel.PlaylistState,
     contentPadding: PaddingValues,
     nowPlayingUri: String?,
+    onAssociateLocalArtist: suspend (String, String) -> Boolean = { _, _ -> false },
+    onClearLocalArtist: suspend (String) -> Unit = {},
+    onRetryLocalArtist: suspend (String) -> Unit = {},
     /** Whether what is current is playing; an episode's card shows pause then. */
     nowPlaying: Boolean = false,
     /** Pauses or resumes what is current, for that card's button. */
@@ -310,6 +320,12 @@ fun PlaylistScreen(
     // On the reference they are a screen of their own reached from an "i"; here
     // they unfold in place, which is the same answer without the round trip.
     var infoOpen by remember(state.uri) { mutableStateOf(false) }
+    var artistMenuOpen by remember(state.uri) { mutableStateOf(false) }
+    var artistMenuAnchor by remember(state.uri) { mutableStateOf(IntOffset.Zero) }
+    var artistLinkOpen by remember(state.uri) { mutableStateOf(false) }
+    var artistOperationFailed by remember(state.uri) { mutableStateOf(false) }
+    val artistControls = state.localArtistControls
+    androidx.activity.compose.BackHandler(artistMenuOpen) { artistMenuOpen = false }
     // Asked before a kept page is given back to the network. The button that
     // says "this is on your phone" is also how it comes off again, so the
     // question is what stops a mis-tap from deleting a hundred songs.
@@ -372,7 +388,8 @@ fun PlaylistScreen(
     // curator, and Spotify's owner field is an account id as often as a person.
     val byline = remember(state.kind, state.tracks, state.byline) {
         if (state.kind == MainViewModel.DetailKind.ALBUM) {
-            state.tracks.firstOrNull()?.artist.orEmpty()
+            if (state.uri?.startsWith("local:album:") == true) state.byline
+            else state.tracks.firstOrNull()?.artist.orEmpty()
         } else {
             state.byline
         }
@@ -487,7 +504,17 @@ fun PlaylistScreen(
 
     val topPadding = contentPadding.calculateTopPadding()
     val collapsedHeight = topPadding + COLLAPSED_BAR_HEIGHT
-    val heroHeight = HERO_HEIGHT
+    // No portrait means no photograph-sized empty area. Keep the same header and lettering.
+    val localArtistWithoutPortrait = isArtist && state.uri?.startsWith("local:artist:") == true &&
+        state.heroUrl == null && state.artworkUrl == null
+    val naturalHeroHeight = if (localArtistWithoutPortrait)
+        minOf(HERO_HEIGHT, topPadding + 240.dp * density.fontScale.coerceAtLeast(1f)) else HERO_HEIGHT
+    val window = androidx.compose.ui.platform.LocalConfiguration.current
+    val compactLocalDetail = dev.lelonio.square.data.local.LocalMusicCatalog.isContext(state.uri) &&
+        dev.lelonio.square.ui.local.LocalLayoutPolicy.forWindow(window.screenWidthDp, window.screenHeightDp).compact
+    val heroHeight = if (compactLocalDetail) minOf(naturalHeroHeight,
+        maxOf(collapsedHeight + 100.dp, minOf(260.dp, window.screenHeightDp.dp - contentPadding.calculateBottomPadding() - 8.dp)))
+        else naturalHeroHeight
 
     // The header is not in the list. It sits above it and shrinks as the list is
     // dragged upwards, which is the difference between a hero that collapses and
@@ -499,6 +526,7 @@ fun PlaylistScreen(
     // tracks.
     val collapseRange = with(density) { (heroHeight - collapsedHeight).toPx() }
     var collapsed by remember(state.uri) { mutableFloatStateOf(0f) }
+    LaunchedEffect(collapseRange) { collapsed = collapsed.coerceIn(0f, collapseRange) }
     LaunchedEffect(state.uri) {
         listState.scrollToItem(0)
     }
@@ -570,7 +598,7 @@ fun PlaylistScreen(
     // for a header is laid over the whole of it.
     val shownAspect = if (state.heroUrl != null) state.heroAspect else 1f
     val artHeight = shownAspect
-        ?.let { (screenWidth / it).coerceIn(200.dp, heroHeight) }
+        ?.let { (screenWidth / it).coerceIn(minOf(200.dp, heroHeight), heroHeight) }
         ?: heroHeight
 
     /** Where the picture's own bottom edge falls, as a fraction of the screen. */
@@ -586,6 +614,8 @@ fun PlaylistScreen(
     // phone: a dark brown page in the system's light setting was drawing its
     // track titles in the light theme's near-black.
     androidx.compose.runtime.CompositionLocalProvider(
+        dev.lelonio.square.thor.input.LocalThorObscuredBottom provides
+            (if (dev.lelonio.square.data.local.LocalMusicCatalog.isContext(state.uri)) contentPadding.calculateBottomPadding() else 0.dp),
         dev.lelonio.square.ui.theme.LocalInkOverride provides pageInk,
         androidx.compose.material3.LocalContentColor provides pageInk,
     ) {
@@ -670,7 +700,8 @@ fun PlaylistScreen(
                 following = state.following,
                 onToggleFollow = onToggleFollow,
                 infoOpen = infoOpen,
-                onToggleInfo = { infoOpen = !infoOpen },
+                onToggleInfo = { if (artistControls != null) artistMenuOpen = !artistMenuOpen else infoOpen = !infoOpen },
+                onInfoAnchor = { artistMenuAnchor = it },
                 subscribers = state.subscribers,
                 monthlyListeners = state.monthlyListeners,
                 pageColor = pageColor,
@@ -710,7 +741,7 @@ fun PlaylistScreen(
             // page keeps it in the menu, beside the rest of what a page can do.
             canDownload = canDownload && !isArtist && state.kind != MainViewModel.DetailKind.SHOW,
             byline = byline,
-            bylineArtists = if (state.kind == MainViewModel.DetailKind.ALBUM) {
+            bylineArtists = if (state.kind == MainViewModel.DetailKind.ALBUM && state.uri?.startsWith("local:album:") != true) {
                 state.tracks.firstOrNull()?.artists.orEmpty()
             } else {
                 emptyList()
@@ -718,7 +749,8 @@ fun PlaylistScreen(
             onOpenArtist = { artist ->
                 artist.uri?.let { onOpenItem(dev.lelonio.square.data.SearchItem(it, artist.name, "", null)) }
             },
-            year = state.tracks.firstOrNull()?.year.orEmpty()
+            year = (if (state.uri?.startsWith("local:album:") == true) state.tracks.firstNotNullOfOrNull { it.year.takeIf(String::isNotBlank) }
+                else state.tracks.firstOrNull()?.year).orEmpty()
                 .takeIf { state.kind == MainViewModel.DetailKind.ALBUM }
                 .orEmpty(),
             updatedAt = updated,
@@ -769,6 +801,7 @@ fun PlaylistScreen(
             if (isArtist) {
                 item(contentType = "about") {
                     AnimatedVisibility(visible = infoOpen) {
+                        Column {
                         ArtistAbout(
                             followers = state.followers,
                             genres = state.genres,
@@ -776,6 +809,13 @@ fun PlaylistScreen(
                             // Shown on the page itself now, under "About".
                             bio = null,
                         )
+                            artistControls?.let {
+                                Text(stringResource(localArtistStatusLabel(it.status)), modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp), color = pageInk)
+                                it.visual?.remoteName?.let { name -> Text(name, modifier = Modifier.padding(horizontal = 24.dp), color = pageInk) }
+                            }
+                            if (artistOperationFailed) Text(stringResource(R.string.local_operation_failed), modifier = Modifier.padding(24.dp), color = pageInk)
+                        }
+
                     }
                 }
             }
@@ -1458,6 +1498,62 @@ fun PlaylistScreen(
 
         }
 
+        if (artistControls != null) {
+            val menuWidth = minOf(320.dp, screenWidth - 24.dp)
+            val top = contentPadding.calculateTopPadding() + 8.dp
+            val available = (screenHeight - top - contentPadding.calculateBottomPadding() - 12.dp).coerceAtLeast(72.dp)
+            val height = minOf(available, (artistControls.actions.size * 42 + 16).dp)
+            val anchor = with(density) { IntOffset(
+                artistMenuAnchor.x.coerceIn(12.dp.roundToPx(), (screenWidth - menuWidth - 12.dp).roundToPx().coerceAtLeast(12.dp.roundToPx())),
+                artistMenuAnchor.y.coerceIn(top.roundToPx(), (screenHeight - contentPadding.calculateBottomPadding() - height - 8.dp).roundToPx().coerceAtLeast(top.roundToPx()))) }
+            androidx.compose.runtime.CompositionLocalProvider(LocalThorScrollPriority provides 2, dev.lelonio.square.thor.input.LocalThorObscuredBottom provides 0.dp) {
+                GlassChoiceMenu(visible = artistMenuOpen, anchor = anchor,
+                    backdrop = rememberCombinedBackdrop(pageBackdrop, listBackdrop),
+                    menuWidth = menuWidth, onDismiss = { artistMenuOpen = false }) {
+                    ThorFocusScene("local-artist-information:${state.uri}", ready = artistMenuOpen,
+                        modifier = if (dev.lelonio.square.thor.input.LocalThorEnabled.current)
+                            Modifier.focusProperties { onExit = { cancelFocusChange() } } else Modifier) {
+                        Column(Modifier.heightIn(max = height).thorVerticalScroll(rememberScrollState())) {
+                            artistControls.actions.forEach { action ->
+                                val label = when (action) {
+                                    LocalArtistControls.Action.INFORMATION -> R.string.about
+                                    LocalArtistControls.Action.STATUS -> localArtistStatusLabel(artistControls.status)
+                                    LocalArtistControls.Action.LINK -> R.string.local_associate_artist
+                                    LocalArtistControls.Action.CHANGE -> R.string.local_change_association
+                                    LocalArtistControls.Action.UNLINK -> R.string.local_clear_association
+                                    LocalArtistControls.Action.RETRY -> R.string.local_identity_retry
+                                    LocalArtistControls.Action.REJECT -> R.string.local_identity_reject
+                                }
+                                GlassChoiceItem(stringResource(label), selected = false) {
+                                    artistMenuOpen = false
+                                    when (action) {
+                                        LocalArtistControls.Action.INFORMATION, LocalArtistControls.Action.STATUS -> infoOpen = !infoOpen
+                                        LocalArtistControls.Action.LINK, LocalArtistControls.Action.CHANGE -> artistLinkOpen = true
+                                        else -> scope.launch {
+                                            try {
+                                                if (action == LocalArtistControls.Action.RETRY) onRetryLocalArtist(artistControls.uri)
+                                                else onClearLocalArtist(artistControls.uri)
+                                            } catch (e: Exception) {
+                                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                                artistOperationFailed = true; infoOpen = true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (artistLinkOpen) dev.lelonio.square.ui.components.NameDialog(
+                title = stringResource(R.string.local_associate_artist), initial = "",
+                confirmLabel = stringResource(R.string.local_associate), placeholder = stringResource(R.string.local_artist_link),
+                onConfirm = { profile ->
+                    artistLinkOpen = false
+                    scope.launch { artistOperationFailed = !onAssociateLocalArtist(artistControls.uri, profile); infoOpen = true }
+                }, onDismiss = { artistLinkOpen = false })
+        }
+
         // In the page rather than in a popup of its own: the sort button is up
         // by the header, well clear of the bars that would otherwise be drawn
         // over this, so it can be real glass instead of a dark card.
@@ -2017,6 +2113,7 @@ private fun ArtistHeader(
     onToggleFollow: () -> Unit,
     infoOpen: Boolean,
     onToggleInfo: () -> Unit,
+    onInfoAnchor: (IntOffset) -> Unit = {},
     /** The channel's subscribers, as YouTube words the number; null elsewhere. */
     subscribers: String?,
     monthlyListeners: String?,
@@ -2032,6 +2129,7 @@ private fun ArtistHeader(
     onShuffle: () -> Unit,
     onToggleSearch: () -> Unit,
 ) {
+    var logoFailed by remember(logoUrl) { mutableStateOf(false) }
     val density = LocalDensity.current
     val heroPx = with(density) { heroHeight.roundToPx() }
     val collapsedPx = with(density) { collapsedHeight.roundToPx() }
@@ -2055,7 +2153,7 @@ private fun ArtistHeader(
             // client can reproduce; what carries across is the weight and the
             // width — the name is the picture's caption and the page's title at
             // once, so it is sized to fill the frame rather than to a style.
-            if (logoUrl != null) {
+            if (logoUrl != null && !logoFailed) {
                 // The name as their own artwork, which is what the reference
                 // puts here — a face chosen for that artist and set once, not a
                 // system font pretending to be one.
@@ -2065,6 +2163,7 @@ private fun ArtistHeader(
                         .crossfade(true)
                         .build(),
                     contentDescription = name,
+                    onError = { logoFailed = true },
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxWidth(0.82f)
@@ -2115,6 +2214,10 @@ private fun ArtistHeader(
                 horizontalArrangement = Arrangement.spacedBy(24.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Box(Modifier.onGloballyPositioned {
+                    val bounds = it.boundsInRoot()
+                    onInfoAnchor(IntOffset(bounds.left.toInt(), bounds.bottom.toInt()))
+                }) {
                 CircleAction(
                     icon = PhosphorIcons.Bold.Info,
                     description = stringResource(R.string.about),
@@ -2123,6 +2226,7 @@ private fun ArtistHeader(
                     onClick = onToggleInfo,
                     tint = if (infoOpen) ink else ink.copy(alpha = 0.86f),
                 )
+                }
 
                 // The one solid control on the page. Round rather than the
                 // capsule the other headers carry: with the name above it in
@@ -2931,7 +3035,7 @@ private const val PLAYING_FILM = 0.08f
 private const val PLAYING_RIM = 0.10f
 
 @Composable
-private fun TrackRow(
+internal fun TrackRow(
     track: CatalogTrack,
     position: Int,
     isCurrent: Boolean,
@@ -3465,3 +3569,13 @@ private const val LIGHT_PAGE_LUMINANCE = 0.45f
 
 /** Room below the header for the Play button's shadow; see heroCollapse. */
 private val PLAY_SHADOW_ROOM = 48.dp
+
+private fun localArtistStatusLabel(status: LocalResolutionStatus): Int = when (status) {
+    LocalResolutionStatus.MANUAL -> R.string.local_identity_manual
+    LocalResolutionStatus.VERIFIED -> R.string.local_identity_verified
+    LocalResolutionStatus.AMBIGUOUS -> R.string.local_identity_ambiguous
+    LocalResolutionStatus.NOT_FOUND -> R.string.local_identity_missing
+    LocalResolutionStatus.REJECTED -> R.string.local_identity_rejected
+    LocalResolutionStatus.REVIEW_REQUIRED -> R.string.local_identity_review
+    LocalResolutionStatus.PENDING -> R.string.local_identity_pending
+}

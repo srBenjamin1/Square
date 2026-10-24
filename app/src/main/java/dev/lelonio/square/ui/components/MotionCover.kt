@@ -90,9 +90,11 @@ fun MotionCover(
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
+                dev.lelonio.square.data.local.LocalVisualDiagnostics.record(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.FIRST_FRAME, url)
                 firstFrame = true
             }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                dev.lelonio.square.data.local.LocalVisualDiagnostics.record(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.LOAD_ERROR, url, code = error.errorCode)
                 failed = true
                 player.pause()
             }

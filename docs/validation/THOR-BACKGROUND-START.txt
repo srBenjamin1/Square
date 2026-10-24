@@ -1,0 +1,7 @@
+Extracto de logcat -b crash --pid=31062; problema independiente pendiente.
+10-24 14:14:35.414 31062 31062 E AndroidRuntime: FATAL EXCEPTION: main
+10-24 14:14:35.414 31062 31062 E AndroidRuntime: java.lang.RuntimeException: Cannot create an instance of class dev.lelonio.square.ui.MainViewModel
+10-24 14:14:35.416 31062 31062 E AndroidRuntime: Caused by: java.lang.reflect.InvocationTargetException
+10-24 14:14:35.416 31062 31062 E AndroidRuntime: Caused by: android.app.BackgroundServiceStartNotAllowedException: Not allowed to start service Intent { act=dev.lelonio.square.action.CONNECT cmp=dev.lelonio.square/.playback.PlaybackService }: app is in background uid UidRecord{258a580 u0a205 SVC  idle change:procadj procs:0 seq(5868962,5868888)}
+10-24 14:14:35.416 31062 31062 E AndroidRuntime: 	at dev.lelonio.square.playback.PlaybackService$Companion.connect(PlaybackService.kt:2141)
+10-24 14:14:35.416 31062 31062 E AndroidRuntime: 	at dev.lelonio.square.ui.MainViewModel.<init>(MainViewModel.kt:2363)

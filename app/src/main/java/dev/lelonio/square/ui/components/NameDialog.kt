@@ -47,6 +47,7 @@ fun NameDialog(
     confirmLabel: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
+    placeholder: String? = null,
 ) {
     var text by remember(initial) { mutableStateOf(initial) }
     val shape = RoundedCornerShape(24.dp)
@@ -70,7 +71,7 @@ fun NameDialog(
             ) {
                 if (text.isEmpty()) {
                     Text(
-                        stringResource(R.string.playlist_name),
+                        placeholder ?: stringResource(R.string.playlist_name),
                         style = MaterialTheme.typography.bodyLarge,
                         color = InkDim,
                     )

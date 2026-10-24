@@ -92,8 +92,9 @@ internal fun PlayerToolsContent(
 ) {
     val selected = rememberUpdatedState(tool.ordinal)
     val selectedIndex = remember { { selected.value } }
-    val sdkPlayback by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse
+    val sdkConfigured by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse
         .collectAsStateWithLifecycle()
+    val sdkPlayback = dev.lelonio.square.data.local.LocalSourcePlaybackPolicy.sdkRestrictions(sdkConfigured, state.mediaId)
     LaunchedEffect(tool, state.mediaId) {
         if (tool == PlayerTool.INFO) onWantCredits(state.mediaId)
     }

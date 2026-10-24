@@ -14,6 +14,9 @@ internal object PlayerVisualPolicy {
         else -> null
     }
 
+    fun motionEnabledForTrack(uri: String?, enabled: Boolean, source: PreferencesStore.CoverSource, offline: Boolean, landscape: Boolean = false): Boolean =
+        enabled && (uri?.startsWith("local:track:") != true || (landscape || source == PreferencesStore.CoverSource.APPLE_MUSIC) && !offline)
+
     fun canvasAllowed(landscape: Boolean, musicVideo: Boolean): Boolean = !landscape && !musicVideo
 
     fun fullScreenVideo(landscape: Boolean, musicVideo: Boolean, showExpandedPlayer: Boolean): Boolean =

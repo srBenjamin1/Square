@@ -6,7 +6,7 @@ import dev.lelonio.square.backend.BackendId
 data class MetadataDestination private constructor(
     val type: Type,
     val uri: String,
-    val service: BackendId,
+    val service: BackendId?,
     val name: String,
     val artworkUrl: String?,
 ) {
@@ -15,6 +15,16 @@ data class MetadataDestination private constructor(
     fun asPlaylist() = CatalogPlaylist(uri = uri, name = name, artworkUrl = artworkUrl)
 
     companion object {
+        fun forTrack(type: Type, uri: String?, name: String, trackUri: String?, artworkUrl: String? = null): MetadataDestination? {
+            if (trackUri?.startsWith("local:track:") == true) {
+                val prefix = if (type == Type.ARTIST) "local:artist:" else "local:album:"
+                val id = uri?.takeIf { it.startsWith(prefix) }?.removePrefix(prefix) ?: return null
+                if (id.length != 64 || id.any { it !in "0123456789abcdef" }) return null
+                return MetadataDestination(type, uri, null, name, artworkUrl)
+            }
+            return create(type, uri, name, serviceOfTrack(trackUri), artworkUrl)
+        }
+
         fun serviceOfTrack(uri: String?): BackendId? = when {
             uri?.startsWith("spotify:track:") == true -> BackendId.SPOTIFY
             uri?.startsWith("ytmusic:track:") == true || uri?.startsWith("ytmusic:video:") == true -> BackendId.YOUTUBE_MUSIC

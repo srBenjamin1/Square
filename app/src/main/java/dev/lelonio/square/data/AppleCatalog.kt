@@ -433,6 +433,10 @@ object AppleCatalog {
         } ?: return null
 
         val attributes = match.jsonObject["attributes"]?.jsonObject ?: return null
+        return artistFromAttributes(attributes)
+    }
+
+    private fun artistFromAttributes(attributes: JsonObject): Artist? {
         val editorial = attributes["editorialArtwork"]?.jsonObject
 
         // The identity portrait rather than one of the wide banners: this is a
@@ -593,6 +597,10 @@ object AppleCatalog {
                 (if (single(row)) 0 else 1)
         }
         val attributes = match ?: return null
+        return albumFromAttributes(attributes)
+    }
+
+    private fun albumFromAttributes(attributes: JsonObject): Album? {
         val tall = attributes.tall()
         val cover = attributes["artwork"]?.jsonObject?.template()
 
@@ -622,6 +630,97 @@ object AppleCatalog {
             coverUrl = cover?.let { size(it, COVER_PX, COVER_PX) },
             notes = notes,
         )
+    }
+
+    /** Existing Apple API, with identities and strict local evidence instead of name-only artwork matching. */
+    private val localCandidateLock = Mutex()
+    private val localCandidateCache = linkedMapOf<String, Pair<Long, List<dev.lelonio.square.data.local.LocalSongCandidate>>>()
+    suspend fun localCandidates(track: dev.lelonio.square.data.local.LocalTrack, forceRefresh: Boolean = false): List<dev.lelonio.square.data.local.LocalSongCandidate>? = localCandidateLock.withLock {
+        val key = dev.lelonio.square.data.local.LocalVisualMatching.evidence(listOf(track))
+        localCandidateCache[key]?.takeIf { !forceRefresh && System.currentTimeMillis() - it.first < 86_400_000 }?.let { return@withLock it.second }
+        if (!mayAsk()) return@withLock null
+        if (track.artist.isBlank() || track.title.isBlank()) return@withLock emptyList()
+        val found = ask("local identity") {
+            (search("${track.artist} ${track.title}", "songs", storefront(), identities = true) ?: return@ask null).mapNotNull { element ->
+                val row = element.jsonObject
+                val a = row["attributes"] as? JsonObject ?: return@mapNotNull null
+                fun text(key: String) = (a[key] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty()
+                fun identity(kind: String): String = (row["relationships"] as? JsonObject)?.get(kind)?.jsonObject
+                    ?.get("data")?.jsonArray?.let { data -> if (data.size != 1) null else data.firstOrNull() }?.jsonObject?.get("id")?.jsonPrimitive?.content.orEmpty()
+                dev.lelonio.square.data.local.LocalSongCandidate(row["id"]?.jsonPrimitive?.content.orEmpty(), text("name"),
+                    text("artistName"), text("albumName"), text("durationInMillis").toLongOrNull() ?: 0, identity("artists"), identity("albums"))
+            }
+        }
+        if (found != null) {
+            localCandidateCache[key] = System.currentTimeMillis() to found
+            while (localCandidateCache.size > 128) localCandidateCache.remove(localCandidateCache.keys.first())
+        }
+        found
+    }
+
+
+    suspend fun localArtist(id: String, expectedName: String): Artist? {
+        if (!id.all(Char::isDigit) || id.isBlank()) return null
+        val key = "local artist/${storefront()}/$id/${expectedName.lowercase()}"
+        remembered(key)?.let { return runCatching { json.decodeFromString<Artist>(it) }.getOrNull() }
+        if (!mayAsk()) return null
+        return ask("local artist") {
+            val bearer = token() ?: return@ask null
+            val body = get("$API/${storefront()}/artists/$id?extend=editorialArtwork,artistBio,bornOrFormed", bearer) ?: return@ask null
+            val attributes = json.parseToJsonElement(body).jsonObject["data"]?.jsonArray?.firstOrNull()?.jsonObject?.get("attributes") as? JsonObject ?: return@ask null
+            if (dev.lelonio.square.data.local.normalizedLocal(attributes["name"]?.jsonPrimitive?.content.orEmpty()) !=
+                dev.lelonio.square.data.local.normalizedLocal(expectedName)) return@ask null
+            artistFromAttributes(attributes)?.also { remember(key, json.encodeToString(it)) }
+        }
+    }
+
+    suspend fun localMotion(track: dev.lelonio.square.data.local.LocalTrack): Pair<String, Album?>? {
+        val key = track.uri
+        fun trace(stage: dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage, count: Int? = null) =
+            dev.lelonio.square.data.local.LocalVisualDiagnostics.record(stage, key, count)
+        if (track.title.isBlank() || track.artist.isBlank()) {
+            trace(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.MISSING_METADATA)
+            return null
+        }
+        trace(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.METADATA_READY)
+        val candidates = localCandidates(track) ?: throw java.io.IOException("Catalog temporarily unavailable")
+        trace(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.SEARCH_RESULTS, candidates.size)
+        val ids = dev.lelonio.square.data.local.LocalVisualMatching.ranked(track, candidates).map { it.albumId }.distinct()
+        if (ids.isEmpty()) {
+            trace(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.NO_MATCH)
+            return null
+        }
+        // Never select an arbitrary prefix of a large set of editions.
+        if (ids.size > 4 || ids.any { it.isBlank() || !it.all(Char::isDigit) }) {
+            trace(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.AMBIGUOUS, ids.size)
+            return null
+        }
+        if (!mayAsk()) throw java.io.IOException("Catalog temporarily unavailable")
+        val albums = ask("local motion") {
+            val bearer = token() ?: return@ask null
+            ids.map { id ->
+                val body = get("$API/${storefront()}/albums/$id?extend=editorialArtwork,editorialVideo", bearer) ?: return@ask null
+                val a = json.parseToJsonElement(body).jsonObject["data"]?.jsonArray?.firstOrNull()?.jsonObject?.get("attributes") as? JsonObject ?: return@ask null
+                trace(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.VIDEO_METADATA,
+                    (a["editorialVideo"] as? JsonObject)?.size ?: 0)
+                val artist = a["artistName"]?.jsonPrimitive?.content.orEmpty()
+                val expectedArtist = track.albumArtist.ifBlank { track.artist }
+                if (dev.lelonio.square.data.local.normalizedLocal(artist) != dev.lelonio.square.data.local.normalizedLocal(expectedArtist)) return@ask null
+                // Parse video independently of static artwork. A motion-only row
+                // must not fail albumFromAttributes' remote static-cover checks.
+                Album(heroUrl = null, coverUrl = null,
+                    motionUrl = a.motion()?.get("video")?.jsonPrimitive?.content?.takeIf { it.startsWith("https://") },
+                    motionSquareUrl = squareMotionUrl(a))
+            }
+        } ?: throw java.io.IOException("Album metadata unavailable")
+        trace(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.ALBUM_IDENTIFIED, albums.size)
+        val artwork = dev.lelonio.square.data.local.LocalVisualMatching.sharedMotion(albums)
+        if (artwork == null) {
+            trace(if (albums.any { it.motionUrl != null || it.motionSquareUrl != null })
+                dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.AMBIGUOUS
+                else dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.NO_MOTION)
+        } else trace(dev.lelonio.square.data.local.LocalVisualDiagnostics.Stage.MOTION_AVAILABLE)
+        return ids.joinToString(",") to artwork
     }
 
     /** An artwork row's own proportions, width over height. */
@@ -676,13 +775,14 @@ object AppleCatalog {
         term: String,
         types: String,
         storefront: String,
+        identities: Boolean = false,
     ): List<kotlinx.serialization.json.JsonElement>? {
         val bearer = token() ?: return null
         val url = "$API/$storefront/search" +
             "?term=${java.net.URLEncoder.encode(term, "UTF-8")}" +
             // Enough rows to see past a title's singles, remixes and live
             // takes to the record itself; ten was not always.
-            "&types=$types&limit=25" +
+            "&types=$types&limit=25" + (if (identities) "&include%5Bsongs%5D=artists,albums" else "") +
             "&extend=editorialArtwork,editorialVideo,editorialNotes,artistBio,bornOrFormed"
 
         val body = get(url, bearer) ?: return null

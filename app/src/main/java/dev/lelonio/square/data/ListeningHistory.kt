@@ -15,6 +15,8 @@ data class ListeningEvent(
     val qualified: Boolean = false,
     val measuredMonths: Map<String, Long> = emptyMap(),
     val spotifyAt: Long? = null,
+    val contextUri: String? = null,
+    val lastAudibleAt: Long? = null,
 )
 
 data class MonthlyListening(
@@ -90,10 +92,10 @@ class ListeningSampler {
     private var event: ListeningEvent? = null
     private var lastTick: Long? = null
     private var wasPlaying = false
-    fun sample(track: CatalogTrack?, playing: Boolean, now: Long, tick: Long): ListeningEvent? {
+    fun sample(track: CatalogTrack?, playing: Boolean, now: Long, tick: Long, contextUri: String? = null): ListeningEvent? {
         val previous = event
         if (track == null || previous?.track?.uri != track.uri) {
-            event = track?.takeIf { playing }?.let { ListeningEvent("local:$now:${it.uri}", it, now) }
+            event = track?.takeIf { playing }?.let { ListeningEvent("local:$now:${it.uri}", it, now, contextUri = contextUri) }
             lastTick = tick
             wasPlaying = playing
             return previous
@@ -114,7 +116,8 @@ class ListeningSampler {
                 from = until
             }
         }
-        event = updated.copy(qualified = updated.listenedMs >= threshold, measuredMonths = measured)
+        event = updated.copy(qualified = updated.listenedMs >= threshold, measuredMonths = measured,
+            lastAudibleAt = if (delta > 0) now else previous.lastAudibleAt)
         lastTick = tick
         wasPlaying = playing
         return event

@@ -1,0 +1,4 @@
+PASS conventional LOCAL opens Library
+PASS conventional LOCAL empty library stays usable
+PASS conventional LOCAL Library reopens after Search
+PASS Library LOCAL populated=false switchFrom=YOUTUBE_MUSIC

@@ -25,6 +25,8 @@ import dev.lelonio.square.thor.input.ThorLazyRow as LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -65,6 +67,7 @@ import dev.lelonio.square.ui.glass.backdrop.Backdrop
 import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.regular.ArrowsLeftRight
+import com.adamglin.phosphoricons.regular.MusicNotes
 import com.adamglin.phosphoricons.regular.SpotifyLogo
 import com.adamglin.phosphoricons.regular.YoutubeLogo
 import androidx.compose.foundation.layout.Spacer
@@ -173,7 +176,7 @@ fun HomeScreen(
     onYouTubeSignIn: () -> Unit = {},
     /** Signed out of Spotify: play from the other source instead. */
     onUseYouTube: () -> Unit = {},
-    onSwitchSource: () -> Unit = {},
+    onSwitchSource: (androidx.compose.ui.unit.IntOffset) -> Unit = {},
     /**
      * Spotify's own personalised shelves, empty when the gateway said nothing.
      *
@@ -625,7 +628,7 @@ private fun Header(
     @StringRes service: Int,
     /** Its mark, so the source is recognisable before the line is read. */
     serviceIcon: androidx.compose.ui.graphics.vector.ImageVector,
-    onSwitchSource: () -> Unit,
+    onSwitchSource: (androidx.compose.ui.unit.IntOffset) -> Unit,
     /**
      * How far collapsed, as a lambda rather than a value.
      *
@@ -655,7 +658,9 @@ private fun Header(
      * whatever shelves the service itself sent.
      */
     showFilters: Boolean = true,
+    compact: Boolean = false,
 ) {
+    var sourceAnchor by remember { mutableStateOf(androidx.compose.ui.unit.IntOffset.Zero) }
     Column(
         modifier
             .fillMaxWidth()
@@ -684,7 +689,7 @@ private fun Header(
                 // The top padding, as a layout pass: `padding()` takes a Dp,
                 // which would have to be computed while composing.
                 .layout { measurable, constraints ->
-                    val top = lerp(18.dp, 2.dp, collapse()).roundToPx()
+                    val top = lerp(if (compact) 8.dp else 18.dp, 2.dp, collapse()).roundToPx()
                     val placeable = measurable.measure(constraints)
                     layout(placeable.width, placeable.height + top) {
                         placeable.place(0, top)
@@ -708,9 +713,13 @@ private fun Header(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .thorFocus().clickable(
-                            onClickLabel = stringResource(if (service == R.string.backend_spotify) R.string.backend_youtube else R.string.backend_spotify),
-                            onClick = onSwitchSource,
+                            onClickLabel = stringResource(R.string.local_switch_source),
+                            onClick = { onSwitchSource(sourceAnchor) },
                         )
+                        .onGloballyPositioned { coordinates ->
+                            val bounds = coordinates.boundsInRoot()
+                            sourceAnchor = androidx.compose.ui.unit.IntOffset(bounds.left.toInt(), bounds.bottom.toInt())
+                        }
                         .layout { measurable, constraints ->
                             val placeable = measurable.measure(constraints)
                             val height = ((1f - collapse()) * placeable.height).toInt()
@@ -757,11 +766,11 @@ private fun Header(
                     // Larger than the bare mark was: the glass around it is
                     // part of the shape now, and the drawing inside has to stay
                     // the size it was to read at a glance.
-                    iconSize = 44.dp,
-                    nameHeight = 22.dp,
+                    iconSize = if (compact) 32.dp else 44.dp,
+                    nameHeight = if (compact) 18.dp else 22.dp,
                     plate = backdrop,
                     modifier = Modifier
-                        .padding(top = 4.dp)
+                        .padding(top = if (compact) 2.dp else 4.dp)
                         .graphicsLayer {
                             val scale = 1f - 0.22f * collapse()
                             scaleX = scale
@@ -798,7 +807,7 @@ private fun Header(
                     // Measured from the scroll rather than sized in
                     // composition; see the note on `collapse`.
                     .layout { measurable, _ ->
-                        val side = lerp(46.dp, 36.dp, collapse()).roundToPx()
+                        val side = lerp(if (compact) 36.dp else 46.dp, 36.dp, collapse()).roundToPx()
                         val placeable = measurable.measure(Constraints.fixed(side, side))
                         layout(side, side) { placeable.place(0, 0) }
                     }
@@ -811,7 +820,7 @@ private fun Header(
 
         // The chips carry the header's bottom margin with them; without them
         // the list would start against the app's own name.
-        if (showFilters) FilterRow(highlighted, chips, backdrop, onFilter) else Spacer(Modifier.height(16.dp))
+        if (showFilters) FilterRow(highlighted, chips, backdrop, onFilter) else Spacer(Modifier.height(if (compact) 6.dp else 16.dp))
     }
 }
 
@@ -921,7 +930,7 @@ private const val ARTIST_COLUMNS = 3
  * horizontal row has no column to take its width from.
  */
 @Composable
-private fun ArtistCell(artist: SearchItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun ArtistCell(artist: SearchItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Column(
         modifier.pressable(onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -949,10 +958,10 @@ private fun ArtistCell(artist: SearchItem, modifier: Modifier = Modifier, onClic
 
 /** Round, because that is how every music app has drawn an artist for a decade. */
 @Composable
-private fun ArtistTile(artist: SearchItem, onClick: () -> Unit) {
+internal fun ArtistTile(artist: SearchItem, tileSize: Dp = 110.dp, onClick: () -> Unit) {
     Column(
         Modifier
-            .width(110.dp)
+            .width(tileSize)
             .pressable(onClick, focusShape = CircleShape, squareFocus = true),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -960,10 +969,10 @@ private fun ArtistTile(artist: SearchItem, onClick: () -> Unit) {
             url = artist.artworkUrl,
             title = artist.title,
             modifier = Modifier
-                .size(110.dp)
+                .size(tileSize)
                 .softShadow(CircleShape, elevation = 14.dp),
-            corner = 55.dp,
-            decodeSize = 110.dp,
+            corner = tileSize / 2,
+            decodeSize = tileSize,
         )
         Text(
             artist.title,
@@ -977,20 +986,20 @@ private fun ArtistTile(artist: SearchItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PlaylistTile(playlist: CatalogPlaylist, onClick: () -> Unit) {
+internal fun PlaylistTile(playlist: CatalogPlaylist, tileSize: Dp = 152.dp, onClick: () -> Unit) {
     // A portrait among covers: the one shape difference a shelf of people
     // needs, and the reason an artist row reads as people at a glance.
-    val corner = if (playlist.isArtist) 76.dp else 20.dp
+    val corner = if (playlist.isArtist) tileSize / 2 else 20.dp
     Column(
         Modifier
-            .width(152.dp)
+            .width(tileSize)
             .pressable(onClick, focusShape = RoundedCornerShape(corner), squareFocus = true, focusPriority = 10),
     ) {
         Artwork(
             url = playlist.artworkUrl,
             title = playlist.name,
             modifier = Modifier
-                .size(152.dp)
+                .size(tileSize)
                 .softShadow(RoundedCornerShape(corner), elevation = 18.dp),
             corner = corner,
         )
@@ -1017,19 +1026,19 @@ private fun PlaylistTile(playlist: CatalogPlaylist, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TrackTile(track: CatalogTrack, onClick: () -> Unit) {
+internal fun TrackTile(track: CatalogTrack, tileSize: Dp = 128.dp, onClick: () -> Unit) {
     Column(
         // No clip on the column: it would cut off the artwork's drop shadow,
         // which spreads wider than the tile itself.
         Modifier
-            .width(128.dp)
+            .width(tileSize)
             .pressable(onClick),
     ) {
         Artwork(
             url = track.artworkUrl,
             title = track.name,
             modifier = Modifier
-                .size(128.dp)
+                .size(tileSize)
                 .softShadow(RoundedCornerShape(18.dp), elevation = 14.dp),
             corner = 18.dp,
             decodeSize = 128.dp,
@@ -1175,8 +1184,10 @@ private fun <T> Carousel(
 }
 
 @Composable
-private fun Heading(text: String, strapline: String? = null) {
-    Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 30.dp)) {
+internal fun Heading(text: String, strapline: String? = null, onClick: (() -> Unit)? = null, compact: Boolean = false) {
+    Column(Modifier.fillMaxWidth()
+        .then(if (onClick != null) Modifier.pressable(onClick) else Modifier)
+        .padding(start = 24.dp, end = 24.dp, top = if (compact) { if (dev.lelonio.square.ui.local.LocalLayoutPolicy.forWindow(LocalConfiguration.current.screenWidthDp, LocalConfiguration.current.screenHeightDp).compact) 4.dp else 12.dp } else 30.dp)) {
         // Above the title, smaller and quieter, the way the service writes it:
         // "MIX", "START RADIO FROM A SONG", an artist's name. It is most of
         // what tells two shelves with the same title apart.
@@ -1190,7 +1201,14 @@ private fun Heading(text: String, strapline: String? = null) {
                 modifier = Modifier.padding(bottom = 2.dp),
             )
         }
-        Text(text, style = MaterialTheme.typography.headlineLarge)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineLarge,
+                modifier = Modifier.weight(1f))
+            if (onClick != null) Text(stringResource(R.string.local_see_all), style = MaterialTheme.typography.labelLarge, color = InkDim,
+                modifier = Modifier.padding(start = 12.dp,
+                    top = if (compact && dev.lelonio.square.ui.local.LocalLayoutPolicy.forWindow(LocalConfiguration.current.screenWidthDp, LocalConfiguration.current.screenHeightDp).compact) 6.dp else 12.dp,
+                    bottom = if (compact && dev.lelonio.square.ui.local.LocalLayoutPolicy.forWindow(LocalConfiguration.current.screenWidthDp, LocalConfiguration.current.screenHeightDp).compact) 6.dp else 12.dp))
+        }
     }
 }
 
@@ -1324,7 +1342,7 @@ private fun YouTubeHome(
     onPlayTrending: (List<CatalogTrack>, Int) -> Unit,
     onOpenPlaylist: (CatalogPlaylist) -> Unit,
     onOpenSettings: () -> Unit,
-    onSwitchSource: () -> Unit,
+    onSwitchSource: (androidx.compose.ui.unit.IntOffset) -> Unit,
     onPickChip: (dev.lelonio.square.backend.HomeChip?) -> Unit,
     onLoadMore: () -> Unit,
     signedIn: Boolean,
@@ -1600,7 +1618,7 @@ private fun YouTubeHeader(
     backdrop: Backdrop,
     collapse: () -> Float,
     onOpenSettings: () -> Unit,
-    onSwitchSource: () -> Unit,
+    onSwitchSource: (androidx.compose.ui.unit.IntOffset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Header(
@@ -1716,3 +1734,14 @@ private const val QUICK_PICK_MINIMUM = 8
 
 /** How deep that block goes before it starts a new column. */
 private const val QUICK_PICK_ROWS = 4
+
+/** Local browsing uses the original service header and its original source control. */
+@Composable
+internal fun LocalMusicHeader(contentPadding: PaddingValues, backdrop: Backdrop, onSwitchSource: (androidx.compose.ui.unit.IntOffset) -> Unit, onOpenSettings: () -> Unit) {
+    Header(name = "", avatarUrl = null, service = R.string.backend_local,
+        serviceIcon = PhosphorIcons.Regular.MusicNotes,
+        onSwitchSource = onSwitchSource, collapse = { 0f }, highlighted = Feed.entries.first(),
+        backdrop = backdrop, topPadding = contentPadding.calculateTopPadding(), onFilter = {},
+        showFilters = false, onOpenSettings = onOpenSettings,
+        compact = dev.lelonio.square.ui.local.LocalLayoutPolicy.forWindow(LocalConfiguration.current.screenWidthDp, LocalConfiguration.current.screenHeightDp).compact)
+}

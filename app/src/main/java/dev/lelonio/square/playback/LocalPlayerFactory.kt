@@ -35,7 +35,9 @@ object LocalPlayerFactory {
                     ResolvingDataSource.Resolver { spec ->
                         val uri = spec.uri.toString()
                         if (LocalLibrary.isLocal(uri)) {
-                            spec.buildUpon().setUri(LocalLibrary.contentUri(uri)).build()
+                            val app = host.context.applicationContext as dev.lelonio.square.SquareApplication
+                            val content = kotlinx.coroutines.runBlocking { app.localMusic.playableUri(uri) }
+                            spec.buildUpon().setUri(content ?: LocalLibrary.contentUri(uri)).build()
                         } else {
                             spec
                         }

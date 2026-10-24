@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.lelonio.square.visualsmoke">
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
+    <application android:label="SquareDS temporary visual checks" android:debuggable="true" />
+    <instrumentation android:name="dev.lelonio.square.visualsmoke.VisualSmoke" android:targetPackage="dev.lelonio.square" />
+    <instrumentation android:name="dev.lelonio.square.visualsmoke.LibrarySmoke" android:targetPackage="dev.lelonio.square" />
+</manifest>

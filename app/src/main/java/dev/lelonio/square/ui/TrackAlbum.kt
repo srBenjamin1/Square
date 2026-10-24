@@ -6,14 +6,13 @@ import dev.lelonio.square.data.CatalogTrack
 import dev.lelonio.square.data.MetadataDestination
 import kotlinx.coroutines.CancellationException
 
-private fun albumDestination(track: CatalogTrack, album: CatalogPlaylist) = MetadataDestination.create(
+private fun albumDestination(track: CatalogTrack, album: CatalogPlaylist) = MetadataDestination.forTrack(
     MetadataDestination.Type.ALBUM, album.uri, album.name,
-    MetadataDestination.serviceOfTrack(track.uri), album.artworkUrl,
+    track.uri, album.artworkUrl,
 )
 
 internal fun canOpenAlbum(track: CatalogTrack): Boolean =
-    MetadataDestination.create(MetadataDestination.Type.ALBUM, track.albumUri, track.album,
-        MetadataDestination.serviceOfTrack(track.uri)) != null ||
+    MetadataDestination.forTrack(MetadataDestination.Type.ALBUM, track.albumUri, track.album, track.uri) != null ||
         MetadataDestination.serviceOfTrack(track.uri) == BackendId.SPOTIFY
 
 internal suspend fun trackAlbum(track: CatalogTrack, lookup: suspend (String) -> CatalogPlaylist?): CatalogPlaylist? {

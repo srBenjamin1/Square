@@ -601,8 +601,14 @@ class MediaBrowseTree(
         mediaSession: MediaSession,
         controller: MediaSession.ControllerInfo,
         mediaItems: MutableList<MediaItem>,
-    ): ListenableFuture<MutableList<MediaItem>> =
-        Futures.immediateFuture(mediaItems.map(::stripBrowseId).toMutableList())
+    ): ListenableFuture<MutableList<MediaItem>> = scope.future {
+        val current = mediaSession.player.currentMediaItem?.mediaId
+        val items = mediaItems.map(::stripBrowseId)
+        val first = current ?: items.firstOrNull()?.mediaId
+        val compatible = items.filter { dev.lelonio.square.data.local.LocalQueuePolicy.canAppend(first, it.mediaId) }
+        if (current == null && compatible.isNotEmpty()) ensurePlayerFor(compatible.first().mediaId)
+        compatible.toMutableList()
+    }
 
     /** Turns a browse id back into the plain Spotify URI [PlayQueue] insists on. */
     private fun stripBrowseId(item: MediaItem): MediaItem {

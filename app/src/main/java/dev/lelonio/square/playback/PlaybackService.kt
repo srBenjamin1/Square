@@ -359,7 +359,9 @@ class PlaybackService : MediaLibraryService() {
         quality = container.quality
         crossfade = container.crossfade
 
-        player = buildPlayer(container.preferences.backend.value)
+        player = if (container.preferences.source.value == dev.lelonio.square.data.MusicSource.LOCAL) {
+            buildPlayer(PlayerKind.LOCAL)
+        } else buildPlayer(container.preferences.backend.value)
         startListeningRecorder()
         startWidgetUpdates()
         browseTree = MediaBrowseTree(this, scope, ::ensurePlayerFor, ::resumption)
@@ -624,6 +626,16 @@ class PlaybackService : MediaLibraryService() {
             container.preferences.backend.drop(1).collect(::switchBackend)
         }
 
+        scope.launch {
+            container.preferences.source.drop(1).collect { source ->
+                // A cold local start deliberately has no Spotify engine. If Spotify
+                // is selected later, its existing player must initialize the catalog.
+                if (dev.lelonio.square.data.local.LocalSourcePlaybackPolicy.needsSpotifyPlayer(
+                        source, playerKind == PlayerKind.LOCAL, parkedSpotify != null)) {
+                    swapPlayer(PlayerKind.SPOTIFY, restore = false)
+                }
+            }
+        }
         startSpotifyEngineIfActive()
     }
 
@@ -982,11 +994,16 @@ class PlaybackService : MediaLibraryService() {
      * so the player behind it can be replaced.
      */
     private fun switchBackend(backendId: dev.lelonio.square.backend.BackendId) = scope.launch {
-        swapPlayer(kindFor(backendId))
+        // Browsing a remote catalog must not replace a local queue. A remote play
+        // request already selects its player through ensurePlayerFor.
+        val wanted = kindFor(backendId)
+        if (playerKind == PlayerKind.LOCAL || playerKind == wanted) return@launch
+        swapPlayer(wanted)
     }
 
     /** The swap itself; see [switchBackend] and [ensurePlayerFor]. */
     private suspend fun swapPlayer(kind: PlayerKind, restore: Boolean = true) {
+        val localModes = if (kind == PlayerKind.LOCAL) player.shuffleModeEnabled to player.repeatMode else null
         // Only a player with something in it has anything to save, and saving
         // an empty one does not write nothing: it clears the store. At startup
         // the player being swapped away from is the one just built, empty, so
@@ -1034,6 +1051,7 @@ class PlaybackService : MediaLibraryService() {
             librespot = null
             playerKind = kind
             player = buildPlayer(kind)
+            localModes?.let { (shuffle, repeat) -> player.shuffleModeEnabled = shuffle; player.repeatMode = repeat }
             player.addListener(buttonsListener)
             session?.player = player
             redrawButtons()
@@ -1089,6 +1107,7 @@ class PlaybackService : MediaLibraryService() {
         dev.lelonio.square.backend.youtube.YouTubeVideoMode.reset()
 
         player = buildPlayer(kind)
+        localModes?.let { (shuffle, repeat) -> player.shuffleModeEnabled = shuffle; player.repeatMode = repeat }
         player.addListener(buttonsListener)
         session?.player = player
         redrawButtons()
@@ -1737,9 +1756,11 @@ class PlaybackService : MediaLibraryService() {
                 while (true) {
                     // Filed under the source it was played from: Spotify's
                     // account, or YouTube Music's history on this phone.
-                    val source = when (container.preferences.backend.value) {
-                        dev.lelonio.square.backend.BackendId.SPOTIFY -> dev.lelonio.square.data.ListeningStore.Source.SPOTIFY
-                        dev.lelonio.square.backend.BackendId.YOUTUBE_MUSIC -> dev.lelonio.square.data.ListeningStore.Source.YOUTUBE_MUSIC
+                    val item = player.currentMediaItem
+                    val source = when {
+                        item?.mediaId?.startsWith("local:track:") == true -> dev.lelonio.square.data.ListeningStore.Source.LOCAL
+                        item?.mediaId?.startsWith("ytmusic:") == true -> dev.lelonio.square.data.ListeningStore.Source.YOUTUBE_MUSIC
+                        else -> dev.lelonio.square.data.ListeningStore.Source.SPOTIFY
                     }
                     val account = container.listeningStore.ownerOf(source)
                     if (account != owner) { sampler.reset(); owner = account }
@@ -1749,7 +1770,6 @@ class PlaybackService : MediaLibraryService() {
                         player.addListener(listener)
                     }
                     val remote = (player as? LibrespotPlayer)?.isRemotePlayback == true
-                    val item = player.currentMediaItem
                     val metadata = item?.mediaMetadata
                     val track = if (!remote && account != null && item != null &&
                         !metadata?.title.isNullOrBlank()) CatalogTrack(
@@ -1763,7 +1783,8 @@ class PlaybackService : MediaLibraryService() {
                         artworkUrl = metadata?.artworkUri?.toString(),
                     ) else null
                     val tick = android.os.SystemClock.elapsedRealtime()
-                    val event = sampler.sample(track, player.isPlaying && !remote, System.currentTimeMillis(), tick)
+                    val event = sampler.sample(track, player.isPlaying && !remote, System.currentTimeMillis(), tick,
+                        metadata?.extras?.getString(dev.lelonio.square.ui.EXTRA_CONTEXT_URI))
                     if (event != null && (tick - lastSaved >= 10_000 || previouslyPlaying != player.isPlaying || event.track.uri != track?.uri)) {
                         account?.let { container.listeningStore.record(event, it) }
                         lastSaved = tick

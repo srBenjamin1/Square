@@ -19,6 +19,8 @@ import dev.lelonio.square.thor.input.thorVerticalScroll as verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import com.adamglin.phosphoricons.Regular
+import com.adamglin.phosphoricons.regular.MusicNotes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +59,7 @@ import dev.lelonio.square.ui.theme.InkDim
  * lower down, where the thumb is.
  */
 @Composable
-fun BackendChoiceScreen(onChoose: (BackendId) -> Unit) {
+fun BackendChoiceScreen(onChoose: (dev.lelonio.square.data.MusicSource) -> Unit) {
     SetupScaffold(top = {}) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             // At least the height of the page, so the question and the answers
@@ -93,14 +95,21 @@ fun BackendChoiceScreen(onChoose: (BackendId) -> Unit) {
                         title = stringResource(R.string.backend_spotify),
                         description = stringResource(R.string.backend_choice_spotify_note),
                         needs = stringResource(R.string.backend_choice_spotify_needs),
-                        onClick = { onChoose(BackendId.SPOTIFY) },
+                        onClick = { onChoose(dev.lelonio.square.data.MusicSource.SPOTIFY) },
                     )
                     SourceCard(
                         logo = PhosphorIcons.Fill.YoutubeLogo,
                         title = stringResource(R.string.backend_youtube),
                         description = stringResource(R.string.backend_choice_youtube_note),
                         needs = stringResource(R.string.backend_choice_youtube_needs),
-                        onClick = { onChoose(BackendId.YOUTUBE_MUSIC) },
+                        onClick = { onChoose(dev.lelonio.square.data.MusicSource.YOUTUBE_MUSIC) },
+                    )
+                    SourceCard(
+                        logo = PhosphorIcons.Regular.MusicNotes,
+                        title = stringResource(R.string.backend_local),
+                        description = stringResource(R.string.local_source_description),
+                        needs = stringResource(R.string.local_source_permission_note),
+                        onClick = { onChoose(dev.lelonio.square.data.MusicSource.LOCAL) },
                     )
                 }
             }

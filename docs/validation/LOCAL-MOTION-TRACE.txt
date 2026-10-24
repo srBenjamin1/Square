@@ -1,0 +1,71 @@
+10-24 00:44:05.709  6943  6943 D SquareDSLocalVisual: stage=BLOCKED_VISUAL_MODE key=af1d620
+10-24 00:44:07.223  6943  6943 D SquareDSLocalVisual: stage=BLOCKED_VISUAL_MODE key=af1d620
+10-24 00:44:13.157  6943  6943 D SquareDSLocalVisual: stage=METADATA_READY key=af1d620
+10-24 00:44:14.892  6943  6943 D SquareDSLocalVisual: stage=SEARCH_RESULTS key=af1d620 count=25
+10-24 00:44:15.050  6943  6943 D SquareDSLocalVisual: stage=ALBUM_IDENTIFIED key=af1d620 count=1
+10-24 00:44:15.051  6943  6943 D SquareDSLocalVisual: stage=NO_MOTION key=af1d620
+10-24 00:47:09.825  8274  8274 D SquareDSLocalVisual: stage=CACHE_HIT key=af1d620
+10-24 00:47:09.984  8274  8274 D SquareDSLocalVisual: stage=CACHE_HIT key=af1d620
+10-24 00:47:11.257  8274  8274 D SquareDSLocalVisual: stage=CACHE_HIT key=af1d620
+10-24 00:47:49.048  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d623
+10-24 00:47:49.048  8274  8274 D SquareDSLocalVisual: stage=SEARCH_RESULTS key=af1d623 count=25
+10-24 00:47:50.547  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d623
+10-24 00:47:50.548  8274  8274 D SquareDSLocalVisual: stage=SEARCH_RESULTS key=af1d623 count=25
+10-24 00:47:50.605  8274  8274 D SquareDSLocalVisual: stage=VIDEO_METADATA key=af1d623 count=4
+10-24 00:47:50.781  8274  8274 D SquareDSLocalVisual: stage=VIDEO_METADATA key=af1d623 count=4
+10-24 00:47:55.029  8274  8274 D SquareDSLocalVisual: stage=VIDEO_METADATA key=af1d623 count=4
+10-24 00:47:55.854  8274  8274 D SquareDSLocalVisual: stage=VIDEO_METADATA key=af1d623 count=4
+10-24 00:47:55.854  8274  8274 D SquareDSLocalVisual: stage=ALBUM_IDENTIFIED key=af1d623 count=4
+10-24 00:47:55.854  8274  8274 D SquareDSLocalVisual: stage=AMBIGUOUS key=af1d623
+10-24 00:49:21.273  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d624
+10-24 00:49:22.773  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d624
+10-24 00:49:23.616  8274  8274 D SquareDSLocalVisual: stage=SEARCH_RESULTS key=af1d624 count=25
+10-24 00:49:23.781  8274  8274 D SquareDSLocalVisual: stage=VIDEO_METADATA key=af1d624 count=4
+10-24 00:49:23.782  8274  8274 D SquareDSLocalVisual: stage=ALBUM_IDENTIFIED key=af1d624 count=1
+10-24 00:49:23.782  8274  8274 D SquareDSLocalVisual: stage=MOTION_AVAILABLE key=af1d624
+10-24 00:49:29.159  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=ed1d4c50
+10-24 00:52:24.676  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d65f
+10-24 00:52:25.136  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d65f
+10-24 00:52:27.562  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d65e
+10-24 00:52:27.922  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d65e
+10-24 00:52:30.542  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d65d
+10-24 00:52:31.054  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d65d
+10-24 00:52:33.511  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d65c
+10-24 00:52:33.949  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d65c
+10-24 00:52:36.576  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d65b
+10-24 00:52:36.960  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d65b
+10-24 00:52:39.503  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d65a
+10-24 00:52:39.912  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d65a
+10-24 00:52:42.570  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d659
+10-24 00:52:42.969  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d659
+10-24 00:52:45.537  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d643
+10-24 00:52:45.951  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d643
+10-24 00:52:48.541  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d642
+10-24 00:52:48.809  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d642
+10-24 00:52:51.453  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d641
+10-24 00:52:51.848  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d641
+10-24 00:52:54.478  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d640
+10-24 00:52:54.873  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d640
+10-24 00:52:57.539  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d63f
+10-24 00:52:57.941  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d63f
+10-24 00:53:00.552  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d63e
+10-24 00:53:01.054  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d63e
+10-24 00:53:03.554  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d63d
+10-24 00:53:04.070  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d63d
+10-24 00:53:06.571  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d63c
+10-24 00:53:06.904  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d63c
+10-24 00:53:09.520  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d63b
+10-24 00:53:09.825  8274  8274 D SquareDSLocalVisual: stage=LOAD_ERROR key=af1d63b
+10-24 00:53:12.544  8274  8274 D SquareDSLocalVisual: stage=METADATA_READY key=af1d63a
+10-24 00:53:13.341  8274  8274 D SquareDSLocalVisual: stage=SEARCH_RESULTS key=af1d63a count=25
+10-24 00:53:13.722  8274  8274 D SquareDSLocalVisual: stage=VIDEO_METADATA key=af1d63a count=4
+10-24 00:53:14.155  8274  8274 D SquareDSLocalVisual: stage=VIDEO_METADATA key=af1d63a count=4
+10-24 00:53:14.156  8274  8274 D SquareDSLocalVisual: stage=ALBUM_IDENTIFIED key=af1d63a count=2
+10-24 00:53:14.157  8274  8274 D SquareDSLocalVisual: stage=AMBIGUOUS key=af1d63a
+10-24 00:53:42.773  9161  9161 D SquareDSLocalVisual: stage=CACHE_HIT key=af1d63a
+10-24 00:53:45.409  9161  9161 D SquareDSLocalVisual: stage=CACHE_HIT key=af1d63a
+10-24 00:56:19.128  9424  9424 D SquareDSLocalVisual: stage=CACHE_HIT key=af1d63a
+10-24 00:56:21.098  9424  9424 D SquareDSLocalVisual: stage=CACHE_HIT key=af1d63a
+10-24 00:57:36.028  9608  9608 D SquareDSLocalVisual: stage=CACHE_HIT key=af1d63a
+10-24 00:57:36.071  9608  9608 D SquareDSLocalVisual: stage=BLOCKED_VISUAL_MODE key=af1d63a
+10-24 00:57:38.008  9608  9608 D SquareDSLocalVisual: stage=CACHE_HIT key=af1d63a

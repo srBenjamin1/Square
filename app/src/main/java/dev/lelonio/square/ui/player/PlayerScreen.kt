@@ -525,7 +525,8 @@ fun PlayerScreen(
     }
     var panel by remember(initialPanel) { mutableStateOf(initialPanel) }
     // The official SDK mixes its own audio: no effects or karaoke reach it.
-    val sdkPlayback by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse.collectAsStateWithLifecycle()
+    val sdkConfigured by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse.collectAsStateWithLifecycle()
+    val sdkPlayback = dev.lelonio.square.data.local.LocalSourcePlaybackPolicy.sdkRestrictions(sdkConfigured, state.mediaId)
     LaunchedEffect(sdkPlayback) {
         if (sdkPlayback && panel == PlayerPanel.EFFECTS) panel = PlayerPanel.NONE
     }
@@ -1737,9 +1738,9 @@ fun PlayerScreen(
                                         artistUri = metadataState.artistUri, album = metadataState.album, albumUri = metadataState.albumUri),
                                     Modifier.weight(1f),
                                     onOpenArtist = { uri, name ->
-                                        dev.lelonio.square.data.MetadataDestination.create(
+                                        dev.lelonio.square.data.MetadataDestination.forTrack(
                                             dev.lelonio.square.data.MetadataDestination.Type.ARTIST, uri, name,
-                                            dev.lelonio.square.data.MetadataDestination.serviceOfTrack(state.mediaId),
+                                            state.mediaId,
                                         )?.let { destination -> onOpenMetadata?.invoke(destination) }
                                     },
                                     onOpenAlbum = onOpenAlbum,
@@ -3032,8 +3033,9 @@ private fun LyricsStage(
         }
 
         // Not over the official SDK, whose audio never passes through the effect.
-        val sdkPlayback by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse
+        val sdkConfigured by dev.lelonio.square.playback.websdk.WebSdkRecovery.inUse
             .collectAsStateWithLifecycle()
+        val sdkPlayback = dev.lelonio.square.data.local.LocalSourcePlaybackPolicy.sdkRestrictions(sdkConfigured, query?.uri)
         if (!sdkPlayback && !optionsOpen) KaraokeDial(
             amount = karaoke,
             onChange = dev.lelonio.square.playback.AudioEffects::setKaraoke,

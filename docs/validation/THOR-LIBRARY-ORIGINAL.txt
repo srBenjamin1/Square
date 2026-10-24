@@ -1,0 +1,28 @@
+10-24 01:17:44.797 14105 14105 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:17:44.797 14105 14105 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:17:52.831 15923 15923 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:17:52.831 15923 15923 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:18:03.324 16105 16105 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:18:03.324 16105 16105 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:18:14.892 16256 16256 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:18:14.892 16256 16256 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:18:20.841 16410 16410 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:18:20.841 16410 16410 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:19:18.891 16668 16668 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:19:18.891 16668 16668 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:20:03.775 16908 16908 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:20:03.775 16908 16908 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:20:11.284 17146 17146 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:20:11.284 17146 17146 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:20:18.901 17299 17299 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:20:18.901 17299 17299 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:20:30.912 17518 17518 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:20:30.912 17518 17518 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:21:37.694 17779 17779 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:21:37.694 17779 17779 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:22:40.538 19059 19059 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:22:40.538 19059 19059 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:22:54.185 19312 19312 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:22:54.185 19312 19312 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)
+10-24 01:23:12.944 19580 19580 E AndroidRuntime: java.lang.IllegalArgumentException: Navigation destination that matches route library cannot be found in the navigation graph ComposeNavGraph(0x0) startDestination={Destination(0x78d845ec) route=home}
+10-24 01:23:12.944 19580 19580 E AndroidRuntime: 	at dev.lelonio.square.ui.SquareAppKt.switchTab(SquareApp.kt:4566)

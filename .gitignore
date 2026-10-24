@@ -32,3 +32,7 @@ keystore.properties
 # named: a capture saved as .txt is still a capture.
 *.har
 *.har.txt
+
+# Local agent instructions and generated architecture graph
+AGENTS.md
+graphify-out/

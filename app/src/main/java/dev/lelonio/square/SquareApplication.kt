@@ -250,12 +250,24 @@ class SquareApplication : Application(), ImageLoaderFactory {
             .build()
     }
 
+    val localMusic: dev.lelonio.square.data.local.LocalMusicRepository by lazy {
+        dev.lelonio.square.data.local.LocalMusicRepository(this)
+    }
+    val localArtwork: dev.lelonio.square.data.local.LocalArtworkRepository by lazy {
+        dev.lelonio.square.data.local.LocalArtworkRepository(this, localMusic)
+    }
+
+    val localVisuals: dev.lelonio.square.data.local.LocalVisualResolver by lazy {
+        dev.lelonio.square.data.local.LocalVisualResolver(localMusic, localArtwork, preferences, sharedHttpClient)
+    }
+
     override fun newImageLoader(): ImageLoader {
         val am = getSystemService(android.app.ActivityManager::class.java)
         val isLowRam = am?.isLowRamDevice ?: false
         val memoryCachePercent = if (isLowRam) 0.12 else 0.20
 
         return ImageLoader.Builder(this)
+            .components { add(localArtwork.factory) }
             .okHttpClient { sharedHttpClient }
             .memoryCache {
                 MemoryCache.Builder(this)

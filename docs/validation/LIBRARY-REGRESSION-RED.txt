@@ -1,0 +1,6 @@
+Ejecutado contra SquareApp anterior a la corrección:
+LibraryNavigationRegistrationTest > localLibraryIsRegisteredIndependentlyOfSearchAndItsData FAILED
+LibraryNavigationRegistrationTest > spotifyLibraryIsRegisteredIndependentlyOfSearchAndItsData FAILED
+LibraryNavigationRegistrationTest > youtubeLibraryIsRegisteredIndependentlyOfSearchAndItsData FAILED
+LibraryNavigationRegistrationTest > noDestinationIsDeclaredInsideAnotherDestinationContent FAILED
+4 tests completed, 4 failed

@@ -115,6 +115,10 @@ class ThorActivity : ComponentActivity() {
 
     private fun enqueueTrack(track: CatalogTrack) {
         val target = controller ?: return
+        if (!dev.lelonio.square.data.local.LocalQueuePolicy.canAppend(target.currentMediaItem?.mediaId, track.uri)) {
+            android.widget.Toast.makeText(this, getString(dev.lelonio.square.R.string.local_no_mixed_queue), android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         target.addMediaItem(
             MediaItem.Builder()
                 .setMediaId(track.uri)
